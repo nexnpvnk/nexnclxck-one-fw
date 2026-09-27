@@ -1,0 +1,108 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Configure: Debug",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--preset",
+                "debug"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "hide": true
+                }
+            }
+        },
+        
+        {
+            "label": "Build: Debug",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "--preset",
+                "debug"
+            ],
+            "dependsOn": [
+                "Configure: Debug"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        
+        {
+            "label": "Flash",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "--preset",
+                "debug",
+                "--target",
+                "flash"
+            ],
+            "dependsOn": [
+                "Configure: Debug"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "label": "$(cloud-upload) Flash",
+                    "detail": "Build and flash firmware"
+                }
+            }
+        },
+        {
+            "label": "Erase",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "--preset",
+                "debug",
+                "--target",
+                "erase"
+            ],
+            "dependsOn": [
+                "Configure: Debug"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "label": "$(trash) Erase",
+                    "detail": "Erase MCU flash"
+                }
+            }
+        },
+        {
+            "label": "Reset",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "--preset",
+                "debug",
+                "--target",
+                "reset"
+            ],
+            "dependsOn": [
+                "Configure: Debug"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "label": "$(debug-restart) Reset",
+                    "detail": "Reset target"
+                }
+            }
+        }
+    ]
+}

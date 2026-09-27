@@ -1,0 +1,17 @@
+{
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": true,
+    "cmake.buildBeforeRun": false,
+
+    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+
+    "files.watcherExclude": {
+        "**/build/**": true
+    },
+
+    "search.exclude": {
+        "**/build/**": true
+    }
+}
