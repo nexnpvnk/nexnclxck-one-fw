@@ -5,7 +5,12 @@
 
     "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
 
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "[c]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    },
 
     "files.watcherExclude": {
         "**/build/**": true

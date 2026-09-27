@@ -7,15 +7,11 @@
 /out/
 
 *.elf
-*.hex
-*.bin
 *.map
 *.lst
 
 *.o
 *.obj
-*.a
-*.lib
 *.d
 *.dep
 

@@ -16,7 +16,6 @@
                 }
             }
         },
-        
         {
             "label": "Build: Debug",
             "type": "process",
@@ -29,15 +28,23 @@
             "dependsOn": [
                 "Configure: Debug"
             ],
-            "problemMatcher": [
-                "$gcc"
-            ],
+            "problemMatcher": {
+                "owner": "gcc",
+                "fileLocation": "absolute",
+                "pattern": {
+                    "regexp": "^(.+?):(\\d+):(\\d+):\\s+(warning|error|fatal error|note):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            },
             "group": {
                 "kind": "build",
                 "isDefault": true
             }
         },
-        
         {
             "label": "Flash",
             "type": "process",
@@ -50,13 +57,13 @@
                 "flash"
             ],
             "dependsOn": [
-                "Configure: Debug"
+                "Build: Debug"
             ],
             "problemMatcher": [],
             "options": {
                 "statusbar": {
                     "label": "$(cloud-upload) Flash",
-                    "detail": "Build and flash firmware"
+                    "detail": "Build, verify and flash firmware"
                 }
             }
         },
