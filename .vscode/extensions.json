@@ -1,9 +1,7 @@
 {
     "recommendations": [
         "ms-vscode.cmake-tools",
-        "ms-vscode.cpptools",
-        "ms-vscode.cpptools-extension-pack",
-        "ms-vscode.hexeditor",
+        "llvm-vs-code-extensions.vscode-clangd",
         "marus25.cortex-debug",
         "actboy168.tasks",
         "cschlosser.doxdocgen"
