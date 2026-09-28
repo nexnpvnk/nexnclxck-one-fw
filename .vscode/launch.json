@@ -1,56 +1,39 @@
 {
     "version": "0.2.0",
-
     "configurations": [
         {
             "name": "Debug: Flash & Start",
             "type": "cortex-debug",
             "request": "launch",
-
             "servertype": "openocd",
-
             "cwd": "${workspaceFolder}",
             "executable": "${input:firmwareElf}",
-
             "gdbPath": "arm-none-eabi-gdb",
             "serverpath": "openocd",
-
             "configFiles": [
                 "${workspaceFolder}/debug/openocd/board.cfg"
             ],
-
             "svdFile": "${workspaceFolder}/debug/svd/STM32F0x1.svd",
-
             "runToEntryPoint": "main",
-
             "preLaunchTask": "Build",
-
             "showDevDebugOutput": "none"
         },
-
         {
             "name": "Debug: Attach",
             "type": "cortex-debug",
             "request": "attach",
-
             "servertype": "openocd",
-
             "cwd": "${workspaceFolder}",
             "executable": "${input:firmwareElf}",
-
             "gdbPath": "arm-none-eabi-gdb",
             "serverpath": "openocd",
-
             "configFiles": [
                 "${workspaceFolder}/debug/openocd/board.cfg"
             ],
-
             "svdFile": "${workspaceFolder}/debug/svd/STM32F0x1.svd",
-
             "showDevDebugOutput": "none"
         }
     ],
-
     "inputs": [
         {
             "id": "firmwareElf",

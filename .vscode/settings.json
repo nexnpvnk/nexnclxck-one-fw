@@ -2,20 +2,16 @@
     "cmake.useCMakePresets": "always",
     "cmake.configureOnOpen": true,
     "cmake.buildBeforeRun": false,
-
     "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
-
     "[c]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
     },
     "[cpp]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
     },
-
     "files.watcherExclude": {
         "**/build/**": true
     },
-
     "search.exclude": {
         "**/build/**": true
     }
