@@ -4,6 +4,7 @@
         "llvm-vs-code-extensions.vscode-clangd",
         "marus25.cortex-debug",
         "actboy168.tasks",
-        "cschlosser.doxdocgen"
+        "cschlosser.doxdocgen",
+        "editorconfig.editorconfig"
     ]
 }

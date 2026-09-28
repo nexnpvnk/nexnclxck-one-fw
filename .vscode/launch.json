@@ -23,7 +23,7 @@
 
             "runToEntryPoint": "main",
 
-            "preLaunchTask": "Build: Debug",
+            "preLaunchTask": "Build",
 
             "showDevDebugOutput": "none"
         },

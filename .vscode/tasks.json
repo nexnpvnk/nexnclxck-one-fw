@@ -2,12 +2,12 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Configure: Debug",
+            "label": "Configure",
             "type": "process",
             "command": "cmake",
             "args": [
                 "--preset",
-                "Debug"
+                "${command:cmake.activeConfigurePresetName}"
             ],
             "problemMatcher": [],
             "options": {
@@ -17,13 +17,13 @@
             }
         },
         {
-            "label": "Build: Debug",
+            "label": "Build",
             "type": "process",
             "command": "cmake",
             "args": [
                 "--build",
                 "--preset",
-                "Debug"
+                "${command:cmake.activeBuildPresetName}"
             ],
             "dependsOn": [
                 "Configure: Debug"
@@ -57,12 +57,12 @@
             "args": [
                 "--build",
                 "--preset",
-                "Debug",
+                "${command:cmake.activeBuildPresetName}",
                 "--target",
                 "flash"
             ],
             "dependsOn": [
-                "Build: Debug"
+                "Build"
             ],
             "problemMatcher": [],
             "options": {
@@ -79,12 +79,12 @@
             "args": [
                 "--build",
                 "--preset",
-                "Debug",
+                "${command:cmake.activeBuildPresetName}",
                 "--target",
                 "erase"
             ],
             "dependsOn": [
-                "Configure: Debug"
+                "Configure"
             ],
             "problemMatcher": [],
             "options": {
@@ -101,12 +101,12 @@
             "args": [
                 "--build",
                 "--preset",
-                "Debug",
+                "${command:cmake.activeBuildPresetName}",
                 "--target",
                 "reset"
             ],
             "dependsOn": [
-                "Configure: Debug"
+                "Configure"
             ],
             "problemMatcher": [],
             "options": {
