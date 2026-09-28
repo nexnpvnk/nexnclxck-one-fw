@@ -7,7 +7,7 @@
             "command": "cmake",
             "args": [
                 "--preset",
-                "debug"
+                "Debug"
             ],
             "problemMatcher": [],
             "options": {
@@ -23,7 +23,7 @@
             "args": [
                 "--build",
                 "--preset",
-                "debug"
+                "Debug"
             ],
             "dependsOn": [
                 "Configure: Debug"
@@ -43,6 +43,11 @@
             "group": {
                 "kind": "build",
                 "isDefault": true
+            },
+            "options": {
+                "statusbar": {
+                    "hide": true
+                }
             }
         },
         {
@@ -52,7 +57,7 @@
             "args": [
                 "--build",
                 "--preset",
-                "debug",
+                "Debug",
                 "--target",
                 "flash"
             ],
@@ -74,7 +79,7 @@
             "args": [
                 "--build",
                 "--preset",
-                "debug",
+                "Debug",
                 "--target",
                 "erase"
             ],
@@ -96,7 +101,7 @@
             "args": [
                 "--build",
                 "--preset",
-                "debug",
+                "Debug",
                 "--target",
                 "reset"
             ],

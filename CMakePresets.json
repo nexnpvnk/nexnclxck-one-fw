@@ -11,14 +11,14 @@
             }
         },
         {
-            "name": "debug",
+            "name": "Debug",
             "inherits": "default",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"
             }
         },
         {
-            "name": "release",
+            "name": "Release",
             "inherits": "default",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
@@ -27,12 +27,12 @@
     ],
     "buildPresets": [
         {
-            "name": "debug",
-            "configurePreset": "debug"
+            "name": "Debug",
+            "configurePreset": "Debug"
         },
         {
-            "name": "release",
-            "configurePreset": "release"
+            "name": "Release",
+            "configurePreset": "Release"
         }
     ]
 }
