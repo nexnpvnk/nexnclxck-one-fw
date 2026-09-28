@@ -99,6 +99,11 @@ void HAL_RTC_MspDeInit(RTC_HandleTypeDef* rtcHandle)
     /* Peripheral clock disable */
     __HAL_RCC_RTC_DISABLE();
 
+    /**RTC GPIO Configuration
+    PC13     ------> RTC_OUT_CALIB
+    */
+    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_13);
+
   /* USER CODE BEGIN RTC_MspDeInit 1 */
 
   /* USER CODE END RTC_MspDeInit 1 */
