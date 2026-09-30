@@ -3,6 +3,11 @@
     "cmake.configureOnOpen": true,
     "cmake.buildBeforeRun": false,
     "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+    "cmake.options.advanced": {
+        "launch": {
+            "statusBarVisibility": "hidden"
+        }
+    },
     "[c]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
     },

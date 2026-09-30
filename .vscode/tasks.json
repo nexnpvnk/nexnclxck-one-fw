@@ -46,6 +46,92 @@
             },
             "options": {
                 "statusbar": {
+                    "hide": true,
+                    "label": "$(tools) Build",
+                    "detail": "Build active CMake preset"
+                }
+            }
+        },
+        {
+            "label": "Clean",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "--preset",
+                "${command:cmake.activeBuildPresetName}",
+                "--target",
+                "clean"
+            ],
+            "dependsOn": [
+                "Configure"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "hide": true
+                }
+            }
+        },
+        {
+            "label": "Full Clean: Build Directory",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "-E",
+                "rm",
+                "-rf",
+                "${command:cmake.buildDirectory}"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "hide": true
+                }
+            }
+        },
+        {
+            "label": "Full Clean: Compile Commands",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "-E",
+                "rm",
+                "-f",
+                "${workspaceFolder}/compile_commands.json"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "hide": true
+                }
+            }
+        },
+        {
+            "label": "Full Clean",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Full Clean: Build Directory",
+                "Full Clean: Compile Commands"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
+                    "label": "$(trash) Full Clean",
+                    "detail": "Delete active CMake build directory and configuration"
+                }
+            }
+        },
+        {
+            "label": "Reconfigure",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Full Clean",
+                "Configure"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "statusbar": {
                     "hide": true
                 }
             }
@@ -89,7 +175,7 @@
             "problemMatcher": [],
             "options": {
                 "statusbar": {
-                    "label": "$(trash) Erase",
+                    "label": "$(flame) Erase",
                     "detail": "Erase MCU flash"
                 }
             }
