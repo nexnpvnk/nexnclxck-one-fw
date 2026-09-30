@@ -41,6 +41,11 @@ add_executable(${CMAKE_PROJECT_NAME})
 add_subdirectory(cmake/stm32cubemx)
 
 #
+# Board support
+#
+add_subdirectory(bsp)
+
+#
 # Application
 #
 add_subdirectory(app)
@@ -51,6 +56,7 @@ add_subdirectory(app)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     app
+    bsp
 )
 
 #
