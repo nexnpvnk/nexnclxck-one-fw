@@ -1,4 +1,4 @@
-add_library(bsp STATIC)
+add_library(bsp OBJECT)
 
 target_sources(bsp
     PRIVATE
