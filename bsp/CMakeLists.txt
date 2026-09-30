@@ -14,4 +14,5 @@ target_include_directories(bsp
 target_link_libraries(bsp
     PRIVATE
         stm32cubemx
+        lwrb
 )

@@ -41,6 +41,11 @@ add_executable(${CMAKE_PROJECT_NAME})
 add_subdirectory(cmake/stm32cubemx)
 
 #
+# Components
+#
+add_subdirectory(components/lwrb/lwrb)
+
+#
 # Board support
 #
 add_subdirectory(bsp)

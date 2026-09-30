@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+void bsp_console_init(void);
 int bsp_console_write(const void* data, size_t len);
 
 #ifdef __cplusplus

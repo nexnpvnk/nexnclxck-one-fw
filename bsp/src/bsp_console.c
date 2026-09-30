@@ -1,88 +1,71 @@
+#include "bsp_console.h"
+
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 
+#include "lwrb/lwrb.h"
 #include "usart.h"
 
 #define BSP_CONSOLE_TX_BUFFER_SIZE 512U
 
+static lwrb_t tx_rb;
 static uint8_t tx_buffer[BSP_CONSOLE_TX_BUFFER_SIZE];
 
-static volatile uint16_t tx_head;
-static volatile uint16_t tx_tail;
-static volatile uint16_t tx_dma_size;
+static volatile lwrb_sz_t tx_dma_len;
 static volatile bool tx_dma_active;
+static bool initialized;
 
 static void bsp_console_tx_start(void) {
-    uint16_t size;
+    const uint8_t* data;
+    lwrb_sz_t len;
 
-    if (tx_dma_active || tx_head == tx_tail) {
+    if (tx_dma_active) {
         return;
     }
 
-    if (tx_head > tx_tail) {
-        size = tx_head - tx_tail;
-    } else {
-        size = BSP_CONSOLE_TX_BUFFER_SIZE - tx_tail;
+    len = lwrb_get_linear_block_read_length(&tx_rb);
+
+    if (len == 0U) {
+        return;
     }
 
-    tx_dma_size = size;
+    data = lwrb_get_linear_block_read_address(&tx_rb);
+
+    tx_dma_len = len;
     tx_dma_active = true;
 
-    if (HAL_UART_Transmit_DMA(&huart1, &tx_buffer[tx_tail], size) != HAL_OK) {
-        tx_dma_size = 0U;
+    if (HAL_UART_Transmit_DMA(&huart1, data, (uint16_t)len) != HAL_OK) {
+        tx_dma_len = 0U;
         tx_dma_active = false;
     }
 }
 
-static size_t bsp_console_tx_free(void) {
-    if (tx_head >= tx_tail) {
-        return BSP_CONSOLE_TX_BUFFER_SIZE - (tx_head - tx_tail) - 1U;
-    }
+void bsp_console_init(void) {
+    lwrb_init(&tx_rb, tx_buffer, sizeof(tx_buffer));
 
-    return tx_tail - tx_head - 1U;
+    tx_dma_len = 0U;
+    tx_dma_active = false;
+    initialized = true;
 }
 
 int bsp_console_write(const void* data, size_t len) {
-    const uint8_t* src = data;
+    lwrb_sz_t written;
     uint32_t primask;
-    size_t first;
-    size_t free;
 
-    if (data == NULL || len == 0U) {
+    if (!initialized || data == NULL) {
+        return -1;
+    }
+
+    if (len == 0U) {
         return 0;
     }
 
-    if (len >= BSP_CONSOLE_TX_BUFFER_SIZE) {
+    if (!lwrb_write_ex(&tx_rb, data, (lwrb_sz_t)len, &written, LWRB_FLAG_WRITE_ALL)) {
         return -1;
     }
 
     primask = __get_PRIMASK();
     __disable_irq();
-
-    free = bsp_console_tx_free();
-
-    if (len > free) {
-        if (primask == 0U) {
-            __enable_irq();
-        }
-
-        return -1;
-    }
-
-    first = BSP_CONSOLE_TX_BUFFER_SIZE - tx_head;
-
-    if (first > len) {
-        first = len;
-    }
-
-    memcpy(&tx_buffer[tx_head], src, first);
-
-    if (len > first) {
-        memcpy(tx_buffer, &src[first], len - first);
-    }
-
-    tx_head = (uint16_t)((tx_head + len) % BSP_CONSOLE_TX_BUFFER_SIZE);
 
     bsp_console_tx_start();
 
@@ -90,27 +73,18 @@ int bsp_console_write(const void* data, size_t len) {
         __enable_irq();
     }
 
-    return (int)len;
+    return (int)written;
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
-    uint32_t primask;
-
     if (huart != &huart1) {
         return;
     }
 
-    primask = __get_PRIMASK();
-    __disable_irq();
+    lwrb_skip(&tx_rb, tx_dma_len);
 
-    tx_tail = (uint16_t)((tx_tail + tx_dma_size) % BSP_CONSOLE_TX_BUFFER_SIZE);
-
-    tx_dma_size = 0U;
+    tx_dma_len = 0U;
     tx_dma_active = false;
 
     bsp_console_tx_start();
-
-    if (primask == 0U) {
-        __enable_irq();
-    }
 }

@@ -9,3 +9,8 @@ target_include_directories(app
     PUBLIC
         include
 )
+
+target_link_libraries(app
+    PRIVATE
+        bsp
+)
