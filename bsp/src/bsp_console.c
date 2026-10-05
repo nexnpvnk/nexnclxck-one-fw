@@ -6,7 +6,7 @@
 #include "lwrb/lwrb.h"
 #include "usart.h"
 
-#define BSP_CONSOLE_TX_BUFFER_SIZE     512U
+#define BSP_CONSOLE_TX_BUFFER_SIZE     1024U
 #define BSP_CONSOLE_RX_BUFFER_SIZE     256U
 #define BSP_CONSOLE_RX_DMA_BUFFER_SIZE 64U
 
@@ -49,6 +49,40 @@ static void bsp_console_tx_start(void) {
         tx_dma_len = 0U;
         tx_dma_active = false;
     }
+}
+
+static bool bsp_console_tx_recover(void) {
+    lwrb_sz_t completed;
+    lwrb_sz_t remaining;
+
+    completed = 0U;
+
+    if (huart1.hdmatx != NULL && tx_dma_len > 0U) {
+        remaining = (lwrb_sz_t)__HAL_DMA_GET_COUNTER(huart1.hdmatx);
+
+        if (remaining <= tx_dma_len) {
+            completed = tx_dma_len - remaining;
+        }
+    }
+
+    if (HAL_UART_AbortTransmit(&huart1) != HAL_OK) {
+        return false;
+    }
+
+    /*
+     * Remove bytes which DMA has already transferred to USART.
+     * The remaining bytes stay in the ring buffer and are retried.
+     */
+    if (completed > 0U) {
+        lwrb_skip(&tx_rb, completed);
+    }
+
+    tx_dma_len = 0U;
+    tx_dma_active = false;
+
+    bsp_console_tx_start();
+
+    return true;
 }
 
 static void bsp_console_rx_write(const uint8_t* data, uint16_t len) {
@@ -136,14 +170,22 @@ bool bsp_console_init(void) {
 }
 
 void bsp_console_process(void) {
-    if (!initialized || !rx_restart_pending) {
+    if (!initialized) {
         return;
     }
 
     /*
-     * HAL ends an RX DMA transaction before reporting a blocking
-     * UART error. Restart only after the HAL RX state becomes ready.
+     * On a TX DMA error HAL restores UART gState to READY,
+     * while tx_dma_active still indicates an unfinished transfer.
      */
+    if (tx_dma_active && huart1.gState == HAL_UART_STATE_READY) {
+        (void)bsp_console_tx_recover();
+    }
+
+    if (!rx_restart_pending) {
+        return;
+    }
+
     if (huart1.RxState != HAL_UART_STATE_READY) {
         return;
     }
