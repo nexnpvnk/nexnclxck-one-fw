@@ -13,4 +13,5 @@ target_include_directories(app
 target_link_libraries(app
     PRIVATE
         bsp
+        wsh_shell_integration
 )

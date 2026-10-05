@@ -44,6 +44,7 @@ add_subdirectory(cmake/stm32cubemx)
 # Components
 #
 add_subdirectory(components/lwrb/lwrb)
+add_subdirectory(components/wsh-shell-integration)
 
 #
 # Board support
