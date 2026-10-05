@@ -1,3 +1,6 @@
 [submodule "components/lwrb"]
 	path = components/lwrb
 	url = https://github.com/MaJerle/lwrb.git
+[submodule "components/wsh-shell"]
+	path = components/wsh-shell
+	url = https://github.com/whoosh-bike/wsh-shell.git
