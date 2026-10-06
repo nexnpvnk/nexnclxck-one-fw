@@ -1,3 +1,6 @@
+#
+# NOTE: bsp library as STATIC won't be work
+#
 add_library(bsp OBJECT)
 
 target_sources(bsp
