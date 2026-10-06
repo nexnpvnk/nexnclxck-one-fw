@@ -58,15 +58,15 @@ add_subdirectory(components/wsh-shell-integration)
 #
 # Application
 #
-add_subdirectory(app_main)
+add_subdirectory(apps)
 
 #
 # Firmware composition
 #
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-    app_main
     bsp
+    app_main
 )
 
 #
