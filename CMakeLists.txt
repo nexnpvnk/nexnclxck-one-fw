@@ -56,7 +56,7 @@ add_subdirectory(bsp)
 add_subdirectory(components/wsh-shell-integration)
 
 #
-# Application
+# Applications
 #
 add_subdirectory(apps)
 

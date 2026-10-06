@@ -1,5 +1,6 @@
 #
-# NOTE: bsp library as STATIC won't be work
+# BSP is an OBJECT library to ensure linker hooks are included
+# directly in the final firmware image.
 #
 add_library(bsp OBJECT)
 
