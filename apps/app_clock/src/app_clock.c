@@ -205,6 +205,10 @@ bool app_clock_set(const app_clock_datetime_t* datetime) {
         return false;
     }
 
+    if (HAL_RTCEx_SetCalibrationOutPut(&hrtc, RTC_CALIBOUTPUT_1HZ) != HAL_OK) {
+        return false;
+    }
+
     HAL_RTCEx_BKUPWrite(&hrtc, APP_CLOCK_BKP_REGISTER, APP_CLOCK_BKP_MAGIC);
 
     return true;
