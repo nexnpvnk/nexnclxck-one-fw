@@ -29,18 +29,20 @@ project(${CMAKE_PROJECT_NAME})
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
-include(CheckIPOSupported)
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    include(CheckIPOSupported)
 
-check_ipo_supported(
-    RESULT IPO_SUPPORTED
-    OUTPUT IPO_ERROR
-    LANGUAGES C
-)
+    check_ipo_supported(
+        RESULT IPO_SUPPORTED
+        OUTPUT IPO_ERROR
+        LANGUAGES C
+    )
 
-if(IPO_SUPPORTED)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
-else()
-    message(WARNING "IPO/LTO is not supported: ${IPO_ERROR}")
+    if(IPO_SUPPORTED)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+    else()
+        message(WARNING "IPO/LTO is not supported: ${IPO_ERROR}")
+    endif()
 endif()
 
 # Enable CMake support for ASM and C languages
