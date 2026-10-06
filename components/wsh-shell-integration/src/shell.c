@@ -64,3 +64,7 @@ void shell_process(void) {
         }
     }
 }
+
+bool shell_commands_attach(const WshShellCmd_t* commands[], WshShell_Size_t count) {
+    return WshShellCmd_Attach(&shell.Commands, commands, count) == WSH_SHELL_RET_STATE_SUCCESS;
+}

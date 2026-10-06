@@ -113,7 +113,7 @@
  * Subcommand tree (nested commands, e.g. `wsh user list`)
  * ─────────────────────────────────────────────
  */
-#define WSH_SHELL_SUBCOMMANDS           0
+#define WSH_SHELL_SUBCOMMANDS           1
 #define WSH_SHELL_SUBCOMMANDS_MAX_DEPTH 3
 
 /*

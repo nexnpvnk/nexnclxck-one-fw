@@ -14,4 +14,5 @@ target_link_libraries(app_main
     PRIVATE
         bsp
         wsh_shell_integration
+        app_cli
 )

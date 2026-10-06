@@ -1,5 +1,6 @@
 #include "app_main.h"
 
+#include "app_cli.h"
 #include "bsp_console.h"
 #include "shell.h"
 
@@ -9,6 +10,10 @@ void app_main(void) {
     }
 
     if (!shell_init()) {
+        while (1) {}
+    }
+
+    if (!app_cli_init()) {
         while (1) {}
     }
 

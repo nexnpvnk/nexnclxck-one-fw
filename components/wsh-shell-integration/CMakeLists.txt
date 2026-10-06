@@ -47,7 +47,8 @@ target_include_directories(wsh_shell_integration
 )
 
 target_link_libraries(wsh_shell_integration
+    PUBLIC
+        wsh_shell
     PRIVATE
         bsp
-        wsh_shell
 )
