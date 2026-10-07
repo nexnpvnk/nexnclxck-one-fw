@@ -182,9 +182,9 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_parse_read_options(const WshShellCmd_
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t app_cli_clock_get_handler(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
-                                                       const WshShell_Char_t* pArgv[], void* pShellCtx) {
-
+static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
+                                                   const WshShell_Char_t* pArgv[], void* pShellCtx) {
+    app_clock_status_t status;
     app_clock_datetime_t datetime;
     bool help;
 
@@ -196,11 +196,26 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_get_handler(const WshShellCmd_t* pcCm
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
-    if (!app_clock_get(&datetime)) {
-        WSH_SHELL_PRINT_WARN("Clock is not set\r\n");
+    if (!app_clock_get_status(&status)) {
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
+    WSH_SHELL_PRINT_SYS("RTC      : %s\r\n"
+                        "LSE      : %s\r\n"
+                        "Calendar : %s\r\n",
+                        status.rtc_ready ? "ready" : "not ready",
+                        status.lse_ready ? "ready" : "not ready",
+                        status.datetime_valid ? "valid" : "not set");
+
+    if (!status.datetime_valid) {
+        return WSH_SHELL_RET_STATE_SUCCESS;
+    }
+
+    if (!app_clock_get(&datetime)) {
+        return WSH_SHELL_RET_STATE_ERROR;
+    }
+
+    WSH_SHELL_PRINT_SYS("Date/Time: ");
     app_cli_clock_print_datetime(&datetime);
 
     return WSH_SHELL_RET_STATE_SUCCESS;
@@ -301,33 +316,6 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCm
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t app_cli_clock_status_handler(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
-                                                          const WshShell_Char_t* pArgv[], void* pShellCtx) {
-
-    app_clock_status_t status;
-    bool help;
-
-    if (app_cli_clock_parse_read_options(pcCmd, argc, pArgv, pShellCtx, &help) != WSH_SHELL_RET_STATE_SUCCESS) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-
-    if (help) {
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
-
-    if (!app_clock_get_status(&status)) {
-        return WSH_SHELL_RET_STATE_ERROR;
-    }
-
-    WSH_SHELL_PRINT_SYS("RTC      : %s\r\n"
-                        "LSE      : %s\r\n"
-                        "Calendar : %s\r\n",
-                        status.rtc_ready ? "ready" : "not ready", status.lse_ready ? "ready" : "not ready",
-                        status.datetime_valid ? "valid" : "not set");
-
-    return WSH_SHELL_RET_STATE_SUCCESS;
-}
-
 static WSH_SHELL_RET_STATE_t app_cli_clock_invalidate_handler(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
                                                               const WshShell_Char_t* pArgv[], void* pShellCtx) {
 
@@ -369,15 +357,6 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_invalidate_handler(const WshShellCmd_
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static const WshShellCmd_t clock_get_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER,
-    .Name = "get",
-    .Descr = "Show current date and time",
-    .Options = clock_read_opts,
-    .OptNum = WSH_SHELL_ARR_LEN(clock_read_opts),
-    .Handler = app_cli_clock_get_handler,
-};
-
 static const WshShellCmd_t clock_set_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_USER,
     .Name = "set",
@@ -385,15 +364,6 @@ static const WshShellCmd_t clock_set_cmd = {
     .Options = clock_set_opts,
     .OptNum = WSH_SHELL_ARR_LEN(clock_set_opts),
     .Handler = app_cli_clock_set_handler,
-};
-
-static const WshShellCmd_t clock_status_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER,
-    .Name = "status",
-    .Descr = "Show RTC status",
-    .Options = clock_read_opts,
-    .OptNum = WSH_SHELL_ARR_LEN(clock_read_opts),
-    .Handler = app_cli_clock_status_handler,
 };
 
 static const WshShellCmd_t clock_invalidate_cmd = {
@@ -406,9 +376,7 @@ static const WshShellCmd_t clock_invalidate_cmd = {
 };
 
 static const WshShellCmd_t* const clock_subcommands[] = {
-    &clock_get_cmd,
     &clock_set_cmd,
-    &clock_status_cmd,
     &clock_invalidate_cmd,
 };
 
@@ -418,7 +386,7 @@ const WshShellCmd_t app_cli_clock_cmd = {
     .Descr = "RTC clock and calendar management",
     .Options = clock_read_opts,
     .OptNum = WSH_SHELL_ARR_LEN(clock_read_opts),
-    .Handler = app_cli_clock_get_handler,
+    .Handler = app_cli_clock_handler,
     .SubCmds = clock_subcommands,
     .SubCmdNum = WSH_SHELL_ARR_LEN(clock_subcommands),
 };

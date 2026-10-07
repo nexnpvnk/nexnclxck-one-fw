@@ -247,8 +247,9 @@ typedef enum { WSH_SHELL_CMD_GROUP_LIST } WSH_SHELL_CMD_GROUP_t;
 
 #ifndef WSH_SHELL_STRTOF
 /*
- * Float command options are unused.
- * Avoid pulling strtof() and its floating-point conversion dependencies.
+ * Float CLI options are intentionally unsupported in this firmware.
+ * Prevent wsh-shell from pulling strtof() and the newlib floating-point
+ * conversion stack into the image.
  */
 #define WSH_SHELL_STRTOF(pN, pE) ((void)(pN), (void)(pE), 0.0f)
 #endif
