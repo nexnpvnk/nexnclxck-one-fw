@@ -208,6 +208,7 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, W
                         status.datetime_valid ? "valid" : "not set");
 
     if (!status.datetime_valid) {
+        WSH_SHELL_PRINT_WARN("Clock is not set\r\n");
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
