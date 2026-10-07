@@ -246,7 +246,11 @@ typedef enum { WSH_SHELL_CMD_GROUP_LIST } WSH_SHELL_CMD_GROUP_t;
 #endif
 
 #ifndef WSH_SHELL_STRTOF
-#define WSH_SHELL_STRTOF(pN, pE) strtof((pN), (pE))
+/*
+ * Float command options are unused.
+ * Avoid pulling strtof() and its floating-point conversion dependencies.
+ */
+#define WSH_SHELL_STRTOF(pN, pE) ((void)(pN), (void)(pE), 0.0f)
 #endif
 
 #ifndef WSH_SHELL_SNPRINTF
