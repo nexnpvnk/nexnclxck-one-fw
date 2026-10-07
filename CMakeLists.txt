@@ -51,6 +51,12 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
+target_link_options(${CMAKE_PROJECT_NAME}
+    PRIVATE
+        $<$<CONFIG:Release>:-Wl,-u,_fstat>
+        $<$<CONFIG:Release>:-Wl,-u,_isatty>
+)
+
 #
 # Platform / vendor
 #
