@@ -66,6 +66,7 @@ add_subdirectory(cmake/stm32cubemx)
 # Components
 #
 add_subdirectory(components/lwrb/lwrb)
+add_subdirectory(components/ui2c)
 
 #
 # Board support
