@@ -4,6 +4,7 @@ target_sources(app_cli
     PRIVATE
         src/app_cli.c
         src/app_cli_clock.c
+        src/app_cli_i2c.c
 )
 
 target_include_directories(app_cli
@@ -14,5 +15,6 @@ target_include_directories(app_cli
 target_link_libraries(app_cli
     PRIVATE
         app_clock
+        bsp
         wsh_shell_integration
 )

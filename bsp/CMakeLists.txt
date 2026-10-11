@@ -8,6 +8,7 @@ target_sources(bsp
     PRIVATE
         src/bsp_console.c
         src/bsp_stdio.c
+        src/bsp_i2c.c
 )
 
 target_include_directories(bsp
@@ -19,4 +20,8 @@ target_link_libraries(bsp
     PRIVATE
         stm32cubemx
         lwrb
+        ui2c_stm32f0
 )
+
+# Public board API exposes only the portable bus handle.
+target_link_libraries(bsp PUBLIC ui2c)

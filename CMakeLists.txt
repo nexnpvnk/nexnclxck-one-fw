@@ -66,7 +66,14 @@ add_subdirectory(cmake/stm32cubemx)
 # Components
 #
 add_subdirectory(components/lwrb/lwrb)
+set(UI2C_BUILD_STM32F0 ON)
 add_subdirectory(components/ui2c)
+# The register backend needs only the device headers, not the vendor HAL.
+target_include_directories(ui2c_stm32f0 PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F0xx/Include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Include
+)
+target_compile_definitions(ui2c_stm32f0 PUBLIC STM32F051x8)
 
 #
 # Board support
