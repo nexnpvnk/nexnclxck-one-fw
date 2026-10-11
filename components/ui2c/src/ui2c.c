@@ -68,7 +68,7 @@ ui2c_status_t ui2c_xfer(ui2c_t* bus, uint16_t addr, const ui2c_msg_t* msgs, size
         return status;
     }
     if (bus->ops->validate != NULL) {
-        status = bus->ops->validate(bus, msgs, count);
+        status = bus->ops->validate(bus, addr, msgs, count);
         if (status != UI2C_STATUS_OK) {
             return status;
         }
@@ -118,6 +118,9 @@ ui2c_status_t ui2c_cancel(ui2c_t* bus) {
 void ui2c_process(ui2c_t* bus) {
     if (bus == NULL || bus->ops == NULL) {
         return;
+    }
+    if (bus->ops->process != NULL) {
+        bus->ops->process(bus);
     }
     uint32_t now = bus->config.time_ms(bus->config.time_arg);
     ui2c_lock_key_t key = bus->ops->lock(bus);

@@ -63,7 +63,7 @@ static const char* status_name(ui2c_status_t status) {
         case UI2C_STATUS_BUS_BUSY: return "bus busy";
         case UI2C_STATUS_ARBITRATION_LOST: return "arbitration lost";
         case UI2C_STATUS_TIMEOUT: return "timeout";
-        case UI2C_STATUS_DMA_ERROR: return "DMA error";
+        case UI2C_STATUS_IO_ERROR: return "I/O error";
         case UI2C_STATUS_CANCELLED: return "cancelled";
         default: return "error";
     }

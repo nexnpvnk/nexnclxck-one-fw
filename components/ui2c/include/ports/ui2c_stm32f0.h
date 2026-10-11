@@ -39,7 +39,10 @@ typedef struct {
  * No HAL I2C transfers/callbacks may share the peripheral.
  * Board forwards I2C and DMA IRQs to the functions below; no global handlers.
  * NVIC may already be enabled, but peripheral IRQ/DMA requests must be inactive
- * until init completes. Existing timing and filter configuration is preserved. */
+ * until init completes. No local transfer/slave session may be in progress.
+ * NOSTRETCH must be clear. Init preserves PE and external BUSY observation;
+ * a busy external bus is accepted, and xfer may subsequently return BUS_BUSY.
+ * Existing timing and filter configuration is preserved. */
 ui2c_status_t ui2c_stm32f0_init(ui2c_stm32f0_t* port, const ui2c_stm32f0_config_t* hw, const ui2c_config_t* config);
 void ui2c_stm32f0_irq(ui2c_stm32f0_t* port);
 void ui2c_stm32f0_dma_irq(ui2c_stm32f0_t* port);

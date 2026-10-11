@@ -281,7 +281,7 @@ static int errors(void) {
     test_dma.ISR = 8U << 4;
     ui2c_stm32f0_dma_irq(&port);
     ui2c_process(&port.bus);
-    CHECK(calls == 1 && result == UI2C_STATUS_DMA_ERROR);
+    CHECK(calls == 1 && result == UI2C_STATUS_IO_ERROR);
     CHECK(!(DMA1_Channel2->CCR & DMA_CCR_EN));
     CHECK(setup(true) == 0);
     CHECK(ui2c_xfer(&port.bus, 0x76, &msg, 1, completed, &calls) == UI2C_STATUS_OK);
@@ -451,8 +451,148 @@ static int simultaneous_events(void) {
     test_dma.ISR = 8U << 8;
     event(I2C_ISR_STOPF);
     ui2c_process(&port.bus);
-    CHECK(calls == 1 && result == UI2C_STATUS_DMA_ERROR);
+    CHECK(calls == 1 && result == UI2C_STATUS_IO_ERROR);
     cases += 4;
+    return 0;
+}
+
+/* A foreground-only backend: no IRQ/event injection drives completion. */
+typedef struct {
+    unsigned steps;
+    unsigned accesses;
+    unsigned failures;
+    unsigned cancelled;
+    uint16_t validated_addr;
+    bool immediate;
+    bool stalled;
+} polling_t;
+
+static ui2c_status_t polling_validate(ui2c_t* bus, uint16_t addr, const ui2c_msg_t* msgs, size_t count) {
+    polling_t* p = bus->port;
+    p->validated_addr = addr;
+    return count == 1 && msgs[0].flags == UI2C_MSG_READ ? UI2C_STATUS_OK : UI2C_STATUS_UNSUPPORTED;
+}
+
+static ui2c_status_t polling_start(ui2c_t* bus) {
+    polling_t* p = bus->port;
+    p->steps = 0;
+    if (p->immediate) {
+        bus->msgs[0].data.rx[0] = 0xA7;
+        ui2c_port_complete(bus, UI2C_STATUS_OK);
+    }
+    return UI2C_STATUS_OK;
+}
+
+static void polling_abort(ui2c_t* bus) {
+    polling_t* p = bus->port;
+    p->cancelled++;
+}
+
+static void polling_process(ui2c_t* bus) {
+    polling_t* p = bus->port;
+    if (test_primask != 0) {
+        p->failures++;
+    }
+    if (bus->state != UI2C_ACTIVE || p->stalled) {
+        return;
+    }
+    bus->msgs[0].data.rx[p->steps] = (uint8_t)(0xA0 + p->steps);
+    p->accesses++;
+    if (++p->steps == bus->msgs[0].len) {
+        ui2c_port_complete(bus, UI2C_STATUS_OK);
+    }
+}
+
+static int polling_contract(void) {
+    static const ui2c_port_ops_t polling_ops = {
+        .lock = fake_lock,
+        .unlock = fake_unlock,
+        .validate = polling_validate,
+        .start = polling_start,
+        .abort = polling_abort,
+        .process = polling_process,
+    };
+    ui2c_t bus = {0};
+    polling_t p = {0};
+    ui2c_config_t config = {.time_ms = clock_ms, .timeout_ms = 100};
+    uint8_t data[2] = {0};
+    ui2c_msg_t msg = {.data.rx = data, .len = 2, .flags = UI2C_MSG_READ};
+    now = 0;
+    test_primask = 0;
+    reset_observation();
+    CHECK(ui2c_port_init(&bus, &polling_ops, &p, &config, 0) == UI2C_STATUS_OK);
+    ui2c_process(&bus); /* Idle processing must not access request memory. */
+    CHECK(p.accesses == 0);
+    CHECK(ui2c_xfer(&bus, 0x42, &msg, 1, completed, &calls) == UI2C_STATUS_OK);
+    CHECK(p.validated_addr == 0x42 && calls == 0);
+    ui2c_process(&bus);
+    CHECK(p.accesses == 1 && calls == 0 && ui2c_busy(&bus));
+    now = 100; /* Observable completion wins, including at the deadline. */
+    ui2c_process(&bus);
+    CHECK(calls == 1 && result == UI2C_STATUS_OK && p.cancelled == 0);
+    CHECK(data[0] == 0xA0 && data[1] == 0xA1 && !ui2c_busy(&bus));
+    cases++;
+
+    CHECK(ui2c_xfer(&bus, 0x43, &msg, 1, completed, &calls) == UI2C_STATUS_OK);
+    CHECK(p.validated_addr == 0x43);
+    ui2c_process(&bus);
+    CHECK(ui2c_cancel(&bus) == UI2C_STATUS_OK);
+    unsigned accesses = p.accesses;
+    ui2c_process(&bus);
+    ui2c_process(&bus);
+    CHECK(calls == 2 && result == UI2C_STATUS_CANCELLED && p.accesses == accesses);
+    cases++;
+
+    p.stalled = true;
+    CHECK(ui2c_xfer(&bus, 0x43, &msg, 1, completed, &calls) == UI2C_STATUS_OK);
+    now += 100;
+    ui2c_process(&bus);
+    CHECK(calls == 3 && result == UI2C_STATUS_TIMEOUT && p.cancelled == 2);
+    CHECK(p.accesses == accesses);
+    cases++;
+
+    p.immediate = true;
+    CHECK(ui2c_xfer(&bus, 0x43, &msg, 1, completed, &calls) == UI2C_STATUS_OK);
+    CHECK(calls == 3 && ui2c_busy(&bus));
+    now += 1000;
+    ui2c_process(&bus);
+    CHECK(calls == 4 && result == UI2C_STATUS_OK && data[0] == 0xA7);
+    CHECK(p.cancelled == 2 && callback_error == 0 && p.failures == 0);
+    cases++;
+    return 0;
+}
+
+static int external_bus_lifecycle(void) {
+    for (unsigned dma = 0; dma < 2; ++dma) {
+        CHECK(setup(dma != 0) == 0);
+        ui2c_msg_t msg = {.data.tx = tx, .len = 32};
+        CHECK(ui2c_xfer(&port.bus, 0x76, &msg, 1, completed, &calls) == UI2C_STATUS_OK);
+        event(I2C_ISR_ARLO | I2C_ISR_BUSY); /* Winning controller has not sent STOP. */
+        CHECK(hw.ISR & I2C_ISR_BUSY);
+        CHECK(hw.CR1 & I2C_CR1_PE);
+        CHECK(!(hw.CR2 & (I2C_CR2_START | I2C_CR2_STOP)));
+        ui2c_process(&port.bus);
+        CHECK(calls == 1 && result == UI2C_STATUS_ARBITRATION_LOST);
+        CHECK(ui2c_xfer(&port.bus, 0x76, &msg, 1, completed, &calls) == UI2C_STATUS_BUS_BUSY);
+        event(I2C_ISR_STOPF); /* External transaction ends while locally idle. */
+        CHECK(ui2c_xfer(&port.bus, 0x76, &msg, 1, completed, &calls) == UI2C_STATUS_OK);
+        /* A pending vector from the old request has no surviving status flags. */
+        ui2c_stm32f0_dma_irq(&port);
+        ui2c_stm32f0_irq(&port);
+        CHECK(port.bus.state == UI2C_ACTIVE && calls == 1);
+        ui2c_cancel(&port.bus);
+        ui2c_process(&port.bus);
+        CHECK(calls == 2 && result == UI2C_STATUS_CANCELLED);
+        cases++;
+    }
+    CHECK(setup(false) == 0);
+    CHECK(ui2c_xfer(&port.bus, 0x76, &probe, 1, completed, &calls) == UI2C_STATUS_OK);
+    event(I2C_ISR_STOPF | I2C_ISR_BUSY); /* Next controller started before our IRQ. */
+    CHECK(hw.ISR & I2C_ISR_BUSY);
+    ui2c_process(&port.bus);
+    CHECK(calls == 1 && result == UI2C_STATUS_OK);
+    CHECK(ui2c_xfer(&port.bus, 0x76, &probe, 1, completed, &calls) == UI2C_STATUS_BUS_BUSY);
+    cases++;
     return 0;
 }
 
@@ -478,8 +618,34 @@ static int initialization(void) {
     CHECK(ui2c_stm32f0_init(&other, &hw_config, &config) == UI2C_STATUS_INVALID_ARG);
     hw_config.rx_dma = (ui2c_stm32f0_dma_t){0};
     DMA1_Channel2->CCR = DMA_CCR_MINC | DMA_CCR_DIR;
+    hw.CR1 |= I2C_CR1_NOSTRETCH;
+    CHECK(ui2c_stm32f0_init(&other, &hw_config, &config) == UI2C_STATUS_INVALID_ARG);
+    CHECK(other.bus.ops == NULL && (hw.CR1 & I2C_CR1_NOSTRETCH));
+    hw.CR1 &= ~I2C_CR1_NOSTRETCH;
+    hw.ISR = I2C_ISR_ADDR;
+    CHECK(ui2c_stm32f0_init(&other, &hw_config, &config) == UI2C_STATUS_BUSY);
+    CHECK(other.bus.ops == NULL);
+    hw.ISR = 0;
+    hw.CR2 = I2C_CR2_START;
+    CHECK(ui2c_stm32f0_init(&other, &hw_config, &config) == UI2C_STATUS_BUSY);
+    CHECK(other.bus.ops == NULL);
+    hw.CR2 = I2C_CR2_AUTOEND;
+    hw.OAR1 = I2C_OAR1_OA1EN | (0x22U << 1);
+    hw.OAR2 = I2C_OAR2_OA2EN | (0x23U << 1);
     hw.ISR = I2C_ISR_BUSY;
-    CHECK(ui2c_stm32f0_init(&other, &hw_config, &config) == UI2C_STATUS_BUS_BUSY);
+    CHECK(ui2c_stm32f0_init(&other, &hw_config, &config) == UI2C_STATUS_OK);
+    CHECK(hw.ISR & I2C_ISR_BUSY);
+    CHECK(hw.CR1 & I2C_CR1_PE);
+    CHECK(hw.CR2 == I2C_CR2_AUTOEND);
+    CHECK(hw.OAR1 == (0x22U << 1) && hw.OAR2 == (0x23U << 1));
+    CHECK(ui2c_capabilities(&other.bus) == (UI2C_CAP_RESTART | UI2C_CAP_CONTINUE | UI2C_CAP_PROBE));
+    CHECK(ui2c_xfer(&other.bus, 0x76, &probe, 1, completed, &calls) == UI2C_STATUS_BUS_BUSY);
+    CHECK(!ui2c_busy(&other.bus));
+    hw.ISR = 0;
+    CHECK(ui2c_xfer(&other.bus, 0x76, &probe, 1, completed, &calls) == UI2C_STATUS_OK);
+    ui2c_cancel(&other.bus);
+    ui2c_process(&other.bus);
+    other = (ui2c_stm32f0_t){0};
     hw.ISR = 0;
     hw.CR1 = 0;
     CHECK(ui2c_stm32f0_init(&other, &hw_config, &config) == UI2C_STATUS_NOT_INITIALIZED);
@@ -523,6 +689,14 @@ int ui2c_tests(void) {
         return err;
     }
     err = simultaneous_events();
+    if (err) {
+        return err;
+    }
+    err = polling_contract();
+    if (err) {
+        return err;
+    }
+    err = external_bus_lifecycle();
     if (err) {
         return err;
     }

@@ -39,12 +39,36 @@ static void stop_dma(ui2c_stm32f0_t* port) {
     }
 }
 
-static void abort_transfer(ui2c_t* bus) {
-    ui2c_stm32f0_t* port = bus->port;
+static void quiesce(ui2c_stm32f0_t* port) {
     I2C_TypeDef* hw = port->hw.instance;
     hw->CR1 &= ~(UI2C_IRQ_BITS | UI2C_DMA_BITS);
     stop_dma(port);
-    /* Local reset only. Never issue STOP after ARLO or pulse someone else's bus.
+    port->left = 0U;
+    port->pending_error = UI2C_STATUS_OK;
+}
+
+static void release_transfer(ui2c_stm32f0_t* port) {
+    I2C_TypeDef* hw = port->hw.instance;
+    quiesce(port);
+    /* STOP or ARLO already ended local ownership. Keep PE/BUSY observation
+     * intact: another controller may still be using the bus. */
+    hw->CR2 = 0U;
+    if ((hw->ISR & I2C_ISR_RXNE) != 0U) {
+        (void)hw->RXDR;
+    }
+    hw->ICR = UI2C_CLEAR_FLAGS;
+    /* Any prefetched TX byte is flushed by start_transfer, after BUSY check. */
+}
+
+static void abort_transfer(ui2c_t* bus) {
+    ui2c_stm32f0_t* port = bus->port;
+    I2C_TypeDef* hw = port->hw.instance;
+    if ((hw->ISR & (I2C_ISR_ARLO | I2C_ISR_STOPF)) != 0U) {
+        release_transfer(port);
+        return;
+    }
+    quiesce(port);
+    /* Forced local reset for an unfinished transfer. No GPIO recovery.
      * Keep PE low for >=3 APB cycles; readbacks/DSB and register writes ensure it. */
     hw->CR1 &= ~I2C_CR1_PE;
     (void)hw->CR1;
@@ -53,12 +77,14 @@ static void abort_transfer(ui2c_t* bus) {
     hw->ICR = UI2C_CLEAR_FLAGS;
     hw->ISR = I2C_ISR_TXE; /* Flush a prefetched TX byte. */
     hw->CR1 |= I2C_CR1_PE;
-    port->left = 0U;
-    port->pending_error = UI2C_STATUS_OK;
 }
 
 static void finish(ui2c_stm32f0_t* port, ui2c_status_t result) {
-    abort_transfer(&port->bus);
+    if ((port->hw.instance->ISR & (I2C_ISR_ARLO | I2C_ISR_STOPF)) != 0U) {
+        release_transfer(port);
+    } else {
+        abort_transfer(&port->bus);
+    }
     ui2c_port_complete(&port->bus, result);
 }
 
@@ -181,16 +207,15 @@ ui2c_status_t ui2c_stm32f0_init(ui2c_stm32f0_t* port, const ui2c_stm32f0_config_
     if ((hw->instance->CR1 & I2C_CR1_PE) == 0U) {
         return UI2C_STATUS_NOT_INITIALIZED;
     }
-    if ((hw->instance->ISR & I2C_ISR_BUSY) != 0U) {
-        return UI2C_STATUS_BUS_BUSY;
+    /* NOSTRETCH requires PE=0 to change. Validate board configuration rather
+     * than resetting a controller that is observing an external transaction. */
+    if ((hw->instance->CR1 & I2C_CR1_NOSTRETCH) != 0U) {
+        return UI2C_STATUS_INVALID_ARG;
+    }
+    if ((hw->instance->CR2 & I2C_CR2_START) != 0U || (hw->instance->ISR & I2C_ISR_ADDR) != 0U) {
+        return UI2C_STATUS_BUSY; /* Existing local transfer/address match. */
     }
     uint32_t caps = UI2C_CAP_RESTART | UI2C_CAP_CONTINUE | UI2C_CAP_PROBE;
-    if (hw->tx_dma.channel != NULL) {
-        caps |= UI2C_CAP_DMA_TX;
-    }
-    if (hw->rx_dma.channel != NULL) {
-        caps |= UI2C_CAP_DMA_RX;
-    }
     ui2c_status_t status = ui2c_port_init(&port->bus, &ops, port, config, caps);
     if (status != UI2C_STATUS_OK) {
         return status;
@@ -199,12 +224,13 @@ ui2c_status_t ui2c_stm32f0_init(ui2c_stm32f0_t* port, const ui2c_stm32f0_config_
     ui2c_lock_key_t key = lock(&port->bus);
     dma_disable(&port->hw.tx_dma);
     dma_disable(&port->hw.rx_dma);
-    /* Controller-only ownership; no own-address matching / slave side effects. */
-    hw->instance->CR1 &= ~I2C_CR1_PE;
-    hw->instance->OAR1 = 0U;
-    hw->instance->OAR2 = 0U;
-    hw->instance->CR1 &= ~(I2C_CR1_GCEN | I2C_CR1_SBC | I2C_CR1_NOSTRETCH);
-    abort_transfer(&port->bus);
+    /* Disable address recognition without resetting PE or losing BUSY.
+     * RM0091 permits clearing OA1EN/OA2EN while the peripheral is enabled. */
+    hw->instance->OAR1 &= ~I2C_OAR1_OA1EN;
+    hw->instance->OAR2 &= ~I2C_OAR2_OA2EN;
+    hw->instance->CR1 &= ~(I2C_CR1_GCEN | I2C_CR1_SBC);
+    quiesce(port);
+    hw->instance->ICR = UI2C_CLEAR_FLAGS;
     unlock(&port->bus, key);
     return UI2C_STATUS_OK;
 }
@@ -230,7 +256,7 @@ static void service(ui2c_stm32f0_t* port) {
         return;
     }
     if (port->dma != NULL && (DMA1->ISR & (8U << dma_shift(port->dma))) != 0U) {
-        finish(port, UI2C_STATUS_DMA_ERROR);
+        finish(port, UI2C_STATUS_IO_ERROR);
         return;
     }
     if ((flags & I2C_ISR_NACKF) != 0U) {

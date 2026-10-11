@@ -21,7 +21,6 @@ typedef enum {
     UI2C_STATUS_BUS_BUSY,
     UI2C_STATUS_BUS_ERROR,
     UI2C_STATUS_TIMEOUT,
-    UI2C_STATUS_DMA_ERROR,
     UI2C_STATUS_IO_ERROR,
     UI2C_STATUS_CANCELLED,
 } ui2c_status_t;
@@ -48,9 +47,6 @@ enum {
     UI2C_CAP_RESTART = 1U << 0,
     UI2C_CAP_CONTINUE = 1U << 1,
     UI2C_CAP_PROBE = 1U << 2,
-    /* Availability, not a promise to use DMA for every buffer/length. */
-    UI2C_CAP_DMA_TX = 1U << 3,
-    UI2C_CAP_DMA_RX = 1U << 4,
 };
 
 typedef uint32_t (*ui2c_time_ms_t)(void* arg);
@@ -77,7 +73,10 @@ ui2c_status_t ui2c_xfer(ui2c_t* bus, uint16_t addr, const ui2c_msg_t* msgs, size
 /** Synchronously quiesce local hardware; callback remains deferred to process.
  * Already-completed result wins. No GPIO recovery: target may still hold SDA. */
 ui2c_status_t ui2c_cancel(ui2c_t* bus);
-/** Detect timeout and dispatch at most one callback. Idle before callback, so it
+/** Advance the backend, detect timeout and dispatch at most one callback.
+ * IRQ, DMA and cooperative polling use the same application API.
+ * Observed completion wins over timeout; this is not a hard completion deadline.
+ * Idle before callback, so it
  * may submit the next request. Do not call process recursively.
  * Timeout is detected here, not by a hidden timer: service this regularly. */
 void ui2c_process(ui2c_t* bus);
