@@ -9,6 +9,7 @@
 #define SHELL_DEVICE_NAME "nexnclxck"
 
 static WshShell_t shell;
+static void (*cancel_handler)(void);
 
 #if WSH_SHELL_HISTORY
 static WshShellHistory_t shell_history;
@@ -61,10 +62,15 @@ void shell_process(void) {
     /* Bound each foreground turn so transport deadlines/completions progress. */
     if ((len = bsp_console_read(data, sizeof(data))) > 0) {
         for (int i = 0; i < len; ++i) {
+            if (data[i] == WSH_SHELL_SYM_CANCEL && cancel_handler != NULL) {
+                cancel_handler();
+            }
             WshShell_InsertChar(&shell, (WshShell_Char_t)data[i]);
         }
     }
 }
+
+void shell_set_cancel_handler(void (*handler)(void)) { cancel_handler = handler; }
 
 bool shell_commands_attach(const WshShellCmd_t* commands[], WshShell_Size_t count) {
     return WshShellCmd_Attach(&shell.Commands, commands, count) == WSH_SHELL_RET_STATE_SUCCESS;
