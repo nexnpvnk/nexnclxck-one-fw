@@ -58,7 +58,8 @@ void shell_process(void) {
 
     bsp_console_process();
 
-    while ((len = bsp_console_read(data, sizeof(data))) > 0) {
+    /* Bound each foreground turn so transport deadlines/completions progress. */
+    if ((len = bsp_console_read(data, sizeof(data))) > 0) {
         for (int i = 0; i < len; ++i) {
             WshShell_InsertChar(&shell, (WshShell_Char_t)data[i]);
         }
