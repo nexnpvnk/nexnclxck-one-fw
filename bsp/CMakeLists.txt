@@ -9,6 +9,7 @@ target_sources(bsp
         src/bsp_console.c
         src/bsp_stdio.c
         src/bsp_i2c.c
+        src/bsp_time.c
 )
 
 target_include_directories(bsp
