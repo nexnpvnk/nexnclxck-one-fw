@@ -68,6 +68,11 @@ add_subdirectory(cmake/stm32cubemx)
 add_subdirectory(components/lwrb/lwrb)
 set(UI2C_BUILD_STM32F0 ON)
 add_subdirectory(components/ui2c)
+# Unmodified Bosch SensorAPI; the board/application adapter lives in app_bme280.
+add_library(bme280_bosch STATIC components/bme280/bme280.c)
+target_include_directories(bme280_bosch PUBLIC components/bme280)
+target_compile_definitions(bme280_bosch PUBLIC BME280_64BIT_ENABLE)
+target_compile_options(bme280_bosch PRIVATE $<$<C_COMPILER_ID:GNU,Clang>:-ffunction-sections>)
 # The register backend needs only the device headers, not the vendor HAL.
 target_include_directories(ui2c_stm32f0 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F0xx/Include

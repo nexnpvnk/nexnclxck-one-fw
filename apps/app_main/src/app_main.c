@@ -1,5 +1,6 @@
 #include "app_main.h"
 
+#include "app_bme280.h"
 #include "app_cli.h"
 #include "bsp_console.h"
 #include "bsp_i2c.h"
@@ -23,6 +24,8 @@ void app_main(void) {
 
     while (1) {
         bsp_i2c_process();
+        app_bme280_process();
         shell_process();
+        app_cli_process();
     }
 }

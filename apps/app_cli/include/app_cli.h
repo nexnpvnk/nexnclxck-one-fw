@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 bool app_cli_init(void);
+void app_cli_process(void);
 
 #ifdef __cplusplus
 }
