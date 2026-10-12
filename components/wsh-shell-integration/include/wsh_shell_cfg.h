@@ -13,7 +13,7 @@
  * passed at runtime as the pcCustomHeader argument of WshShell_Init().
  * Use utils/gen-shell-banner.py to render an ASCII logo from plain text.
  */
-#define WSH_SHELL_HEADER "\
+#define WSH_SHELL_HEADER "\r\n\r\n\
              ::::    ::: :::::::::: :::    ::: ::::    ::: \r\n\
             :+:+:   :+: :+:        :+:    :+: :+:+:   :+:  \r\n\
            :+:+:+  +:+ +:+         +:+  +:+  :+:+:+  +:+   \r\n\
@@ -72,7 +72,7 @@
 #define WSH_SHELL_AUTOCOMPLETE                1
 #define WSH_SHELL_AUTOCOMPLETE_PAD_LEN        32
 #define WSH_SHELL_AUTOCOMPLETE_PAD_SYM        '.'
-#define WSH_SHELL_AUTOCOMPLETE_MAX_CANDIDATES 32
+#define WSH_SHELL_AUTOCOMPLETE_MAX_CANDIDATES 8
 
 /*
  * ─────────────────────────────────────────────
