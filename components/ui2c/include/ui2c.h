@@ -1,13 +1,17 @@
 #ifndef UI2C_H
 #define UI2C_H
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #define UI2C_VERSION_MAJOR 1
 #define UI2C_VERSION_MINOR 0
+
 typedef struct ui2c ui2c_t;
 
 typedef enum {
@@ -70,9 +74,11 @@ typedef struct {
  * ISR/concurrent calls are forbidden. Backend IRQs are synchronized internally. */
 ui2c_status_t ui2c_xfer(ui2c_t* bus, uint16_t addr, const ui2c_msg_t* msgs, size_t count, ui2c_callback_t callback,
                         void* arg);
+
 /** Synchronously quiesce local hardware; callback remains deferred to process.
  * Already-completed result wins. No GPIO recovery: target may still hold SDA. */
 ui2c_status_t ui2c_cancel(ui2c_t* bus);
+
 /** Advance the backend, detect timeout and dispatch at most one callback.
  * IRQ, DMA and cooperative polling use the same application API.
  * Observed completion wins over timeout; this is not a hard completion deadline.
@@ -80,10 +86,14 @@ ui2c_status_t ui2c_cancel(ui2c_t* bus);
  * may submit the next request. Do not call process recursively.
  * Timeout is detected here, not by a hidden timer: service this regularly. */
 void ui2c_process(ui2c_t* bus);
+
 /** Includes completion waiting to be dispatched. NULL/uninitialized = false. */
 bool ui2c_busy(ui2c_t* bus);
+
 uint32_t ui2c_capabilities(const ui2c_t* bus);
+
 #ifdef __cplusplus
 }
 #endif
-#endif
+
+#endif /* UI2C_H */

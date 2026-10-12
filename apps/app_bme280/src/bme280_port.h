@@ -1,9 +1,15 @@
 #ifndef BME280_PORT_H
 #define BME280_PORT_H
+
 #include "bme280.h"
 #include "ui2c.h"
+
 #if !defined(BME280_64BIT_ENABLE) || defined(BME280_32BIT_ENABLE) || defined(BME280_DOUBLE_ENABLE)
 #error "BME280 sample units require Bosch 64-bit integer compensation"
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /* Transport context must outlive the Bosch device. Foreground only, with
@@ -18,4 +24,9 @@ typedef struct {
 
 /* Installs only the Bosch read/write/delay hooks. Does not access the sensor. */
 void bme280_port_bind(struct bme280_dev* dev, bme280_port_t* port);
+
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* BME280_PORT_H */

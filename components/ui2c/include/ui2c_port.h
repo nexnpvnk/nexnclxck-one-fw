@@ -1,9 +1,12 @@
 #ifndef UI2C_PORT_H
 #define UI2C_PORT_H
+
 #include "ui2c.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 /* Backend interface, not an application header. No MCU/RTOS dependencies.
  * lock/unlock synchronize foreground with ALL backend IRQs, preserve interrupt
  * state and provide compiler/memory ordering. They must not wait for a mutex.
@@ -56,7 +59,9 @@ ui2c_status_t ui2c_port_init(ui2c_t* bus, const ui2c_port_ops_t* ops, void* port
  * events before a new request; this function cannot identify an old completion. */
 void ui2c_port_complete(ui2c_t* bus, ui2c_status_t status);
 ui2c_boundary_t ui2c_port_boundary(const ui2c_t* bus, size_t msg_index);
+
 #ifdef __cplusplus
 }
 #endif
-#endif
+
+#endif /* UI2C_PORT_H */

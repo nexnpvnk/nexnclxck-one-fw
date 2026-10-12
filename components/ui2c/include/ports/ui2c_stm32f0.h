@@ -1,10 +1,13 @@
 #ifndef UI2C_STM32F0_H
 #define UI2C_STM32F0_H
+
 #include "stm32f0xx.h"
 #include "ui2c_port.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 typedef struct {
     DMA_Channel_TypeDef* channel;
     uint8_t number; /* 1-based DMA1 channel; routing is the board's responsibility. */
@@ -46,7 +49,9 @@ typedef struct {
 ui2c_status_t ui2c_stm32f0_init(ui2c_stm32f0_t* port, const ui2c_stm32f0_config_t* hw, const ui2c_config_t* config);
 void ui2c_stm32f0_irq(ui2c_stm32f0_t* port);
 void ui2c_stm32f0_dma_irq(ui2c_stm32f0_t* port);
+
 #ifdef __cplusplus
 }
 #endif
-#endif
+
+#endif /* UI2C_STM32F0_H */

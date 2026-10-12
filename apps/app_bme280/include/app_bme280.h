@@ -2,6 +2,10 @@
 #define APP_BME280_H
 #include "ui2c.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     int32_t temperature_centi_c;
     uint32_t pressure_centi_pa;
@@ -16,6 +20,12 @@ typedef struct {
 /* Foreground only. First call reads immediately, then at most every 500 ms.
  * Blocking, with no catch-up reads for missed periods. */
 void app_bme280_process(void);
+
 /* Read-only latest attempt. No I/O; valid until the next process call. */
 const app_bme280_sample_t* app_bme280_latest(void);
+
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* APP_BME280_H */

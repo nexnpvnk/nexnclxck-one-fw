@@ -1,6 +1,10 @@
 #ifndef BSP_FDB_CFG_H
 #define BSP_FDB_CFG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define FDB_USING_KVDB
 #define FDB_USING_FAL_MODE
 /* F051 programs halfwords. The port splits each logical word into two writes. */
@@ -9,4 +13,8 @@
 #define FDB_KV_CACHE_TABLE_SIZE     0
 #define FDB_SECTOR_CACHE_TABLE_SIZE 0
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* BSP_FDB_CFG_H */
