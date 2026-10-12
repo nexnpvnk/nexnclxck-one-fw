@@ -3,6 +3,8 @@
 #include "rtc.h"
 #include "stm32f0xx_hal_rcc.h"
 
+#define BSP_RTC_YEAR_BASE    2000U
+
 #define BSP_RTC_BKP_REGISTER RTC_BKP_DR0
 #define BSP_RTC_BKP_MAGIC    0x434C4B31U /* "CLK1" */
 
@@ -31,6 +33,10 @@ bool bsp_rtc_read(bsp_rtc_datetime_t* datetime) {
     RTC_TimeTypeDef time = {0};
     RTC_DateTypeDef date = {0};
 
+    if (datetime == NULL) {
+        return false;
+    }
+
     /*
      * STM32 RTC shadow registers must be read in this order:
      * time first, date second.
@@ -43,7 +49,7 @@ bool bsp_rtc_read(bsp_rtc_datetime_t* datetime) {
         return false;
     }
 
-    datetime->year = date.Year;
+    datetime->year = BSP_RTC_YEAR_BASE + date.Year;
     datetime->month = date.Month;
     datetime->day = date.Date;
     datetime->weekday = date.WeekDay;
@@ -59,13 +65,17 @@ bool bsp_rtc_write(const bsp_rtc_datetime_t* datetime) {
     RTC_TimeTypeDef time = {0};
     RTC_DateTypeDef date = {0};
 
+    if (datetime == NULL) {
+        return false;
+    }
+
     time.Hours = datetime->hour;
     time.Minutes = datetime->minute;
     time.Seconds = datetime->second;
     time.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
     time.StoreOperation = RTC_STOREOPERATION_RESET;
 
-    date.Year = datetime->year;
+    date.Year = (uint8_t)(datetime->year - BSP_RTC_YEAR_BASE);
 
     date.Month = datetime->month;
     date.Date = datetime->day;
@@ -118,7 +128,7 @@ bool bsp_rtc_invalidate(void) {
 
     HAL_RTCEx_BKUPWrite(&hrtc, BSP_RTC_BKP_REGISTER, 0U);
 
-    return true;
+    return !bsp_rtc_is_valid();
 }
 
 bool bsp_rtc_get_status(bsp_rtc_status_t* status) {

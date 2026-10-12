@@ -5,7 +5,6 @@
 
 #define APP_CLOCK_YEAR_MIN  2000U
 #define APP_CLOCK_YEAR_MAX  2099U
-#define APP_CLOCK_YEAR_BASE 2000U
 
 static bool is_leap_year(uint16_t year) {
     return ((year % 4U) == 0U) && (((year % 100U) != 0U) || ((year % 400U) == 0U));
@@ -97,7 +96,7 @@ static bool app_clock_read(app_clock_datetime_t* datetime) {
         return false;
     }
 
-    datetime->year = APP_CLOCK_YEAR_BASE + bsp_rtc_datetime.year;
+    datetime->year = bsp_rtc_datetime.year;
     datetime->month = bsp_rtc_datetime.month;
     datetime->day = bsp_rtc_datetime.day;
     datetime->weekday = (app_clock_weekday_t)bsp_rtc_datetime.weekday;
@@ -130,7 +129,7 @@ bool app_clock_set(const app_clock_datetime_t* datetime) {
     bsp_rtc_datetime.minute = datetime->minute;
     bsp_rtc_datetime.second = datetime->second;
 
-    bsp_rtc_datetime.year = (uint8_t)(datetime->year - APP_CLOCK_YEAR_BASE);
+    bsp_rtc_datetime.year = datetime->year;
 
     bsp_rtc_datetime.month = datetime->month;
     bsp_rtc_datetime.day = datetime->day;
