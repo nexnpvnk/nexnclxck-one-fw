@@ -68,8 +68,6 @@ add_subdirectory(cmake/stm32cubemx)
 add_subdirectory(components/lwrb/lwrb)
 set(UI2C_BUILD_STM32F0 ON)
 add_subdirectory(components/ui2c)
-set(FLASHDB_PORT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bsp/include)
-add_subdirectory(components/flashdb-integration)
 # Unmodified Bosch SensorAPI; the board/application adapter lives in app_bme280.
 add_library(bme280_bosch STATIC components/bme280/bme280.c)
 target_include_directories(bme280_bosch PUBLIC components/bme280)

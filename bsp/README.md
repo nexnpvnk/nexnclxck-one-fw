@@ -1,7 +1,8 @@
 # FlashDB KVDB на STM32F051
 
-Приложение использует API FlashDB напрямую. Этот каталог содержит CMake-интеграцию
-и документацию; аппаратный FAL-порт и экземпляр базы находятся в `bsp`.
+Приложение использует API FlashDB напрямую. BSP содержит аппаратный FAL-порт,
+конфигурацию и экземпляр базы. Сборка библиотеки описана в
+`bsp/cmake/flashdb.cmake`, подключаемом из `bsp/CMakeLists.txt`.
 Исходники FlashDB и поставляемого с ним FAL не изменены и закреплены submodule
 `components/FlashDB` на commit `db0afd9` (версия в заголовке 2.2.99).
 Лицензии upstream сохранены в submodule.
@@ -94,9 +95,10 @@ if (db != NULL) {
 сама по себе не отличает отсутствующий ключ от пустого значения.
 Версию и сериализацию прикладных структур определяет приложение.
 
-Перенос: подключить `components/flashdb-integration` с
-`FLASHDB_PORT_INCLUDE_DIR`, содержащим `fdb_cfg.h`/`fal_cfg.h`, реализовать FAL
-device callbacks, выделить защищённый раздел. Зависимостей от STM32 у библиотеки
+Перенос: адаптировать `bsp/cmake/flashdb.cmake` и конфигурацию
+`bsp/include/fdb_cfg.h`/`bsp/include/fal_cfg.h`, реализовать FAL
+device callbacks, выделить защищённый раздел. Target `flashdb` сохранён.
+Зависимостей от STM32 у библиотеки
 нет; STM32 HAL используется только в `bsp/src/bsp_flash_fal.c`.
 
 ## Известное ограничение

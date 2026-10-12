@@ -2,6 +2,8 @@
 # BSP is an OBJECT library to ensure linker hooks are included
 # directly in the final firmware image.
 #
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/flashdb.cmake)
+
 add_library(bsp OBJECT)
 
 target_sources(bsp
@@ -26,5 +28,5 @@ target_link_libraries(bsp
         ui2c_stm32f0
 )
 
-# Public board API exposes only the portable bus handle.
+# Public board APIs expose the portable bus handle and the FlashDB database.
 target_link_libraries(bsp PUBLIC ui2c flashdb)
