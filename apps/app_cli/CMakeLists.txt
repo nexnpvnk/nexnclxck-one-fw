@@ -7,6 +7,7 @@ target_sources(app_cli
         src/app_cli_i2c.c
         src/app_cli_bme280.c
         src/app_cli_kv.c
+        src/app_cli_buzzer.c
 )
 
 target_include_directories(app_cli
