@@ -181,7 +181,7 @@ typedef enum { WSH_SHELL_CMD_GROUP_LIST } WSH_SHELL_CMD_GROUP_t;
 #define WSH_SHELL_SALT_LEN              16  // Max salt length
 #define WSH_SHELL_PASS_LEN              16  // Max password length
 #define WSH_SHELL_SALT_PASS_HASH_LEN    64  // Password + salt hash length
-#define WSH_SHELL_INTR_BUFF_LEN         64  // Interactive input buffer
+#define WSH_SHELL_INTR_BUFF_LEN         256 // Interactive input buffer (Includes kv commands with 128-byte values)
 #define WSH_SHELL_ESC_BUFF_LEN          8   // Escape sequence buffer
 
 /*

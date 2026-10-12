@@ -209,34 +209,15 @@ i2c --addr 0x76 --reg 0x88 --len 24
 Host-тесты не моделируют аналоговые характеристики, реальные задержки DMA и
 физическое отпускание линий. Эти проверки на железе здесь не выполнялись.
 
-## Сборка и тесты
+## Подключение
 
 Подключение core: `add_subdirectory(components/ui2c)` и линковка с `ui2c::core`.
 Для STM32 backend включить `UI2C_BUILD_STM32F0`, предоставить target
 `ui2c_stm32f0` пути CMSIS и device define, линковать `ui2c::stm32f0`.
 Компонент не привязан к имени vendor target или исходникам HAL.
 
-Native tests (отдельное дерево CMake, без ARM toolchain):
-
-```sh
-cmake -S components/ui2c/tests -B build/ui2c-tests -G Ninja
-cmake --build build/ui2c-tests
-ctest --test-dir build/ui2c-tests --output-on-failure
-```
-
-Windows с Clang/LLD и Python, без MSVC/Windows SDK:
-
-```sh
-python components/ui2c/tests/run_windows.py
-```
-
-Оба способа используют один C test suite: 148 сценариев протокола/lifecycle,
-включая все допустимые пары направлений/RESTART, scatter, probe, длины до 65536,
-два порядка IRQ DMA/I²C, ошибки, wrap времени, отмену, повторную отправку из
-callback, stale IRQ и сохранение interrupt mask. Добавлены foreground-only polling,
-синхронное completion, init при BUSY и ARLO без STOP с повторным запросом.
-Fake MMIO использует реальные
-ST register definitions; W1C и аппаратные события инжектируются тестом.
+Тестовая инфраструктура проекта удалена по решению пользователя. Не добавлять
+тесты и не запускать тесты или сборку без явного запроса пользователя.
 
 ## Переход с черновика
 

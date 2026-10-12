@@ -10,6 +10,8 @@ target_sources(bsp
         src/bsp_stdio.c
         src/bsp_i2c.c
         src/bsp_time.c
+        src/bsp_flash_fal.c
+        src/bsp_storage.c
 )
 
 target_include_directories(bsp
@@ -25,4 +27,4 @@ target_link_libraries(bsp
 )
 
 # Public board API exposes only the portable bus handle.
-target_link_libraries(bsp PUBLIC ui2c)
+target_link_libraries(bsp PUBLIC ui2c flashdb)
