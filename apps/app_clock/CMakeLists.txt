@@ -12,5 +12,5 @@ target_include_directories(app_clock
 
 target_link_libraries(app_clock
     PRIVATE
-        stm32cubemx
+        bsp
 )

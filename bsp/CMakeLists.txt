@@ -14,6 +14,7 @@ target_sources(bsp
         src/bsp_time.c
         src/bsp_flash_fal.c
         src/bsp_storage.c
+        src/bsp_rtc.c
 )
 
 target_include_directories(bsp

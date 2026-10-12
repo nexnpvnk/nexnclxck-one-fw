@@ -201,10 +201,10 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, W
     }
 
     WSH_SHELL_PRINT_SYS("RTC      : %s\r\n"
-                        "LSE      : %s\r\n"
+                        "SOURCE   : %s\r\n"
                         "Calendar : %s\r\n",
                         status.rtc_ready ? "ready" : "not ready",
-                        status.lse_ready ? "ready" : "not ready",
+                        status.source_ready ? "ready" : "not ready",
                         status.datetime_valid ? "valid" : "not set");
 
     if (!status.datetime_valid) {

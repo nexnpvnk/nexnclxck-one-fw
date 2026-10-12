@@ -31,7 +31,7 @@ typedef struct {
 
 typedef struct {
     bool rtc_ready;
-    bool lse_ready;
+    bool source_ready;
     bool datetime_valid;
 } app_clock_status_t;
 
