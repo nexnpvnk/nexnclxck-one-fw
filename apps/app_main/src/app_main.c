@@ -2,6 +2,7 @@
 
 #include "app_bme280.h"
 #include "app_cli.h"
+#include "bsp_buzzer.h"
 #include "bsp_console.h"
 #include "bsp_i2c.h"
 #include "bsp_storage.h"
@@ -21,6 +22,9 @@ void app_main(void) {
 
     /* Keep the console available for diagnostics if storage initialization fails. */
     (void)bsp_storage_init();
+
+    /* Sound is optional; a failed buzzer must not prevent the clock from running. */
+    (void)bsp_buzzer_init();
 
     if (!app_cli_init()) {
         while (1) {}
