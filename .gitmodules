@@ -7,3 +7,6 @@
 [submodule "components/bme280"]
 	path = components/bme280
 	url = https://github.com/boschsensortec/BME280_SensorAPI.git
+[submodule "components/FlashDB"]
+	path = components/FlashDB
+	url = https://github.com/armink/FlashDB.git
