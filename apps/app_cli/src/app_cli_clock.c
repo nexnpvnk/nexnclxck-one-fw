@@ -163,7 +163,7 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_parse_read_options(const WshShellCmd_
 
         opt_ctx = WshShellCmd_ParseOpt(pcCmd, argc, pArgv, shell->CurrUser->Rights, &token_pos);
 
-        if (opt_ctx.Option == NULL) {
+        if (opt_ctx.Option == NULL || opt_ctx.ParseError) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
@@ -247,7 +247,7 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCm
 
         opt_ctx = WshShellCmd_ParseOpt(pcCmd, argc, pArgv, shell->CurrUser->Rights, &token_pos);
 
-        if (opt_ctx.Option == NULL) {
+        if (opt_ctx.Option == NULL || opt_ctx.ParseError) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
@@ -257,6 +257,10 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCm
             case CLOCK_SET_OPT_HELP: WshShellCmd_PrintOptionsOverview(pcCmd); return WSH_SHELL_RET_STATE_SUCCESS;
 
             case CLOCK_SET_OPT_DATE:
+                if (date_set || opt_ctx.TokenPos + 1U >= argc
+                    || WSH_SHELL_STRLEN(pArgv[opt_ctx.TokenPos + 1U]) != sizeof(date_str) - 1U) {
+                    return WSH_SHELL_RET_STATE_ERR_PARAM;
+                }
                 ret = WshShellCmd_GetOptValue(&opt_ctx, argc, pArgv, sizeof(date_str) - 1U, date_str);
 
                 if (ret != WSH_SHELL_RET_STATE_SUCCESS) {
@@ -267,6 +271,10 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCm
                 break;
 
             case CLOCK_SET_OPT_TIME:
+                if (time_set || opt_ctx.TokenPos + 1U >= argc
+                    || WSH_SHELL_STRLEN(pArgv[opt_ctx.TokenPos + 1U]) != sizeof(time_str) - 1U) {
+                    return WSH_SHELL_RET_STATE_ERR_PARAM;
+                }
                 ret = WshShellCmd_GetOptValue(&opt_ctx, argc, pArgv, sizeof(time_str) - 1U, time_str);
 
                 if (ret != WSH_SHELL_RET_STATE_SUCCESS) {
@@ -334,7 +342,7 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_invalidate_handler(const WshShellCmd_
 
         opt_ctx = WshShellCmd_ParseOpt(pcCmd, argc, pArgv, shell->CurrUser->Rights, &token_pos);
 
-        if (opt_ctx.Option == NULL) {
+        if (opt_ctx.Option == NULL || opt_ctx.ParseError) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 

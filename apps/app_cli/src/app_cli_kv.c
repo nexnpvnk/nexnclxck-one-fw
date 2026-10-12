@@ -48,7 +48,7 @@ static void print_bytes(const uint8_t* data, size_t length) {
 
 static WSH_SHELL_RET_STATE_t kv_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
                                         void* ctx) {
-    if (!cmd || !argv || !ctx) {
+    if (!cmd || !argv || !ctx || ((WshShell_t*)ctx)->CurrUser == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
@@ -66,7 +66,7 @@ static WSH_SHELL_RET_STATE_t kv_handler(const WshShellCmd_t* cmd, WshShell_Size_
             case OPT_DEFAULT: break;
             case OPT_HELP: WshShellCmd_PrintOptionsOverview(cmd); return WSH_SHELL_RET_STATE_SUCCESS;
             case OPT_KEY:
-                if (has_key) {
+                if (has_key || opt.TokenPos + 1U >= argc) {
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
                 if (strlen(argv[opt.TokenPos + 1]) >= sizeof(key)) {
@@ -79,7 +79,7 @@ static WSH_SHELL_RET_STATE_t kv_handler(const WshShellCmd_t* cmd, WshShell_Size_
                 has_key = true;
                 break;
             case OPT_VALUE:
-                if (has_value) {
+                if (has_value || opt.TokenPos + 1U >= argc) {
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
                 if (strlen(argv[opt.TokenPos + 1]) >= sizeof(value)) {

@@ -84,7 +84,7 @@ static void completed(ui2c_t* bus, ui2c_status_t status, void* arg) {
 
 static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
                                      void* ctx) {
-    if (ctx == NULL || cmd == NULL || argv == NULL) {
+    if (ctx == NULL || cmd == NULL || argv == NULL || ((WshShell_t*)ctx)->CurrUser == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
@@ -100,7 +100,7 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
             WshShellCmd_PrintOptionsOverview(cmd);
             return WSH_SHELL_RET_STATE_SUCCESS;
         }
-        if (seen & (1U << id)) {
+        if (id >= OPT_END || (seen & (1U << id))) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         seen |= 1U << id;

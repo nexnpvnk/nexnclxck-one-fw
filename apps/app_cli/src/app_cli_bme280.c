@@ -56,7 +56,7 @@ void app_cli_bme280_process(void) {
         WSH_SHELL_PRINT_SYS("BME280: no sample yet\r\n");
     } else if (sample->sensor_status == 0) {
         int32_t t = sample->temperature_centi_c;
-        uint32_t magnitude = (uint32_t)(t < 0 ? -t : t);
+        uint32_t magnitude = t < 0 ? 0U - (uint32_t)t : (uint32_t)t;
         uint32_t p = (sample->pressure_centi_pa + 50U) / 100U; /* Bosch 64-bit: Pa * 100. */
         uint32_t h = sample->humidity_centi_percent;
         WSH_SHELL_PRINT_SYS("BME280 0x%02X | T: %s%lu.%02lu C | P: %lu.%02lu hPa | RH: %lu.%02lu %%\r\n",
@@ -78,7 +78,7 @@ void app_cli_bme280_process(void) {
 
 static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
                                      void* ctx) {
-    if (cmd == NULL || argv == NULL || ctx == NULL) {
+    if (cmd == NULL || argv == NULL || ctx == NULL || ((WshShell_t*)ctx)->CurrUser == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
