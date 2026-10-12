@@ -132,6 +132,10 @@ bool bsp_rtc_invalidate(void) {
 }
 
 bool bsp_rtc_get_status(bsp_rtc_status_t* status) {
+    if (status == NULL) {
+        return false;
+    }
+
     status->ready = HAL_RTC_GetState(&hrtc) == HAL_RTC_STATE_READY;
     status->source_ready = __HAL_RCC_GET_FLAG(RCC_FLAG_LSERDY) != RESET;
     return true;
