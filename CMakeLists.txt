@@ -25,7 +25,7 @@ set(CMAKE_PROJECT_NAME nexnclxck-one-fw)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 # Core project settings
-project(${CMAKE_PROJECT_NAME})
+project(${CMAKE_PROJECT_NAME} LANGUAGES C ASM)
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
