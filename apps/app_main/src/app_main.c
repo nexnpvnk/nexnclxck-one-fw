@@ -2,6 +2,7 @@
 
 #include "app_bme280.h"
 #include "app_cli.h"
+#include "app_sound.h"
 #include "bsp_buzzer.h"
 #include "bsp_console.h"
 #include "bsp_i2c.h"
@@ -30,7 +31,9 @@ void app_main(void) {
         while (1) {}
     }
 
+    (void)app_sound_beep(2800U, 100U);
     while (1) {
+        app_sound_process();
         bsp_i2c_process();
         app_bme280_process();
         shell_process();

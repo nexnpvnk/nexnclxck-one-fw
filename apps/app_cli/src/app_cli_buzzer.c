@@ -4,15 +4,11 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "app_sound.h"
 #include "bsp_buzzer.h"
 #include "wsh_shell.h"
 
-enum {
-    OPT_DEFAULT,
-    OPT_HELP,
-    OPT_FREQUENCY,
-    OPT_END
-};
+enum { OPT_DEFAULT, OPT_HELP, OPT_FREQUENCY, OPT_END };
 
 static const WshShellOption_t read_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show buzzer status")},
@@ -28,8 +24,7 @@ static const WshShellOption_t control_opts[] = {
 
 static const WshShellOption_t set_opts[] = {
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
-    {OPT_FREQUENCY, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-f", "--frequency",
-                                     "Frequency in Hz (100..10000)")},
+    {OPT_FREQUENCY, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-f", "--frequency", "Frequency in Hz (100..10000)")},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
@@ -69,18 +64,14 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
 
     WSH_SHELL_PRINT_SYS("State     : %s\r\n"
                         "Frequency : %lu Hz\r\n",
-                        status.enabled ? "on" : "off",
-                        (unsigned long)status.frequency_hz);
+                        status.enabled ? "on" : "off", (unsigned long)status.frequency_hz);
 
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd,
-                                    WshShell_Size_t argc,
-                                    const WshShell_Char_t* argv[],
-                                    void* ctx) {
-    if (cmd == NULL || argv == NULL || ctx == NULL ||
-        ((WshShell_t*)ctx)->CurrUser == NULL) {
+static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
+                                     void* ctx) {
+    if (cmd == NULL || argv == NULL || ctx == NULL || ((WshShell_t*)ctx)->CurrUser == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
@@ -95,32 +86,26 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd,
     uint32_t frequency = 0U;
 
     while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(
-            cmd, argc, argv, shell->CurrUser->Rights, &pos);
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
 
         if (opt.Option == NULL || opt.ParseError) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
         switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
+            case OPT_DEFAULT: break;
 
-            case OPT_HELP:
-                WshShellCmd_PrintOptionsOverview(cmd);
-                return WSH_SHELL_RET_STATE_SUCCESS;
+            case OPT_HELP: WshShellCmd_PrintOptionsOverview(cmd); return WSH_SHELL_RET_STATE_SUCCESS;
 
             case OPT_FREQUENCY:
-                if (!is_set || has_frequency ||
-                    !parse_frequency(argv[opt.TokenPos + 1U], &frequency)) {
+                if (!is_set || has_frequency || !parse_frequency(argv[opt.TokenPos + 1U], &frequency)) {
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
 
                 has_frequency = true;
                 break;
 
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
+            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
 
@@ -130,19 +115,26 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd,
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
+        if (frequency < BSP_BUZZER_FREQ_MIN_HZ || frequency > BSP_BUZZER_FREQ_MAX_HZ) {
+            WSH_SHELL_PRINT_WARN("Invalid frequency\r\n");
+            return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
+
+        app_sound_cancel();
+
         if (!bsp_buzzer_set_frequency(frequency)) {
-            WSH_SHELL_PRINT_ERR(
-                "Cannot set frequency (supported: 100..10000 Hz)\r\n");
+            WSH_SHELL_PRINT_ERR("Failed to set buzzer frequency\r\n");
             return WSH_SHELL_RET_STATE_ERROR;
         }
 
-        WSH_SHELL_PRINT_INFO("Buzzer frequency: %lu Hz\r\n",
-                             (unsigned long)frequency);
+        WSH_SHELL_PRINT_INFO("Buzzer frequency: %lu Hz\r\n", (unsigned long)frequency);
 
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
     if (is_on || is_off) {
+        app_sound_cancel();
+
         if (!bsp_buzzer_set_enabled(is_on)) {
             WSH_SHELL_PRINT_ERR("Buzzer unavailable\r\n");
             return WSH_SHELL_RET_STATE_ERROR;

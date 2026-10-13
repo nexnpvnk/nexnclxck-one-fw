@@ -16,4 +16,5 @@ target_link_libraries(app_main
         wsh_shell_integration
         app_cli
         app_bme280
+        app_sound
 )

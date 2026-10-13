@@ -19,6 +19,7 @@ target_link_libraries(app_cli
     PRIVATE
         app_clock
         app_bme280
+        app_sound
         bsp
         wsh_shell_integration
 )
