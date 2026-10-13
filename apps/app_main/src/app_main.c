@@ -31,7 +31,7 @@ void app_main(void) {
         while (1) {}
     }
 
-    (void)app_sound_beep(2800U, 100U);
+    (void)app_sound_beep(2800U, 10U, 100U);
     while (1) {
         app_sound_process();
         bsp_i2c_process();

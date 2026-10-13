@@ -8,7 +8,7 @@
 #include "bsp_buzzer.h"
 #include "wsh_shell.h"
 
-enum { OPT_DEFAULT, OPT_HELP, OPT_FREQUENCY, OPT_END };
+enum { OPT_DEFAULT, OPT_HELP, OPT_FREQUENCY, OPT_VOLUME, OPT_END };
 
 static const WshShellOption_t read_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show buzzer status")},
@@ -25,13 +25,14 @@ static const WshShellOption_t control_opts[] = {
 static const WshShellOption_t set_opts[] = {
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_FREQUENCY, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-f", "--frequency", "Frequency in Hz (100..10000)")},
+    {OPT_VOLUME, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-v", "--volume", "Volume (0..100%%)")},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
-static bool parse_frequency(const char* text, uint32_t* frequency) {
+static bool parse_number(const char* text, uint32_t* number) {
     uint32_t value = 0U;
 
-    if (text == NULL || frequency == NULL || *text == '\0') {
+    if (text == NULL || number == NULL || *text == '\0') {
         return false;
     }
 
@@ -50,7 +51,7 @@ static bool parse_frequency(const char* text, uint32_t* frequency) {
         ++text;
     }
 
-    *frequency = value;
+    *number = value;
     return true;
 }
 
@@ -63,8 +64,10 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
     }
 
     WSH_SHELL_PRINT_SYS("State     : %s\r\n"
-                        "Frequency : %lu Hz\r\n",
-                        status.enabled ? "on" : "off", (unsigned long)status.frequency_hz);
+                        "Frequency : %lu Hz\r\n"
+                        "Volume    : %u %%\r\n",
+                        status.enabled ? "on" : "off", (unsigned long)status.frequency_hz,
+                        (unsigned)status.volume_percent);
 
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
@@ -83,7 +86,10 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
     bool is_off = strcmp(cmd->Name, "off") == 0;
 
     bool has_frequency = false;
+    bool has_volume = false;
+
     uint32_t frequency = 0U;
+    uint32_t volume = 0U;
 
     while (pos < argc) {
         WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
@@ -98,11 +104,19 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
             case OPT_HELP: WshShellCmd_PrintOptionsOverview(cmd); return WSH_SHELL_RET_STATE_SUCCESS;
 
             case OPT_FREQUENCY:
-                if (!is_set || has_frequency || !parse_frequency(argv[opt.TokenPos + 1U], &frequency)) {
+                if (!is_set || has_frequency || !parse_number(argv[opt.TokenPos + 1U], &frequency)) {
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
 
                 has_frequency = true;
+                break;
+
+            case OPT_VOLUME:
+                if (!is_set || has_volume || !parse_number(argv[opt.TokenPos + 1U], &volume)) {
+                    return WSH_SHELL_RET_STATE_ERR_PARAM;
+                }
+
+                has_volume = true;
                 break;
 
             default: return WSH_SHELL_RET_STATE_ERR_PARAM;
@@ -110,26 +124,35 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
     }
 
     if (is_set) {
-        if (!has_frequency) {
-            WSH_SHELL_PRINT_WARN("Frequency is required (-f Hz)\r\n");
+        if (!has_frequency && !has_volume) {
+            WSH_SHELL_PRINT_WARN("Specify --frequency or --volume\r\n");
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
-        if (frequency < BSP_BUZZER_FREQ_MIN_HZ || frequency > BSP_BUZZER_FREQ_MAX_HZ) {
+        if (has_frequency && (frequency < BSP_BUZZER_FREQ_MIN_HZ || frequency > BSP_BUZZER_FREQ_MAX_HZ)) {
             WSH_SHELL_PRINT_WARN("Invalid frequency\r\n");
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
+        if (has_volume && volume > BSP_BUZZER_VOLUME_MAX_PERCENT) {
+            WSH_SHELL_PRINT_WARN("Invalid volume\r\n");
+            return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
+
+        /* Valid manual command takes ownership from app_sound. */
         app_sound_cancel();
 
-        if (!bsp_buzzer_set_frequency(frequency)) {
-            WSH_SHELL_PRINT_ERR("Failed to set buzzer frequency\r\n");
+        if (has_frequency && !bsp_buzzer_set_frequency(frequency)) {
+            WSH_SHELL_PRINT_ERR("Failed to set frequency\r\n");
             return WSH_SHELL_RET_STATE_ERROR;
         }
 
-        WSH_SHELL_PRINT_INFO("Buzzer frequency: %lu Hz\r\n", (unsigned long)frequency);
+        if (has_volume && !bsp_buzzer_set_volume((uint8_t)volume)) {
+            WSH_SHELL_PRINT_ERR("Failed to set volume\r\n");
+            return WSH_SHELL_RET_STATE_ERROR;
+        }
 
-        return WSH_SHELL_RET_STATE_SUCCESS;
+        return print_status();
     }
 
     if (is_on || is_off) {

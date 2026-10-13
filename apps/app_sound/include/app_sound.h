@@ -14,7 +14,7 @@ extern "C" {
  * A new call replaces the currently active tone.
  * Returns false if the buzzer is unavailable, manually
  * enabled, or the arguments are invalid. */
-bool app_sound_beep(uint32_t frequency_hz, uint32_t duration_ms);
+bool app_sound_beep(uint32_t frequency_hz, uint8_t volume_percent, uint32_t duration_ms);
 
 /* Cancel only an active application-generated tone.
  * Does not affect a manually enabled buzzer. */
