@@ -66,7 +66,8 @@ void app_sound_cancel(void) {
 
     sound.active = false;
 
-    /* Restore the frequency configured before the tone. */
+    /* Restore the frequency and volume configured before the tone. */
+    (void)bsp_buzzer_set_volume(sound.previous_volume_percent);
     (void)bsp_buzzer_set_frequency(sound.previous_frequency_hz);
 }
 
