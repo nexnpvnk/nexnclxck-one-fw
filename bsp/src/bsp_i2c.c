@@ -3,7 +3,10 @@
 #include "ports/ui2c_stm32f0.h"
 #include "stm32f0xx_hal.h"
 
+#define BSP_I2C_INIT_RETRY_MS 1000U
+
 static ui2c_stm32f0_t sensor_bus;
+static uint32_t last_init_attempt_ms;
 
 static uint32_t time_ms(void* arg) {
     (void)arg;
@@ -32,24 +35,38 @@ bool bsp_i2c_init(void) {
     if (sensor_bus.bus.ops != NULL) {
         return true;
     }
-    /* CubeMX owns all board initialization, including DMA and NVIC.
-     * Bind its resources; the backend owns only transfer-time state. */
+
+    last_init_attempt_ms = HAL_GetTick();
+
+    /* CubeMX owns clocks, pins, DMA and NVIC.
+     * The backend owns only transfer-time state. */
     const ui2c_stm32f0_config_t hw = {
         .instance = hi2c1.Instance,
         .tx_dma = dma_config(hi2c1.hdmatx),
         .rx_dma = dma_config(hi2c1.hdmarx),
         .dma_threshold = 16,
     };
-    const ui2c_config_t config = {.time_ms = time_ms, .timeout_ms = 100};
-    if (ui2c_stm32f0_init(&sensor_bus, &hw, &config) != UI2C_STATUS_OK) {
-        return false;
-    }
-    return true;
+
+    const ui2c_config_t config = {
+        .time_ms = time_ms,
+        .timeout_ms = 100,
+    };
+
+    return ui2c_stm32f0_init(&sensor_bus, &hw, &config) == UI2C_STATUS_OK;
 }
 
 ui2c_t* bsp_i2c_bus(void) { return &sensor_bus.bus; }
 
-void bsp_i2c_process(void) { ui2c_process(&sensor_bus.bus); }
+void bsp_i2c_process(void) {
+    if (sensor_bus.bus.ops != NULL) {
+        ui2c_process(&sensor_bus.bus);
+        return;
+    }
+
+    if ((uint32_t)(HAL_GetTick() - last_init_attempt_ms) >= BSP_I2C_INIT_RETRY_MS) {
+        (void)bsp_i2c_init();
+    }
+}
 
 void bsp_i2c_irq(void) { ui2c_stm32f0_irq(&sensor_bus); }
 

@@ -10,9 +10,7 @@
 #include "shell.h"
 
 void app_main(void) {
-    if (!bsp_i2c_init()) {
-        while (1) {}
-    }
+    /* Bring up diagnostics before optional peripherals. */
     if (!bsp_console_init()) {
         while (1) {}
     }
@@ -29,6 +27,10 @@ void app_main(void) {
 
     if (!app_cli_init()) {
         while (1) {}
+    }
+
+    if (!bsp_i2c_init()) {
+        printf("Warning: I2C1 initialization failed; continuing\r\n");
     }
 
     (void)app_sound_beep(2800U, 10U, 100U);
