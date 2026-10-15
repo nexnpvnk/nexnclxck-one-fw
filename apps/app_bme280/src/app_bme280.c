@@ -3,9 +3,10 @@
 #include "bsp_i2c.h"
 #include "bsp_time.h"
 
-#define BME280_SAMPLE_INTERVAL_MS 500U
-#define BME280_RETRY_INTERVAL_MS  1000U
-#define BME280_FAILURE_LIMIT      3U
+#define BME280_SAMPLE_INTERVAL_MS    500U
+#define BME280_RETRY_INTERVAL_MS     1000U
+#define BME280_BUS_RETRY_INTERVAL_MS 50U
+#define BME280_FAILURE_LIMIT         3U
 
 static const struct bme280_settings settings = {
     .osr_p = BME280_OVERSAMPLING_1X,
@@ -14,7 +15,6 @@ static const struct bme280_settings settings = {
     .filter = BME280_FILTER_COEFF_OFF,
 };
 
-/* Bosch context and transport must persist between measurements. */
 static struct bme280_dev sensor;
 static bme280_port_t port;
 
@@ -22,12 +22,23 @@ static app_bme280_sample_t latest;
 
 static uint32_t measurement_delay_us;
 static uint32_t last_start;
+static uint32_t poll_interval_ms;
 
 static uint8_t failures;
 static bool initialized;
 
-static bool is_bus_contention(ui2c_status_t status) {
-    return status == UI2C_STATUS_BUSY || status == UI2C_STATUS_BUS_BUSY || status == UI2C_STATUS_ARBITRATION_LOST;
+/* Return a retry interval for temporary transport unavailability.
+ * Zero means the result is not a shared-bus deferral. */
+static uint32_t defer_interval_ms(ui2c_status_t status) {
+    switch (status) {
+        case UI2C_STATUS_BUSY:
+        case UI2C_STATUS_BUS_BUSY:
+        case UI2C_STATUS_ARBITRATION_LOST: return BME280_BUS_RETRY_INTERVAL_MS;
+
+        case UI2C_STATUS_NOT_INITIALIZED: return BME280_RETRY_INTERVAL_MS;
+
+        default: return 0U;
+    }
 }
 
 static int8_t init_sensor(void) {
@@ -79,13 +90,25 @@ static int8_t read_sample(struct bme280_data* data) {
 void app_bme280_process(void) {
     uint32_t now = bsp_time_ms();
 
-    uint32_t interval = initialized ? BME280_SAMPLE_INTERVAL_MS : BME280_RETRY_INTERVAL_MS;
-
-    if (latest.ready && (uint32_t)(now - last_start) < interval) {
+    /*
+     * Zero permits the first attempt immediately.
+     * Subsequent attempts use the interval selected by
+     * the previous outcome, independently of latest.ready.
+     */
+    if (poll_interval_ms != 0U && (uint32_t)(now - last_start) < poll_interval_ms) {
         return;
     }
 
     last_start = now;
+
+    /*
+     * Another local client owns the bus.
+     * Do not enter Bosch SensorAPI or modify sensor state.
+     */
+    if (ui2c_busy(bsp_i2c_bus())) {
+        poll_interval_ms = BME280_BUS_RETRY_INTERVAL_MS;
+        return;
+    }
 
     app_bme280_sample_t sample = {0};
     struct bme280_data data;
@@ -101,6 +124,19 @@ void app_bme280_process(void) {
         result = read_sample(&data);
     }
 
+    /*
+     * The bus can become unavailable during a transaction
+     * even when the initial availability check succeeds.
+     */
+    if (result != BME280_OK) {
+        uint32_t delay = defer_interval_ms(port.status);
+
+        if (delay != 0U) {
+            poll_interval_ms = delay;
+            return;
+        }
+    }
+
     sample.sensor_status = result;
     sample.transport_status = port.status;
     sample.address = port.address;
@@ -111,22 +147,16 @@ void app_bme280_process(void) {
         sample.humidity_centi_percent = (data.humidity * 100U + 512U) / 1024U;
 
         failures = 0U;
-    } else if (initialized) {
+    } else if (initialized && ++failures >= BME280_FAILURE_LIMIT) {
         /*
-         * Contention is normal for a shared I2C bus.
-         * It must not trigger a sensor reset.
+         * Only actual measurement failures can invalidate
+         * the cached Bosch configuration and calibration.
          */
-        if (is_bus_contention(port.status)) {
-            failures = 0U;
-        } else if (++failures >= BME280_FAILURE_LIMIT) {
-            /*
-             * Cached configuration/calibration may no longer
-             * be valid. Reinitialize after the retry interval.
-             */
-            initialized = false;
-            failures = 0U;
-        }
+        initialized = false;
+        failures = 0U;
     }
+
+    poll_interval_ms = initialized ? BME280_SAMPLE_INTERVAL_MS : BME280_RETRY_INTERVAL_MS;
 
     sample.sampled_at_ms = bsp_time_ms();
     sample.ready = true;
