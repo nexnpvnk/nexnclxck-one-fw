@@ -47,12 +47,16 @@ struct ui2c {
     void* port;
     ui2c_config_t config;
     uint32_t capabilities;
+
     const ui2c_msg_t* msgs;
     size_t num_msgs;
     ui2c_addr_t addr;
+
     ui2c_callback_t callback;
     void* callback_arg;
+
     uint32_t started_at;
+
     volatile ui2c_state_t state;
     volatile ui2c_status_t result;
 };

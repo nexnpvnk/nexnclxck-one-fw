@@ -12,27 +12,50 @@ extern "C" {
 #define UI2C_VERSION_MAJOR 1
 #define UI2C_VERSION_MINOR 0
 
+/**
+ * @brief Opaque I2C bus handle.
+ *
+ * Represents an I2C controller instance without exposing
+ * its internal state to application code.
+ *
+ * The complete structure is defined in ui2c_port.h.
+ */
 typedef struct ui2c ui2c_t;
 
+/**
+ * @brief I2C operation status.
+ *
+ * Defines common results for API operations and
+ * asynchronous transaction completion.
+ */
 typedef enum {
-    UI2C_STATUS_OK = 0,
-    UI2C_STATUS_INVALID_ARG,
-    UI2C_STATUS_NOT_INITIALIZED,
-    UI2C_STATUS_BUSY,
-    UI2C_STATUS_UNSUPPORTED,
-    UI2C_STATUS_NACK,
-    UI2C_STATUS_ARBITRATION_LOST,
-    UI2C_STATUS_BUS_BUSY,
-    UI2C_STATUS_BUS_ERROR,
-    UI2C_STATUS_TIMEOUT,
-    UI2C_STATUS_IO_ERROR,
-    UI2C_STATUS_CANCELLED,
+    UI2C_STATUS_OK = 0,           /**< Operation accepted or completed successfully. */
+    UI2C_STATUS_INVALID_ARG,      /**< Invalid argument or transaction parameters. */
+    UI2C_STATUS_NOT_INITIALIZED,  /**< Controller is not initialized. */
+    UI2C_STATUS_BUSY,             /**< Local controller context or resource is busy. */
+    UI2C_STATUS_UNSUPPORTED,      /**< Requested operation is not supported. */
+    UI2C_STATUS_NACK,             /**< Negative acknowledgment received. */
+    UI2C_STATUS_ARBITRATION_LOST, /**< Controller lost bus arbitration. */
+    UI2C_STATUS_BUS_BUSY,         /**< Physical I2C bus is busy. */
+    UI2C_STATUS_BUS_ERROR,        /**< Invalid or unexpected bus transaction condition. */
+    UI2C_STATUS_TIMEOUT,          /**< Transaction exceeded its timeout. */
+    UI2C_STATUS_IO_ERROR,         /**< Low-level transfer error. */
+    UI2C_STATUS_CANCELLED,        /**< Transaction was cancelled. */
 } ui2c_status_t;
 
+/**
+ * @brief I2C message flags.
+ *
+ * Defines the transfer direction and the bus condition
+ * preceding a message.
+ *
+ * START and STOP are generated automatically at the
+ * beginning and end of a transaction.
+ */
 enum {
-    UI2C_MSG_WRITE = 0U,
-    UI2C_MSG_READ = 1U << 0,
-    UI2C_MSG_RESTART = 1U << 1,
+    UI2C_MSG_WRITE = 0U,        /**< Write direction (default). */
+    UI2C_MSG_READ = 1U << 0,    /**< Read direction. */
+    UI2C_MSG_RESTART = 1U << 1, /**< Repeated START before this message. */
 };
 
 /** Direction changes require RESTART on the new message. First START and final
