@@ -1,25 +1,31 @@
+#include "ui2c.h"
 #include "ui2c_port.h"
 
 static ui2c_status_t validate(const ui2c_t* bus, const ui2c_msg_t* msgs, size_t count) {
     if (msgs == NULL || count == 0U) {
         return UI2C_STATUS_INVALID_ARG;
     }
+
     for (size_t i = 0; i < count; ++i) {
         const ui2c_msg_t* msg = &msgs[i];
+
         if ((msg->flags & ~(UI2C_MSG_READ | UI2C_MSG_RESTART)) != 0U
             || (i == 0U && (msg->flags & UI2C_MSG_RESTART) != 0U)) {
             return UI2C_STATUS_INVALID_ARG;
         }
+
         if (msg->len == 0U) {
             if (count != 1U || msg->flags != UI2C_MSG_WRITE) {
                 return UI2C_STATUS_INVALID_ARG;
             }
+
             if ((bus->capabilities & UI2C_CAP_PROBE) == 0U) {
                 return UI2C_STATUS_UNSUPPORTED;
             }
         } else if (((msg->flags & UI2C_MSG_READ) != 0U ? msg->data.rx : msg->data.tx) == NULL) {
             return UI2C_STATUS_INVALID_ARG;
         }
+
         if (i != 0U) {
             bool restart = (msg->flags & UI2C_MSG_RESTART) != 0U;
             if (!restart && ((msg->flags ^ msgs[i - 1U].flags) & UI2C_MSG_READ) != 0U) {
@@ -52,18 +58,37 @@ ui2c_status_t ui2c_port_init(ui2c_t* bus, const ui2c_port_ops_t* ops, void* port
     return UI2C_STATUS_OK;
 }
 
-ui2c_status_t ui2c_xfer(ui2c_t* bus, uint16_t addr, const ui2c_msg_t* msgs, size_t count, ui2c_callback_t callback,
+ui2c_status_t ui2c_xfer(ui2c_t* bus, ui2c_addr_t addr, const ui2c_msg_t* msgs, size_t count, ui2c_callback_t callback,
                         void* arg) {
     if (bus == NULL || callback == NULL) {
         return UI2C_STATUS_INVALID_ARG;
     }
+
     if (bus->ops == NULL) {
         return UI2C_STATUS_NOT_INITIALIZED;
     }
-    if (addr > 0x7FU) {
-        return UI2C_STATUS_UNSUPPORTED;
+
+    switch (addr.mode) {
+        case UI2C_ADDR_7BIT:
+            if (addr.value > 0x7FU) {
+                return UI2C_STATUS_INVALID_ARG;
+            }
+            break;
+
+        case UI2C_ADDR_10BIT:
+            if (addr.value > 0x3FFU) {
+                return UI2C_STATUS_INVALID_ARG;
+            }
+            if (!(bus->capabilities & UI2C_CAP_ADDR_10BIT)) {
+                return UI2C_STATUS_UNSUPPORTED;
+            }
+            break;
+
+        default: return UI2C_STATUS_INVALID_ARG;
     }
+
     ui2c_status_t status = validate(bus, msgs, count);
+
     if (status != UI2C_STATUS_OK) {
         return status;
     }

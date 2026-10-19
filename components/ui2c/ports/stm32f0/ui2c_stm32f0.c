@@ -115,39 +115,49 @@ static void start_chunk(ui2c_stm32f0_t* port, bool start) {
     port->boundary = ui2c_port_boundary(&port->bus, port->index);
     size_t count = remaining > 255U ? 255U : remaining;
     port->reload = remaining > count || port->boundary == UI2C_BOUNDARY_CONTINUE;
+
     /* ES0202 2.12.9: RX reload must use NBYTES=1. The final non-reload chunk
      * can still use DMA. This preserves protocol semantics under arbitrary IRQ
      * latency rather than assuming DMA will always win the erratum race. */
     if (read && port->reload) {
         count = 1U;
     }
+
     port->left = (uint16_t)count;
     hw->CR1 &= ~(I2C_CR1_TXIE | I2C_CR1_RXIE | UI2C_DMA_BITS);
+
     if (start && !read && port->left != 0U) {
         /* ES0202 2.12.12: preload before START, including DMA transfers. */
         hw->TXDR = msg->data.tx[port->offset++];
         --port->left;
     }
+
     const ui2c_stm32f0_dma_t* dma = read ? &port->hw.rx_dma : &port->hw.tx_dma;
     uint16_t threshold = port->hw.dma_threshold == 0U ? 16U : port->hw.dma_threshold;
+
     if (dma->channel != NULL && port->left >= threshold && port->left > 1U) {
         start_dma(port, dma, read);
     } else if (port->left != 0U) {
         hw->CR1 |= read ? I2C_CR1_RXIE : I2C_CR1_TXIE;
     }
-    uint32_t cr2 = (uint32_t)port->bus.addr << 1U;
+
+    uint32_t cr2 = (uint32_t)port->bus.addr.value << 1U;
     cr2 |= (uint32_t)count << I2C_CR2_NBYTES_Pos;
+
     if (read) {
         cr2 |= I2C_CR2_RD_WRN;
     }
+
     if (port->reload) {
         cr2 |= I2C_CR2_RELOAD;
     } else if (port->boundary == UI2C_BOUNDARY_STOP) {
         cr2 |= I2C_CR2_AUTOEND;
     }
+
     if (start) {
         cr2 |= I2C_CR2_START;
     }
+
     hw->CR1 |= I2C_CR1_NACKIE | I2C_CR1_STOPIE | I2C_CR1_TCIE | I2C_CR1_ERRIE;
     hw->CR2 = cr2;
 }

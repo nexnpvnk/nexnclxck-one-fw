@@ -9,7 +9,13 @@ static void completed(ui2c_t* bus, ui2c_status_t status, void* arg) {
 
 static BME280_INTF_RET_TYPE transfer(bme280_port_t* port, const ui2c_msg_t* msgs) {
     port->done = false;
-    port->status = ui2c_xfer(port->bus, port->address, msgs, 2, completed, port);
+
+    ui2c_addr_t addr = {
+        .value = port->address,
+        .mode = UI2C_ADDR_7BIT,
+    };
+
+    port->status = ui2c_xfer(port->bus, addr, msgs, 2, completed, port);
     if (port->status == UI2C_STATUS_OK) {
         /* Also advances polling backends and enforces the ui2c timeout.
          * Keep stack descriptors/buffers alive until completion is delivered. */

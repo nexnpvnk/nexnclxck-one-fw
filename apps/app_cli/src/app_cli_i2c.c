@@ -88,6 +88,7 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
+
     unsigned addr = 0, reg = 0, len = 1, seen = 0;
     WshShell_Size_t pos = 0;
     while (pos < argc) {
@@ -129,7 +130,13 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
     request.count = probe ? 0U : len;
     request.msgs[0] = (ui2c_msg_t){.data.tx = &request.reg, .len = probe ? 0U : 1U};
     request.msgs[1] = (ui2c_msg_t){.data.rx = request.rx, .len = len, .flags = UI2C_MSG_READ | UI2C_MSG_RESTART};
-    ui2c_status_t status = ui2c_xfer(bsp_i2c_bus(), (uint16_t)addr, request.msgs, probe ? 1U : 2U, completed, NULL);
+
+    ui2c_addr_t ui2c_addr = {
+        .value = (uint16_t)addr,
+        .mode = UI2C_ADDR_7BIT,
+    };
+
+    ui2c_status_t status = ui2c_xfer(bsp_i2c_bus(), ui2c_addr, request.msgs, probe ? 1U : 2U, completed, NULL);
     request.active = status == UI2C_STATUS_OK;
     if (!request.active) {
         WSH_SHELL_PRINT_WARN("I2C rejected: %s (%u)\r\n", status_name(status), (unsigned)status);

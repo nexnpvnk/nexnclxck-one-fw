@@ -51,6 +51,7 @@ enum {
     UI2C_CAP_RESTART = 1U << 0,
     UI2C_CAP_CONTINUE = 1U << 1,
     UI2C_CAP_PROBE = 1U << 2,
+    UI2C_CAP_ADDR_10BIT = 1U << 3,
 };
 
 typedef uint32_t (*ui2c_time_ms_t)(void* arg);
@@ -65,14 +66,24 @@ typedef struct {
     uint32_t timeout_ms;
 } ui2c_config_t;
 
-/** Submit a 7-bit controller transaction (unshifted address).
+typedef enum {
+    UI2C_ADDR_7BIT,
+    UI2C_ADDR_10BIT,
+} ui2c_addr_mode_t;
+
+typedef struct {
+    uint16_t value;
+    ui2c_addr_mode_t mode;
+} ui2c_addr_t;
+
+/** Submit a controller transaction (unshifted address).
  * OK = accepted: exactly one callback follows from process. Otherwise rejected:
  * no callback or retained buffers. Callback is mandatory.
  * msgs, buffers and arg must live until callback. Do not modify descriptors/TX
  * data or access RX data during a request. No allocation, queue or auto retry.
  * All public calls are foreground-only, externally serialized (one event loop).
  * ISR/concurrent calls are forbidden. Backend IRQs are synchronized internally. */
-ui2c_status_t ui2c_xfer(ui2c_t* bus, uint16_t addr, const ui2c_msg_t* msgs, size_t count, ui2c_callback_t callback,
+ui2c_status_t ui2c_xfer(ui2c_t* bus, ui2c_addr_t addr, const ui2c_msg_t* msgs, size_t count, ui2c_callback_t callback,
                         void* arg);
 
 /** Synchronously quiesce local hardware; callback remains deferred to process.
