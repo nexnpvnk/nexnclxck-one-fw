@@ -58,26 +58,57 @@ enum {
     UI2C_MSG_RESTART = 1U << 1, /**< Repeated START before this message. */
 };
 
-/** Direction changes require RESTART on the new message. First START and final
- * STOP are automatic; no intermediate STOP. One zero-length WRITE is a probe. */
+/**
+ * @brief I2C message descriptor.
+ *
+ * Describes a single read or write message within an
+ * I2C transaction.
+ *
+ * Multiple messages may be combined into one transaction
+ * using ui2c_xfer().
+ *
+ * @note The descriptor and its data buffer must remain
+ * valid and unchanged until transaction completion.
+ */
 typedef struct {
     union {
-        const uint8_t* tx;
-        uint8_t* rx;
-    } data;
+        const uint8_t* tx; /**< Source buffer for write operations. */
+        uint8_t* rx;       /**< Destination buffer for read operations. */
+    } data;                /**< Message data buffer. */
 
-    size_t len;
-    uint16_t flags;
+    size_t len;     /**< Number of bytes to transfer. */
+    uint16_t flags; /**< Message direction and control flags. */
 } ui2c_msg_t;
 
+/**
+ * @brief I2C controller capabilities.
+ *
+ * Defines the protocol features supported by a backend.
+ * Capabilities are specified during initialization and
+ * used to validate requested transactions.
+ */
 enum {
-    UI2C_CAP_RESTART = 1U << 0,
-    UI2C_CAP_CONTINUE = 1U << 1,
-    UI2C_CAP_PROBE = 1U << 2,
-    UI2C_CAP_ADDR_10BIT = 1U << 3,
+    UI2C_CAP_RESTART = 1U << 0,    /**< Repeated START between messages. */
+    UI2C_CAP_CONTINUE = 1U << 1,   /**< Continue without START or STOP. */
+    UI2C_CAP_PROBE = 1U << 2,      /**< Zero-length write (address-only probe). */
+    UI2C_CAP_ADDR_10BIT = 1U << 3, /**< 10-bit address support. */
 };
 
+/**
+ * @brief I2C monotonic time source callback.
+ *
+ * Returns the current system time in milliseconds.
+ * The counter may wrap around at UINT32_MAX.
+ *
+ * The time source must remain operational during
+ * an active transaction and must not block.
+ *
+ * @param[in] arg User-defined time source context.
+ *
+ * @return Current monotonic time in milliseconds.
+ */
 typedef uint32_t (*ui2c_time_ms_t)(void* arg);
+
 typedef void (*ui2c_callback_t)(ui2c_t* bus, ui2c_status_t status, void* arg);
 
 /** Monotonic wrapping millisecond clock. timeout_ms is mandatory, 1..INT32_MAX.
