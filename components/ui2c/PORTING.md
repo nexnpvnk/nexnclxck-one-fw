@@ -114,8 +114,7 @@ cache line, TCM, XDMAC или архитектуре CPU.
 
 ## Приёмка нового backend
 
-Использовать тот же набор протокольных сценариев, что в `tests/test_ui2c.c`, с новым
-MMIO/vendor adapter. Дополнительно проверить на железе порядок NACK/STOP/IRQ/DMA,
+Дополнительно проверить на железе порядок NACK/STOP/IRQ/DMA,
 отмену каждой стадии, timing и конкуренцию за память. Для MK64 отдельно проверить
 короткие RX и TXAK; для SAME70 — хвосты DMA, ограничения команд и cache canaries;
 для К1921ВГ015 — ST.MODE, очистку peripheral IRQ и PLIC claim/complete.

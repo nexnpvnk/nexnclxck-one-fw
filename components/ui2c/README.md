@@ -1,233 +1,110 @@
-# ui2c v1
+# ui2c
 
-Асинхронный I²C controller transport на C11: небольшой переносимый API и отдельный
-backend, который полностью управляет периферией. Реализован backend для STM32F051
-и подключение I2C1 текущей платы. Другие MCU пока исследованы, но их драйверы ещё
-не реализованы. Статус проверки: host-тесты и сборка прошивки; аппаратная
-валидация остаётся отдельным этапом.
+**Portable, non-blocking I²C controller library for bare-metal embedded systems.**
 
-## Архитектура
+[Русская версия](README_RU.md)
+
+> **Status:** pre-release. The portable core and its v1 API are implemented. An STM32F051 backend has been developed in the original firmware project, but complete hardware validation is still pending. Support for other MCUs must not be assumed.
+
+## Why ui2c?
+
+Microcontroller vendors expose different peripheral interfaces, transfer APIs, interrupt models and DMA controllers. Device drivers should not need to know those details. `ui2c` provides a small, consistent transaction API while leaving hardware-specific execution to a dedicated backend.
+
+The library is designed for projects that need portable I²C clients, explicit error handling and predictable non-blocking behavior without depending on an RTOS or a vendor HAL.
+
+## Design principles
+
+- **Hardware-independent core.** No CMSIS, HAL, RTOS or board headers in the core.
+- **One transaction API.** Applications submit message sequences, not hardware register operations.
+- **Non-blocking operation.** Submission never waits for a transfer to finish; completion is reported through a callback dispatched by `ui2c_process()`.
+- **Backend-owned hardware.** IRQs, DMA, polling, START/RESTART/STOP sequencing and MCU errata are handled by the port.
+- **Explicit capabilities.** Unsupported message combinations are rejected rather than silently altered.
+- **No dynamic allocation or hidden scheduler.** The core owns no heap, transaction queue or automatic retries.
+- **Correct error boundaries.** Arbitration loss, NACK, bus busy, cancellation and timeout are reported to the client; retry policy remains outside the library.
+- **Board neutrality.** Pinmux, clocks, bus timing and peripheral/DMA resource assignments belong to the BSP.
+
+## Architecture
 
 ```text
-Драйвер датчика / приложение             include/ui2c.h
-                 ↓
-Core: контракт, валидация, lifecycle     src/ui2c.c
-                 ↓
-Backend: протокол, IRQ, DMA, errata      ports/stm32f0/
-                 ↓
-BSP: привязка готовой периферии          ../../bsp/src/bsp_i2c.c
-                 ↑
-CubeMX: GPIO, clocks, I²C, DMA, NVIC     ../../Core/Src/
+Application / device driver    transactions, retry/backoff policy
+             |
+          ui2c.h              portable public API
+             |
+          ui2c.c              validation, lifecycle, timeout, callback
+             |
+        ui2c_port.h           backend contract
+             |
+       MCU-specific port      hardware state machine, IRQ/DMA/polling
+             |
+             BSP              pins, clocks, routing, initialization
 ```
 
-Core не включает CMSIS/HAL, не выделяет память и не копирует сообщения. Нет
-глобального реестра шин или глобальных HAL callbacks. Каждая шина имеет свой
-статический backend-контекст; приложение получает только `ui2c_t*`. Контекст
-backend инициализируется один раз, не перемещается и существует всё время работы.
+The **core** and the **backend contract** form the `ui2c` repository. Hardware ports may live in a firmware project or in independently maintained port repositories; they are **not** required to be embedded into the `ui2c` Git submodule. A board-specific BSP is never part of the portable core.
 
-Общий слой знает состояния `IDLE → ACTIVE → DONE → IDLE`. Все аппаратные стадии
-принадлежат backend: core не навязывает последовательность байтов или DMA-блоков.
-Полная транзакция доступна backend для предварительной проверки и оптимизации.
-Необязательная операция backend `process` поддерживает cooperative polling и
-отложенную работу при неизменном API приложения.
-
-## Контракт приложения
-
-- Адрес — **7-битный, без сдвига**. Одна транзакция обращается к одному адресу.
-- Первый START и последний STOP неявные. `UI2C_MSG_RESTART` относится к началу
-  нового сообщения. Изменение направления требует RESTART.
-- Соседние сообщения одного направления без RESTART продолжаются на проводах
-  без адресной фазы. Так можно передать заголовок и payload из разных буферов.
-- Единственное сообщение WRITE с `len = 0` — address-only probe; указатель можно
-  оставить NULL. Нулевые сообщения внутри транзакции запрещены.
-- `ui2c_xfer() == OK` означает принятие: один callback будет доставлен через
-  `ui2c_process()`. Любой другой результат означает отказ без callback.
-- Дескрипторы сообщений, буферы и callback context должны жить до callback.
-  До него нельзя менять descriptors/TX или обращаться к RX. Ошибка может оставить
-  частичные данные в RX и частично выполненную запись в устройстве.
-- Одна активная или ожидающая callback транзакция на шину. Занятость возвращается
-  сразу; скрытой очереди и автоматических повторов нет.
-- Все публичные функции вызываются из одного сериализованного foreground
-  контекста. ISR и параллельные задачи не вызывают API. Для RTOS нужен один
-  владелец шины/dispatcher; backend отдельно синхронизирует свои IRQ.
-- Callback выполняется **вне IRQ и вне critical section**, шина уже IDLE;
-  можно сразу отправить следующую транзакцию. Рекурсивный `ui2c_process()` запрещён.
-- `ui2c_cancel()` синхронно останавливает доступ локального IRQ/DMA к памяти;
-  callback с CANCELLED остаётся отложенным. Уже завершённый результат сохраняется.
-- Таймаут всей транзакции задаётся при инициализации: `1..INT32_MAX` мс.
-  Clock должен работать во время передачи. Wrap `uint32_t` поддержан; нельзя
-  оставлять активный запрос без `process()` на полный оборот clock.
-  Таймаут обнаруживается при вызове `process()`, а не скрытым аппаратным таймером.
-
-Init подготавливает локальный экземпляр и не требует свободной внешней шины.
-`ui2c_process()` сначала продвигает backend, затем проверяет таймаут и доставляет
-callback. Наблюдённое completion имеет приоритет над timeout; это не жёсткий
-аппаратный дедлайн. Приложению не требуется знать, используются IRQ, DMA или polling.
-Публичные capabilities описывают только протокол; ошибки DMA возвращают `IO_ERROR`.
-
-`BUSY` означает занятый программный контекст/ресурс; `BUS_BUSY` — занятую физическую
-шину при старте. При потере арбитража backend освобождает локальные ресурсы и
-возвращает `ARBITRATION_LOST`; решение о повторе принимает клиент. Обычный NACK
-не разделяется на address/data NACK: это переносимый результат без ложной точности.
-
-## Пример чтения регистра
+## Basic usage
 
 ```c
 #include "ui2c.h"
 
-static uint8_t reg = 0xD0;
+static uint8_t chip_id_register = 0xD0;
 static uint8_t chip_id;
+
+/* Descriptors and buffers must remain valid until the callback. */
 static const ui2c_msg_t messages[] = {
-    {.data.tx = &reg,     .len = 1, .flags = UI2C_MSG_WRITE},
-    {.data.rx = &chip_id, .len = 1, .flags = UI2C_MSG_READ | UI2C_MSG_RESTART},
+    { .data.tx = &chip_id_register, .len = 1, .flags = UI2C_MSG_WRITE },
+    { .data.rx = &chip_id, .len = 1, .flags = UI2C_MSG_READ | UI2C_MSG_RESTART },
 };
 
-static void complete(ui2c_t* bus, ui2c_status_t status, void* arg) {
+static void on_complete(ui2c_t* bus, ui2c_status_t status, void* arg) {
     (void)bus;
     (void)arg;
     if (status == UI2C_STATUS_OK) {
-        /* chip_id теперь доступен приложению. */
+        /* chip_id is now available. */
     }
 }
 
-ui2c_status_t read_id(ui2c_t* bus) {
-    return ui2c_xfer(bus, 0x76, messages, 2, complete, NULL);
+ui2c_status_t read_chip_id(ui2c_t* bus) {
+    const ui2c_addr_t address = {
+        .value = 0x76,       /* Unshifted 7-bit address. */
+        .mode = UI2C_ADDR_7BIT,
+    };
+    return ui2c_xfer(bus, address, messages, 2, on_complete, NULL);
 }
-/* Event loop регулярно вызывает ui2c_process(bus). */
+
+/* Call ui2c_process(bus) regularly from the foreground event loop. */
 ```
 
-Wire: `START → 0x76 W → 0xD0 → RESTART → 0x76 R → byte/NACK → STOP`.
+A successful `ui2c_xfer()` return means the request was **accepted**, not that the bus operation has finished. The completion callback is delivered from `ui2c_process()`, outside interrupt context.
 
-## STM32F051: IRQ и DMA
+## Execution contract
 
-Backend использует CMSIS-регистры. CubeMX/HAL настраивает плату до передачи владения
-ui2c; после этого HAL I²C transfer/deinit/reinit нельзя вызывать для той же периферии.
-TIMINGR, фильтры и приоритет DMA сохраняются. Обработчики I²C и DMA в
-`Core/Src/stm32f0xx_it.c` подключены через USER CODE внутри генерируемых функций;
-HAL dispatch обходится явным `return`. Отдельных вручную объявленных IRQ-функций нет.
+- The public API is called from one externally serialized foreground context; concurrent/ISR calls are not supported by the core contract.
+- One request at a time is allowed per bus, including a completion waiting for callback dispatch.
+- Message descriptors, TX/RX buffers and the callback context must remain valid until the callback.
+- The backend owns hardware activity and must stop accessing request memory before completing or aborting a transaction.
+- The monotonic millisecond clock is supplied by the integration; `ui2c_process()` must run regularly for timeout detection.
+- `ui2c_cancel()` only cancels local controller activity. It cannot guarantee the external I²C lines are physically released.
+- The core does not impose automatic bus recovery, arbitration retry or a multi-controller scheduling policy.
 
-Источником аппаратной конфигурации является `.ioc`. `MX_DMA_Init()` включает clock
-и настраивает NVIC, `MX_I2C1_Init()`/MSP инициализируют I²C и DMA и связывают HAL
-handles. BSP читает `hi2c1.Instance`, `hi2c1.hdmatx` и `hi2c1.hdmarx`; он не
-выбирает каналы повторно и не задаёт приоритеты NVIC.
+## Integration
 
-В CubeMX для текущей платы:
+The portable core can be linked using CMake:
 
-| Параметр | I2C1_TX | I2C1_RX |
-| --- | --- | --- |
-| DMA channel | DMA1 Channel 2 | DMA1 Channel 3 |
-| Direction | Memory to Peripheral | Peripheral to Memory |
-| Mode | Normal | Normal |
-| Peripheral increment | Disabled | Disabled |
-| Memory increment | Enabled | Enabled |
-| Peripheral / Memory width | Byte / Byte | Byte / Byte |
-| Priority | High | High |
-
-I2C1 global IRQ и DMA1 channel 2/3 global IRQ включены, priority 0.
-Сохранить CMake, Keep User Code, отдельные `.c/.h` для периферии, stack `0x800`,
-heap `0`. После регенерации в USER CODE каждого из двух IRQ должны оставаться
-вызов BSP и `return`; вручную добавлять второй обработчик нельзя.
-
-Backend проверяет совместимость начальной конфигурации DMA. Неподходящие режим,
-направление, разрядность или increment приводят к отказу инициализации, а не к
-скрытой перенастройке. При каждой передаче он программирует адреса/длину и управляет
-DMA enable/IRQ flags; это рабочее состояние транспорта. Локальный сброс PE,
-отключение slave address matching и выбор START/STOP также остаются частью
-controller-only backend. Через CubeMX не задаются timeout и порог выбора DMA —
-это программная политика ui2c.
-
-| Механизм | Работа |
-| --- | --- |
-| I²C IRQ | TXIS/RXNE, TC/TCR, STOPF, NACKF, ARLO, OVR; переходы между сообщениями |
-| DMA IRQ | Завершение переноса памяти и transfer error; завершение DMA ещё не означает завершения I²C |
-| Короткие блоки | Побайтовая передача в IRQ |
-| Длинные блоки | DMA, когда доступен и допустим; размер NBYTES не больше 255 |
-| RX с RELOAD | Однобайтовые reload-блоки из-за errata; финальный блок может использовать DMA |
-| Синхронизация | Короткие секции PRIMASK с восстановлением прежнего состояния; без ожиданий периферии |
-| Завершение/ошибка | После STOP/ARLO — отключение запросов и DMA без сброса PE; принудительный сброс для незавершённого обмена при отмене/ошибке |
-
-Init сохраняет PE и наблюдение за BUSY. Отключаются OA1EN/OA2EN и slave-only режимы;
-NOSTRETCH должен быть заранее сброшен CubeMX. Неверная настройка отклоняется без
-переключения PE. До init не должно быть локального обмена или активной slave-сессии.
-Занятость внешней шины проверяется при `xfer`, не при init. Штатный STOP и ARLO
-также не сбрасывают PE, сохраняя наблюдение за обменом другого контроллера.
-
-На текущей плате: PB6/PB7, I2C1; DMA1 channel 2 TX / 3 RX, общий
-`DMA1_Channel2_3_IRQHandler`; UART использует 4/5. Порог DMA — 16 оставшихся байт
-блока (после предварительной загрузки первого TX-байта), таймаут — 100 мс.
-Канал DMA можно не назначать для одного или обоих направлений: тот же backend
-работает на IRQ. При назначении каналов BSP обеспечивает правильную маршрутизацию
-и исключительное владение ими.
-
-Если STOP/TC/TCR приходит раньше последней записи RX DMA, callback ждёт завершения
-DMA. Источник boundary IRQ временно маскируется, чтобы не создавать IRQ storm;
-DMA IRQ продолжает обработку. Ошибка DMA проверяется и в I²C IRQ.
-
-Учтены ограничения [ST ES0202](https://www.st.com/resource/en/errata_sheet/es0202-stm32f051x4x6x8-device-errata-stmicroelectronics.pdf):
-§2.4.1 — disable DMA перед очисткой отдельных флагов;
-§2.12.8 — очистка ложного BERR в controller mode без обрыва передачи;
-§2.12.9 — RX RELOAD с NBYTES=1;
-§2.12.12 — предварительная загрузка первого TX-байта перед START.
-Это сознательная плата производительностью за корректность RX RELOAD при задержках
-обслуживания. Название backend `stm32f0` не означает проверку всех моделей семейства:
-его текущая целевая модель — STM32F051 с DMA1 channels 1..5.
-
-Отмена/таймаут освобождают **локальную** периферию. Они не гарантируют свободную SDA,
-если устройство удерживает её. GPIO bus recovery и автоматический retry не выполняются:
-особенно после ARLO нельзя вмешиваться в передачу другого контроллера.
-
-## Проверка на текущей плате
-
-После загрузки прошивки в существующей shell:
-
-```text
-i2c --addr 0x76 --probe
-i2c --addr 0x76 --reg 0xD0
-i2c --addr 0x76 --reg 0x88 --len 24
+```cmake
+add_subdirectory(components/ui2c)
+target_link_libraries(your_target PRIVATE ui2c::core)
 ```
 
-Первая команда проверяет ACK, вторая читает ID, третья задействует RX DMA.
-Для BME280 ожидаемый ID — `60` (см. `components/bme280/bme280_defs.h`).
-При другом положении SDO используйте адрес 0x77. Команда печатает принятие сразу,
-результат — позже; `--len` ограничен 1..32. Это диагностика транспорта, а не
-интеграция Bosch SensorAPI или готовый драйвер измерений.
+A separately maintained MCU port links against the core and supplies the peripheral implementation, initialization API and IRQ integration. The BSP configures the hardware and creates the port instance.
 
-`bsp_i2c_process()` вызывается в основном цикле. Обработка входа shell ограничена
-32 байтами за итерацию, чтобы непрерывный UART input не вытеснял обработку ui2c.
-Долгие синхронные CLI handlers всё ещё могут задержать callback и обнаружение
-таймаута: текущий loop не даёт hard-real-time гарантии 100 мс.
+## Repository mirrors
 
-До аппаратного выпуска проверить логическим анализатором:
+**GitHub is the authoritative upstream; GitFlic is an official read-only mirror.** Development changes, issues and releases are managed upstream. The GitFlic repository address will be added once the mirror is created and verified. Release tags are intended to be identical on both hosts.
 
-1. ACK/NACK probe, чтение ID, отсутствие STOP между записью регистра и чтением.
-2. IRQ-only и DMA RX/TX, границы 1/2/16/17/254/255/256 байт на тестовом target.
-3. Scatter buffers W→W и R→R без лишнего START; W→W→R с одним RESTART.
-4. NACK адреса/данных, отключение target, удержание SCL, timeout/cancel и повторный запрос.
-5. Для multimaster — потерю арбитража и отсутствие STOP от проигравшего контроллера.
-6. Одновременную нагрузку UART DMA, частоту SCL/rise time/pull-ups, заполнение стека.
+## Scope and roadmap
 
-Host-тесты не моделируют аналоговые характеристики, реальные задержки DMA и
-физическое отпускание линий. Эти проверки на железе здесь не выполнялись.
+The current project focuses on I²C controller mode. Target/slave mode, automatic retries, queueing, SMBus features and universal bus recovery are not part of the current core contract. Additional MCU support will be documented only after implementation and verification.
 
-## Подключение
+## License
 
-Подключение core: `add_subdirectory(components/ui2c)` и линковка с `ui2c::core`.
-Для STM32 backend включить `UI2C_BUILD_STM32F0`, предоставить target
-`ui2c_stm32f0` пути CMSIS и device define, линковать `ui2c::stm32f0`.
-Компонент не привязан к имени vendor target или исходникам HAL.
-
-Тестовая инфраструктура проекта удалена по решению пользователя. Не добавлять
-тесты и не запускать тесты или сборку без явного запроса пользователя.
-
-## Переход с черновика
-
-API намеренно несовместим с прежней версией. Используйте `data.tx` / `data.rx`
-вместо общего буфера; STOP теперь неявный в конце всей транзакции. Настройки
-периферии передаются конкретному backend, а clock/timeout — через `ui2c_config_t`.
-HAL handle и callbacks заменены явным backend-контекстом и IRQ forwarding.
-В приложениях нет доступа к `ui2c_port.h`; он предназначен для авторов backend.
-
-В v1 нет target/slave режима, 10-bit адресации, SMBus PEC, скрытого scheduler,
-blocking wrappers, автоматического retry и bus recovery. Эти функции следует
-добавлять по реальному use case с явным контрактом, сохраняя простой transport API.
-План портирования и различия MCU: [PORTING.md](PORTING.md).
+Licensed under the **Apache License, Version 2.0**. See [LICENSE](LICENSE).
