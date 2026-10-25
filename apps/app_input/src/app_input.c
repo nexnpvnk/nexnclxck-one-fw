@@ -44,13 +44,13 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
 
             (void)app_sound_beep(APP_INPUT_BEEP_FREQ_HZ, APP_INPUT_BEEP_VOLUME, APP_INPUT_BEEP_DURATION);
 
-            ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s pressed\r", name);
+            ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s pressed", name);
             break;
 
-        case LWBTN_EVT_ONRELEASE: ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s released\r", name); break;
+        case LWBTN_EVT_ONRELEASE: ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s released", name); break;
 
         case LWBTN_EVT_ONCLICK:
-            ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s click x%u\r", name, (unsigned)lwbtn_click_get_count(button));
+            ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s click x%u", name, (unsigned)lwbtn_click_get_count(button));
             break;
 
         case LWBTN_EVT_KEEPALIVE:
@@ -61,7 +61,7 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
                 long_press_reported[id] = true;
 
                 (void)app_sound_beep(APP_INPUT_BEEP_FREQ_HZ, APP_INPUT_BEEP_VOLUME, APP_INPUT_BEEP_DURATION * 4);
-                ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s long press\r", name);
+                ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s long press", name);
             }
             break;
 

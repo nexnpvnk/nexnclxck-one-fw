@@ -53,21 +53,21 @@ void app_cli_bme280_process(void) {
     /* Preserve a partially typed command while watch output is printed. */
     WSH_SHELL_PRINT("\r\033[2K");
     if (!sample->ready) {
-        WSH_SHELL_PRINT_SYS("BME280: no sample yet\r\n");
+        WSH_SHELL_PRINT_SYS("BME280: no sample yet\n");
     } else if (sample->sensor_status == 0) {
         int32_t t = sample->temperature_centi_c;
         uint32_t magnitude = t < 0 ? 0U - (uint32_t)t : (uint32_t)t;
         uint32_t p = (sample->pressure_centi_pa + 50U) / 100U; /* Bosch 64-bit: Pa * 100. */
         uint32_t h = sample->humidity_centi_percent;
-        WSH_SHELL_PRINT_SYS("BME280 0x%02X | T: %s%lu.%02lu C | P: %lu.%02lu hPa | RH: %lu.%02lu %%\r\n",
+        WSH_SHELL_PRINT_SYS("BME280 0x%02X | T: %s%lu.%02lu C | P: %lu.%02lu hPa | RH: %lu.%02lu %%\n",
                             (unsigned)sample->address, t < 0 ? "-" : "", (unsigned long)(magnitude / 100U),
                             (unsigned long)(magnitude % 100U), (unsigned long)(p / 100U), (unsigned long)(p % 100U),
                             (unsigned long)(h / 100U), (unsigned long)(h % 100U));
     } else if (sample->transport_status != UI2C_STATUS_OK) {
-        WSH_SHELL_PRINT_WARN("BME280 0x%02X: %s\r\n", (unsigned)sample->address,
+        WSH_SHELL_PRINT_WARN("BME280 0x%02X: %s\n", (unsigned)sample->address,
                              transport_name(sample->transport_status));
     } else {
-        WSH_SHELL_PRINT_WARN("BME280 0x%02X: Bosch error %d\r\n", (unsigned)sample->address,
+        WSH_SHELL_PRINT_WARN("BME280 0x%02X: Bosch error %d\n", (unsigned)sample->address,
                              (int)sample->sensor_status);
     }
     WSH_SHELL_PRINT("%s%s", console->PS1, console->CommandLine.Buff);
@@ -107,14 +107,14 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         app_cli_bme280_cancel();
-        WSH_SHELL_PRINT_SYS("BME280 output stopped\r\n");
+        WSH_SHELL_PRINT_SYS("BME280 output stopped\n");
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
     console = shell;
     last_start = bsp_time_ms();
     if (seen & (1U << OPT_WATCH)) {
         watching = true;
-        WSH_SHELL_PRINT_SYS("BME280 watch; Ctrl+C or bme280 --stop to stop output\r\n");
+        WSH_SHELL_PRINT_SYS("BME280 watch; Ctrl+C or bme280 --stop to stop output\n");
     }
     requested = true;
     return WSH_SHELL_RET_STATE_SUCCESS;

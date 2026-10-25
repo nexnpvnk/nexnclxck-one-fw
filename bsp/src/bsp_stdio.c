@@ -1,28 +1,46 @@
 #include "bsp_console.h"
 
+#include "bsp_console.h"
+
 int _write(int file, char* ptr, int len) {
     (void)file;
+
+    static bool last_cr;
 
     if (len <= 0) {
         return 0;
     }
 
-    static bool last_cr = false;
+    int pos = 0;
 
-    for (int i = 0; i < len; ++i) {
-        const char c = ptr[i];
+    while (pos < len) {
+        int start = pos;
 
-        if (c == '\n' && !last_cr) {
-            if (bsp_console_write("\r", 1U) != 1U) {
-                return i;
+        while (pos < len && ptr[pos] != '\n') {
+            ++pos;
+        }
+
+        if (pos > start) {
+            int size = pos - start;
+
+            if (bsp_console_write(ptr + start, (size_t)size) != size) {
+                return start > 0 ? start : -1;
             }
+
+            last_cr = (ptr[pos - 1] == '\r');
         }
 
-        if (bsp_console_write(&c, 1U) != 1U) {
-            return i;
-        }
+        if (pos < len) {
+            const char* eol = last_cr ? "\n" : "\r\n";
+            size_t size = last_cr ? 1U : 2U;
 
-        last_cr = (c == '\r');
+            if (bsp_console_write(eol, size) != (int)size) {
+                return pos > 0 ? pos : -1;
+            }
+
+            last_cr = false;
+            ++pos;
+        }
     }
 
     return len;
