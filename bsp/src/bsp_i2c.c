@@ -1,6 +1,6 @@
 #include "bsp_i2c.h"
 #include "i2c.h"
-#include "ports/ui2c_stm32f0.h"
+#include "ui2c_stm32f0.h"
 #include "stm32f0xx_hal.h"
 
 #define BSP_I2C_INIT_RETRY_MS 1000U

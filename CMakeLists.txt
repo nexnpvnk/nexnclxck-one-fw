@@ -66,8 +66,8 @@ add_subdirectory(cmake/stm32cubemx)
 # Components
 #
 add_subdirectory(components/lwrb/lwrb)
-set(UI2C_BUILD_STM32F0 ON)
 add_subdirectory(components/ui2c)
+add_subdirectory(ports/ui2c/stm32f0)
 # Unmodified Bosch SensorAPI; the board/application adapter lives in app_bme280.
 add_library(bme280_bosch STATIC components/bme280/bme280.c)
 target_include_directories(bme280_bosch PUBLIC components/bme280)

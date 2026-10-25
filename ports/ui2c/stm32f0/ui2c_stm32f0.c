@@ -1,4 +1,4 @@
-#include "ports/ui2c_stm32f0.h"
+#include "ui2c_stm32f0.h"
 
 #define UI2C_IRQ_BITS                                                                                                  \
     (I2C_CR1_TXIE | I2C_CR1_RXIE | I2C_CR1_ADDRIE | I2C_CR1_NACKIE | I2C_CR1_STOPIE | I2C_CR1_TCIE | I2C_CR1_ERRIE)
