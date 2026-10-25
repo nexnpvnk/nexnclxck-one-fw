@@ -132,6 +132,7 @@ void app_bme280_process(void) {
         uint32_t delay = defer_interval_ms(port.status);
 
         if (delay != 0U) {
+            last_start = bsp_time_ms();
             poll_interval_ms = delay;
             return;
         }
