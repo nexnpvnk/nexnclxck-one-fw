@@ -3,6 +3,7 @@
 **Portable, non-blocking I²C controller library for bare-metal embedded systems.**
 
 [Русская версия](README_RU.md)
+[Porting guide](PORTING.md)
 
 > **Status:** pre-release. The portable core and its v1 API are implemented. An STM32F051 backend has been developed in the original firmware project, but complete hardware validation is still pending. Support for other MCUs must not be assumed.
 
