@@ -17,4 +17,6 @@ target_link_libraries(app_main
         app_cli
         app_bme280
         app_sound
+        app_clock
+        microlog
 )

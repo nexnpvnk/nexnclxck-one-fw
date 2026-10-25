@@ -80,6 +80,32 @@ target_include_directories(ui2c_stm32f0 PUBLIC
 )
 target_compile_definitions(ui2c_stm32f0 PUBLIC STM32F051x8)
 
+add_library(microlog STATIC
+    components/microlog/src/ulog.c
+    components/microlog/extensions/ulog_syslog.c
+)
+
+target_include_directories(microlog PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/microlog/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/microlog/extensions
+)
+
+target_compile_definitions(microlog PUBLIC
+    ULOG_BUILD_COLOR=1
+    ULOG_BUILD_PREFIX_SIZE=64
+    ULOG_BUILD_SOURCE_LOCATION=0
+    ULOG_BUILD_LEVEL_SHORT=0
+
+    ULOG_BUILD_TIME=0
+
+    ULOG_BUILD_TOPICS_MODE=1
+    ULOG_BUILD_TOPICS_STATIC_NUM=6
+
+    ULOG_BUILD_EXTRA_OUTPUTS=0
+    ULOG_BUILD_DYNAMIC_CONFIG=0
+    ULOG_BUILD_WARN_NOT_ENABLED=0
+)
+
 #
 # Board support
 #

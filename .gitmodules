@@ -13,3 +13,6 @@
 [submodule "components/ui2c"]
 	path = components/ui2c
 	url = https://github.com/nexnpvnk/ui2c.git
+[submodule "components/microlog"]
+	path = components/microlog
+	url = https://github.com/an-dr/microlog.git
