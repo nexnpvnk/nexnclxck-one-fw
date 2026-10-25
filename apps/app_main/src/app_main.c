@@ -104,11 +104,13 @@ void app_main(void) {
 
     (void)app_sound_beep(2800U, 10U, 100U);
 
-    static const uint8_t test_colors[][3] = {
+    static const bsp_ws2812_rgb_t palette[] = {
         {32U, 0U, 0U},
         {0U, 32U, 0U},
         {0U, 0U, 32U},
     };
+
+    bsp_ws2812_rgb_t leds[BSP_WS2812_MAX_LEDS];
 
     uint32_t last_led_ms = bsp_time_ms();
     uint8_t led_phase = 0U;
@@ -118,15 +120,13 @@ void app_main(void) {
 
         if (ws2812_ready && (uint32_t)(now - last_led_ms) >= 1000U) {
 
-            if (bsp_ws2812_show_rgb(test_colors[led_phase][0], test_colors[led_phase][1], test_colors[led_phase][2])) {
+            for (uint32_t i = 0U; i < BSP_WS2812_MAX_LEDS; ++i) {
+                leds[i] = palette[((i / 2U) + led_phase) % 3U];
+            }
 
+            if (bsp_ws2812_show(leds, BSP_WS2812_MAX_LEDS)) {
                 last_led_ms = now;
-
-                led_phase++;
-
-                if (led_phase >= 3U) {
-                    led_phase = 0U;
-                }
+                led_phase = (uint8_t)((led_phase + 1U) % 3U);
             }
         }
 
