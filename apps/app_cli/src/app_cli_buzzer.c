@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "app_cli.h"
 #include "app_sound.h"
 #include "bsp_buzzer.h"
 #include "wsh_shell.h"
@@ -23,37 +24,12 @@ static const WshShellOption_t control_opts[] = {
 };
 
 static const WshShellOption_t set_opts[] = {
+    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set buzzer parameters")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_FREQUENCY, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-f", "--frequency", "Frequency in Hz (100..10000)")},
     {OPT_VOLUME, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-v", "--volume", "Volume (0..100%%)")},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
-
-static bool parse_number(const char* text, uint32_t* number) {
-    uint32_t value = 0U;
-
-    if (text == NULL || number == NULL || *text == '\0') {
-        return false;
-    }
-
-    while (*text != '\0') {
-        if (*text < '0' || *text > '9') {
-            return false;
-        }
-
-        uint32_t digit = (uint32_t)(*text - '0');
-
-        if (value > (UINT32_MAX - digit) / 10U) {
-            return false;
-        }
-
-        value = value * 10U + digit;
-        ++text;
-    }
-
-    *number = value;
-    return true;
-}
 
 static WSH_SHELL_RET_STATE_t print_status(void) {
     bsp_buzzer_status_t status;
@@ -104,7 +80,8 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
             case OPT_HELP: WshShellCmd_PrintOptionsOverview(cmd); return WSH_SHELL_RET_STATE_SUCCESS;
 
             case OPT_FREQUENCY:
-                if (!is_set || has_frequency || !parse_number(argv[opt.TokenPos + 1U], &frequency)) {
+                if (!is_set || has_frequency
+                    || !app_cli_parse_u32(argv[opt.TokenPos + 1U], UINT32_MAX, false, &frequency)) {
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
 
@@ -112,7 +89,7 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
                 break;
 
             case OPT_VOLUME:
-                if (!is_set || has_volume || !parse_number(argv[opt.TokenPos + 1U], &volume)) {
+                if (!is_set || has_volume || !app_cli_parse_u32(argv[opt.TokenPos + 1U], UINT32_MAX, false, &volume)) {
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
 
@@ -191,7 +168,7 @@ static const WshShellCmd_t off_cmd = {
 static const WshShellCmd_t set_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_USER,
     .Name = "set",
-    .Descr = "Set buzzer frequency",
+    .Descr = "Set buzzer frequency and volume",
     .Options = set_opts,
     .OptNum = WSH_SHELL_ARR_LEN(set_opts),
     .Handler = handler,

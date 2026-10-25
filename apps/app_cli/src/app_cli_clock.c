@@ -6,64 +6,45 @@
 #include "app_clock.h"
 #include "wsh_shell.h"
 
-/* clang-format off */
-#define CLOCK_READ_OPT_TABLE() \
-    X_CMD_ENTRY(CLOCK_READ_OPT_DEF,    WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show current date and time")) \
-    X_CMD_ENTRY(CLOCK_READ_OPT_HELP,   WSH_SHELL_OPT_HELP()) \
-    X_CMD_ENTRY(CLOCK_READ_OPT_END_ID, WSH_SHELL_OPT_END())
-/* clang-format on */
+enum {
+    CLOCK_READ_OPT_DEF,
+    CLOCK_READ_OPT_HELP,
+    CLOCK_READ_OPT_END_ID,
+};
 
-typedef enum {
+enum {
+    CLOCK_SET_OPT_DEF,
+    CLOCK_SET_OPT_HELP,
+    CLOCK_SET_OPT_DATE,
+    CLOCK_SET_OPT_TIME,
+    CLOCK_SET_OPT_END_ID,
+};
 
-#define X_CMD_ENTRY(en, m) en,
-    CLOCK_READ_OPT_TABLE()
-#undef X_CMD_ENTRY
-        CLOCK_READ_OPT_ENUM_SIZE
-} CLOCK_READ_OPT_t;
+enum {
+    CLOCK_INVALIDATE_OPT_DEF,
+    CLOCK_INVALIDATE_OPT_HELP,
+    CLOCK_INVALIDATE_OPT_END_ID,
+};
 
-#define X_CMD_ENTRY(en, m) {en, m},
-static const WshShellOption_t clock_read_opts[] = {CLOCK_READ_OPT_TABLE()};
-#undef X_CMD_ENTRY
+static const WshShellOption_t clock_read_opts[] = {
+    {CLOCK_READ_OPT_DEF, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show current date and time")},
+    {CLOCK_READ_OPT_HELP, WSH_SHELL_OPT_HELP()},
+    {CLOCK_READ_OPT_END_ID, WSH_SHELL_OPT_END()},
+};
 
-/* clang-format off */
-#define CLOCK_SET_OPT_TABLE() \
-    X_CMD_ENTRY(CLOCK_SET_OPT_DEF,    WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set date and time")) \
-    X_CMD_ENTRY(CLOCK_SET_OPT_HELP,   WSH_SHELL_OPT_HELP()) \
-    X_CMD_ENTRY(CLOCK_SET_OPT_DATE,   WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-d", "--date", "Date in YYYY-MM-DD format")) \
-    X_CMD_ENTRY(CLOCK_SET_OPT_TIME,   WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-t", "--time", "Time in HH:MM:SS format")) \
-    X_CMD_ENTRY(CLOCK_SET_OPT_END_ID, WSH_SHELL_OPT_END())
-/* clang-format on */
+static const WshShellOption_t clock_set_opts[] = {
+    {CLOCK_SET_OPT_DEF, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set date and time")},
+    {CLOCK_SET_OPT_HELP, WSH_SHELL_OPT_HELP()},
+    {CLOCK_SET_OPT_DATE, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-d", "--date", "Date in YYYY-MM-DD format")},
+    {CLOCK_SET_OPT_TIME, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-t", "--time", "Time in HH:MM:SS format")},
+    {CLOCK_SET_OPT_END_ID, WSH_SHELL_OPT_END()},
+};
 
-typedef enum {
-
-#define X_CMD_ENTRY(en, m) en,
-    CLOCK_SET_OPT_TABLE()
-#undef X_CMD_ENTRY
-        CLOCK_SET_OPT_ENUM_SIZE
-} CLOCK_SET_OPT_t;
-
-#define X_CMD_ENTRY(en, m) {en, m},
-static const WshShellOption_t clock_set_opts[] = {CLOCK_SET_OPT_TABLE()};
-#undef X_CMD_ENTRY
-
-/* clang-format off */
-#define CLOCK_INVALIDATE_OPT_TABLE() \
-    X_CMD_ENTRY(CLOCK_INVALIDATE_OPT_DEF,    WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_ADMIN, "Invalidate stored clock state")) \
-    X_CMD_ENTRY(CLOCK_INVALIDATE_OPT_HELP,   WSH_SHELL_OPT_HELP()) \
-    X_CMD_ENTRY(CLOCK_INVALIDATE_OPT_END_ID, WSH_SHELL_OPT_END())
-/* clang-format on */
-
-typedef enum {
-
-#define X_CMD_ENTRY(en, m) en,
-    CLOCK_INVALIDATE_OPT_TABLE()
-#undef X_CMD_ENTRY
-        CLOCK_INVALIDATE_OPT_ENUM_SIZE
-} CLOCK_INVALIDATE_OPT_t;
-
-#define X_CMD_ENTRY(en, m) {en, m},
-static const WshShellOption_t clock_invalidate_opts[] = {CLOCK_INVALIDATE_OPT_TABLE()};
-#undef X_CMD_ENTRY
+static const WshShellOption_t clock_invalidate_opts[] = {
+    {CLOCK_INVALIDATE_OPT_DEF, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_ADMIN, "Invalidate stored clock state")},
+    {CLOCK_INVALIDATE_OPT_HELP, WSH_SHELL_OPT_HELP()},
+    {CLOCK_INVALIDATE_OPT_END_ID, WSH_SHELL_OPT_END()},
+};
 
 static const char* const clock_weekday_names[] = {
     "???", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
@@ -156,6 +137,11 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_parse_read_options(const WshShellCmd_
     }
 
     shell = (WshShell_t*)pShellCtx;
+
+    if (shell->CurrUser == NULL) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+
     *help = false;
 
     while (token_pos < argc) {
@@ -203,8 +189,7 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, W
     WSH_SHELL_PRINT_SYS("RTC      : %s\r\n"
                         "SOURCE   : %s\r\n"
                         "Calendar : %s\r\n",
-                        status.rtc_ready ? "ready" : "not ready",
-                        status.source_ready ? "ready" : "not ready",
+                        status.rtc_ready ? "ready" : "not ready", status.source_ready ? "ready" : "not ready",
                         status.datetime_valid ? "valid" : "not set");
 
     if (!status.datetime_valid) {
