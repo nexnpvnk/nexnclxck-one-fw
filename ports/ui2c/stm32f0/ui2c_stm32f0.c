@@ -226,11 +226,13 @@ ui2c_status_t ui2c_stm32f0_init(ui2c_stm32f0_t* port, const ui2c_stm32f0_config_
         return UI2C_STATUS_BUSY; /* Existing local transfer/address match. */
     }
     uint32_t caps = UI2C_CAP_RESTART | UI2C_CAP_CONTINUE | UI2C_CAP_PROBE;
+
+    port->hw = *hw;
+
     ui2c_status_t status = ui2c_port_init(&port->bus, &ops, port, config, caps);
     if (status != UI2C_STATUS_OK) {
         return status;
     }
-    port->hw = *hw;
     ui2c_lock_key_t key = lock(&port->bus);
     dma_disable(&port->hw.tx_dma);
     dma_disable(&port->hw.rx_dma);
