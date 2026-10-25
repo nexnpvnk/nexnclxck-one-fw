@@ -3,6 +3,7 @@
 #include "app_bme280.h"
 #include "app_cli.h"
 #include "app_clock.h"
+#include "app_input.h"
 #include "app_sound.h"
 
 #include "bsp_buzzer.h"
@@ -14,6 +15,8 @@
 #include "shell.h"
 #include "ulog.h"
 #include "ulog_syslog.h"
+
+#define TAG "main"
 
 static void logger_prefix(ulog_event* event, char* buffer, size_t size) {
     static uint32_t message_id;
@@ -33,7 +36,7 @@ static void logger_prefix(ulog_event* event, char* buffer, size_t size) {
 
 static bool logger_init(void) {
     static const char* const topics[] = {
-        "main", "rtc", "i2c", "bme280", "sound", "storage",
+        "main", "rtc", "i2c", "bme280", "sound", "storage", "input",
     };
 
     if (ulog_syslog_enable() != ULOG_STATUS_OK) {
@@ -44,7 +47,7 @@ static bool logger_init(void) {
         return false;
     }
 
-    if (ulog_output_level_set(ULOG_OUTPUT_STDOUT, ULOG_SYSLOG_INFO) != ULOG_STATUS_OK) {
+    if (ulog_output_level_set(ULOG_OUTPUT_STDOUT, ULOG_SYSLOG_DEBUG) != ULOG_STATUS_OK) {
         return false;
     }
 
@@ -66,11 +69,15 @@ void app_main(void) {
     if (!logger_init()) {
         printf("Warning: microlog initialization failed\r\n");
     } else {
-        ulog_t(ULOG_SYSLOG_INFO, "main", "Logging initialized");
+        ulog_t(ULOG_SYSLOG_INFO, TAG, "Logging initialized\r");
     }
 
     if (!shell_init()) {
         while (1) {}
+    }
+
+    if (!app_input_init()) {
+        ulog_t(ULOG_SYSLOG_ERR, TAG, "Button initialization failed\r");
     }
 
     /* Keep the console available for diagnostics if storage initialization fails. */
@@ -84,12 +91,13 @@ void app_main(void) {
     }
 
     if (!bsp_i2c_init()) {
-        printf("Warning: I2C1 initialization failed; continuing\r\n");
+        ulog_t(ULOG_SYSLOG_CRIT, TAG, "Warning: I2C1 initialization failed; continuing\r");
     }
 
     (void)app_sound_beep(2800U, 10U, 100U);
 
     while (1) {
+        app_input_process();
         app_sound_process();
         bsp_i2c_process();
         app_bme280_process();

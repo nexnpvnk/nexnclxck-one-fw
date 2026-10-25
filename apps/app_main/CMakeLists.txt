@@ -19,4 +19,5 @@ target_link_libraries(app_main
         app_sound
         app_clock
         microlog
+        app_input
 )

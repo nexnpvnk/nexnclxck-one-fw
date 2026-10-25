@@ -99,12 +99,18 @@ target_compile_definitions(microlog PUBLIC
     ULOG_BUILD_TIME=0
 
     ULOG_BUILD_TOPICS_MODE=1
-    ULOG_BUILD_TOPICS_STATIC_NUM=6
+    ULOG_BUILD_TOPICS_STATIC_NUM=7
 
     ULOG_BUILD_EXTRA_OUTPUTS=0
     ULOG_BUILD_DYNAMIC_CONFIG=0
     ULOG_BUILD_WARN_NOT_ENABLED=0
 )
+
+set(LWBTN_OPTS_FILE
+    "${CMAKE_CURRENT_SOURCE_DIR}/apps/app_input/include/lwbtn_opts.h"
+)
+
+add_subdirectory(components/lwbtn/lwbtn)
 
 #
 # Board support
