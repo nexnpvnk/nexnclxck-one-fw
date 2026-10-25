@@ -1,5 +1,7 @@
 #include "app_input.h"
 
+#include "app_sound.h"
+
 #include "bsp_buttons.h"
 #include "bsp_time.h"
 
@@ -9,6 +11,10 @@
 
 #define APP_INPUT_PERIOD_MS     5U
 #define APP_INPUT_LONG_PRESS_MS 1000U
+
+#define APP_INPUT_BEEP_FREQ_HZ  2800U
+#define APP_INPUT_BEEP_VOLUME   10U
+#define APP_INPUT_BEEP_DURATION 35U
 
 static lwbtn_btn_t buttons[BSP_BUTTON_COUNT];
 static bool long_press_reported[BSP_BUTTON_COUNT];
@@ -36,6 +42,8 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
         case LWBTN_EVT_ONPRESS:
             long_press_reported[id] = false;
 
+            (void)app_sound_beep(APP_INPUT_BEEP_FREQ_HZ, APP_INPUT_BEEP_VOLUME, APP_INPUT_BEEP_DURATION);
+
             ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s pressed\r", name);
             break;
 
@@ -52,6 +60,7 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
 
                 long_press_reported[id] = true;
 
+                (void)app_sound_beep(APP_INPUT_BEEP_FREQ_HZ, APP_INPUT_BEEP_VOLUME, APP_INPUT_BEEP_DURATION * 4);
                 ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s long press\r", name);
             }
             break;
