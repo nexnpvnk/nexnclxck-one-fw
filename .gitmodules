@@ -10,3 +10,6 @@
 [submodule "components/FlashDB"]
 	path = components/FlashDB
 	url = https://github.com/armink/FlashDB.git
+[submodule "components/ui2c"]
+	path = components/ui2c
+	url = https://github.com/nexnpvnk/ui2c.git
