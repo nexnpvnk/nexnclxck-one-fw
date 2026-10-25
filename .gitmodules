@@ -16,3 +16,6 @@
 [submodule "components/microlog"]
 	path = components/microlog
 	url = https://github.com/an-dr/microlog.git
+[submodule "components/lwbtn"]
+	path = components/lwbtn
+	url = https://github.com/MaJerle/lwbtn.git
