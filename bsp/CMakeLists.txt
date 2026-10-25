@@ -17,6 +17,7 @@ target_sources(bsp
         src/bsp_rtc.c
         src/bsp_buzzer.c
         src/bsp_buttons.c
+        src/bsp_ws2812.c
 )
 
 target_include_directories(bsp

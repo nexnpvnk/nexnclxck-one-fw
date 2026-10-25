@@ -16,6 +16,8 @@
 #include "ulog.h"
 #include "ulog_syslog.h"
 
+#include "bsp_ws2812.h"
+
 #define TAG "main"
 
 static void logger_prefix(ulog_event* event, char* buffer, size_t size) {
@@ -86,6 +88,12 @@ void app_main(void) {
     /* Sound is optional; a failed buzzer must not prevent the clock from running. */
     (void)bsp_buzzer_init();
 
+    bool ws2812_ready = bsp_ws2812_init();
+
+    if (!ws2812_ready) {
+        ulog_t(ULOG_SYSLOG_ERR, TAG, "WS2812 initialization failed\r");
+    }
+
     if (!app_cli_init()) {
         while (1) {}
     }
@@ -96,7 +104,32 @@ void app_main(void) {
 
     (void)app_sound_beep(2800U, 10U, 100U);
 
+    static const uint8_t test_colors[][3] = {
+        {32U, 0U, 0U},
+        {0U, 32U, 0U},
+        {0U, 0U, 32U},
+    };
+
+    uint32_t last_led_ms = bsp_time_ms();
+    uint8_t led_phase = 0U;
+
     while (1) {
+        uint32_t now = bsp_time_ms();
+
+        if (ws2812_ready && (uint32_t)(now - last_led_ms) >= 1000U) {
+
+            if (bsp_ws2812_show_rgb(test_colors[led_phase][0], test_colors[led_phase][1], test_colors[led_phase][2])) {
+
+                last_led_ms = now;
+
+                led_phase++;
+
+                if (led_phase >= 3U) {
+                    led_phase = 0U;
+                }
+            }
+        }
+
         app_input_process();
         app_sound_process();
         bsp_i2c_process();
