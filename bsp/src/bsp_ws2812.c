@@ -2,7 +2,6 @@
 #include "bsp_ws2812.h"
 
 #include "bsp_time.h"
-#include "stm32f0xx_hal.h"
 #include "tim.h"
 
 #include <string.h>

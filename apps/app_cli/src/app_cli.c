@@ -5,13 +5,12 @@
 #include "app_cli_bme280.h"
 #include "app_cli_buzzer.h"
 #include "app_cli_clock.h"
-#include "app_cli_i2c.h"
 #include "app_cli_kv.h"
 #include "shell.h"
 #include "wsh_shell.h"
 
 static const WshShellCmd_t* app_cli_commands[] = {
-    &app_cli_clock_cmd, &app_cli_i2c_cmd, &app_cli_bme280_cmd, &app_cli_kv_cmd, &app_cli_buzzer_cmd,
+    &app_cli_clock_cmd, &app_cli_bme280_cmd, &app_cli_kv_cmd, &app_cli_buzzer_cmd,
 };
 
 bool app_cli_init(void) {
