@@ -69,9 +69,9 @@ void app_main(void) {
     }
 
     if (!logger_init()) {
-        printf("Warning: microlog initialization failed\r\n");
+        printf("Warning: microlog initialization failed\n");
     } else {
-        ulog_t(ULOG_SYSLOG_INFO, TAG, "Logging initialized\r");
+        ulog_t(ULOG_SYSLOG_INFO, TAG, "Logging initialized");
     }
 
     if (!shell_init()) {
@@ -79,7 +79,7 @@ void app_main(void) {
     }
 
     if (!app_input_init()) {
-        ulog_t(ULOG_SYSLOG_ERR, TAG, "Button initialization failed\r");
+        ulog_t(ULOG_SYSLOG_ERR, TAG, "Button initialization failed");
     }
 
     /* Keep the console available for diagnostics if storage initialization fails. */
@@ -91,7 +91,7 @@ void app_main(void) {
     bool ws2812_ready = bsp_ws2812_init();
 
     if (!ws2812_ready) {
-        ulog_t(ULOG_SYSLOG_ERR, TAG, "WS2812 initialization failed\r");
+        ulog_t(ULOG_SYSLOG_ERR, TAG, "WS2812 initialization failed");
     }
 
     if (!app_cli_init()) {
@@ -99,7 +99,7 @@ void app_main(void) {
     }
 
     if (!bsp_i2c_init()) {
-        ulog_t(ULOG_SYSLOG_CRIT, TAG, "Warning: I2C1 initialization failed; continuing\r");
+        ulog_t(ULOG_SYSLOG_CRIT, TAG, "Warning: I2C1 initialization failed; continuing");
     }
 
     (void)app_sound_beep(2800U, 10U, 100U);

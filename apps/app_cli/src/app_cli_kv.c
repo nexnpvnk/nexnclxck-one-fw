@@ -99,12 +99,12 @@ static WSH_SHELL_RET_STATE_t kv_handler(const WshShellCmd_t* cmd, WshShell_Size_
     bool del = strcmp(cmd->Name, "del") == 0;
     bool list = strcmp(cmd->Name, "list") == 0;
     if ((set || get || del) != has_key || set != has_value || (has_key && !valid_key(key))) {
-        WSH_SHELL_PRINT_WARN("Use kv get/del -k KEY or kv set -k KEY -v VALUE\r\n");
+        WSH_SHELL_PRINT_WARN("Use kv get/del -k KEY or kv set -k KEY -v VALUE\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     fdb_kvdb_t db = bsp_storage_db();
     if (!db) {
-        WSH_SHELL_PRINT_ERR("Storage unavailable (FlashDB error %d)\r\n", (int)bsp_storage_status());
+        WSH_SHELL_PRINT_ERR("Storage unavailable (FlashDB error %d)\n", (int)bsp_storage_status());
         return WSH_SHELL_RET_STATE_ERROR;
     }
     if (list || (!set && !get && !del)) {
@@ -113,21 +113,21 @@ static WSH_SHELL_RET_STATE_t kv_handler(const WshShellCmd_t* cmd, WshShell_Size_
         while (fdb_kv_iterate(db, &iterator)) {
             if (list) {
                 print_bytes((const uint8_t*)iterator.curr_kv.name, iterator.curr_kv.name_len);
-                WSH_SHELL_PRINT(" : %lu bytes\r\n", (unsigned long)iterator.curr_kv.value_len);
+                WSH_SHELL_PRINT(" : %lu bytes\n", (unsigned long)iterator.curr_kv.value_len);
             }
         }
-        WSH_SHELL_PRINT("%lu keys, %lu value bytes, %lu live record bytes\r\n", (unsigned long)iterator.iterated_cnt,
+        WSH_SHELL_PRINT("%lu keys, %lu value bytes, %lu live record bytes\n", (unsigned long)iterator.iterated_cnt,
                         (unsigned long)iterator.iterated_value_bytes, (unsigned long)iterator.iterated_obj_bytes);
         if (!list) {
-            WSH_SHELL_PRINT("FlashDB %s; 0x%08lX; %u bytes; %u-byte sectors; logical program: 4 bytes\r\n",
+            WSH_SHELL_PRINT("FlashDB %s; 0x%08lX; %u bytes; %u-byte sectors; logical program: 4 bytes\n",
                             FDB_SW_VERSION, BSP_STORAGE_ADDRESS, BSP_STORAGE_SIZE, BSP_STORAGE_PAGE_SIZE);
-            WSH_SHELL_PRINT("Commands: kv list | get -k KEY | set -k KEY -v VALUE | del -k KEY\r\n");
+            WSH_SHELL_PRINT("Commands: kv list | get -k KEY | set -k KEY -v VALUE | del -k KEY\n");
         }
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
     struct fdb_kv kv;
     if (!set && !fdb_kv_get_obj(db, key, &kv)) {
-        WSH_SHELL_PRINT_WARN("Key not found or record invalid\r\n");
+        WSH_SHELL_PRINT_WARN("Key not found or record invalid\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
     if (get) {
@@ -142,7 +142,7 @@ static WSH_SHELL_RET_STATE_t kv_handler(const WshShellCmd_t* cmd, WshShell_Size_
         if (kv.value_len > count) {
             WSH_SHELL_PRINT(" ... [truncated; %lu bytes total]", (unsigned long)kv.value_len);
         }
-        WSH_SHELL_PRINT("\r\n");
+        WSH_SHELL_PRINT("\n");
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
     /* Upstream writes even identical values. Avoid console-induced wear. */
@@ -151,16 +151,16 @@ static WSH_SHELL_RET_STATE_t kv_handler(const WshShellCmd_t* cmd, WshShell_Size_
         struct fdb_blob blob;
         size_t length = fdb_kv_get_blob(db, key, fdb_blob_make(&blob, previous, sizeof(previous)));
         if (length == kv.value_len && memcmp(previous, value, length) == 0) {
-            WSH_SHELL_PRINT_INFO("Unchanged\r\n");
+            WSH_SHELL_PRINT_INFO("Unchanged\n");
             return WSH_SHELL_RET_STATE_SUCCESS;
         }
     }
     fdb_err_t error = set ? fdb_kv_set(db, key, value) : fdb_kv_del(db, key);
     if (error != FDB_NO_ERR) {
-        WSH_SHELL_PRINT_ERR("FlashDB error %d%s\r\n", (int)error, error == FDB_SAVED_FULL ? " (storage full)" : "");
+        WSH_SHELL_PRINT_ERR("FlashDB error %d%s\n", (int)error, error == FDB_SAVED_FULL ? " (storage full)" : "");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-    WSH_SHELL_PRINT_INFO("%s\r\n", set ? "Saved" : "Deleted");
+    WSH_SHELL_PRINT_INFO("%s\n", set ? "Saved" : "Deleted");
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 

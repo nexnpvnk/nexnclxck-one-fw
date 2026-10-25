@@ -120,7 +120,7 @@ static void app_cli_clock_print_datetime(const app_clock_datetime_t* datetime) {
         weekday = clock_weekday_names[datetime->weekday];
     }
 
-    WSH_SHELL_PRINT_SYS("%s %04u-%02u-%02u %02u:%02u:%02u\r\n", weekday, (unsigned)datetime->year,
+    WSH_SHELL_PRINT_SYS("%s %04u-%02u-%02u %02u:%02u:%02u\n", weekday, (unsigned)datetime->year,
                         (unsigned)datetime->month, (unsigned)datetime->day, (unsigned)datetime->hour,
                         (unsigned)datetime->minute, (unsigned)datetime->second);
 }
@@ -186,14 +186,14 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, W
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
-    WSH_SHELL_PRINT_SYS("RTC      : %s\r\n"
-                        "SOURCE   : %s\r\n"
-                        "Calendar : %s\r\n",
+    WSH_SHELL_PRINT_SYS("RTC      : %s\n"
+                        "SOURCE   : %s\n"
+                        "Calendar : %s\n",
                         status.rtc_ready ? "ready" : "not ready", status.source_ready ? "ready" : "not ready",
                         status.datetime_valid ? "valid" : "not set");
 
     if (!status.datetime_valid) {
-        WSH_SHELL_PRINT_WARN("Clock is not set\r\n");
+        WSH_SHELL_PRINT_WARN("Clock is not set\n");
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
@@ -274,7 +274,7 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCm
     }
 
     if (!date_set || !time_set) {
-        WSH_SHELL_PRINT_WARN("Both --date and --time are required\r\n");
+        WSH_SHELL_PRINT_WARN("Both --date and --time are required\n");
 
         WshShellCmd_PrintOptionsOverview(pcCmd);
 
@@ -282,29 +282,29 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCm
     }
 
     if (!app_cli_clock_parse_date(date_str, &datetime)) {
-        WSH_SHELL_PRINT_WARN("Invalid date format, expected YYYY-MM-DD\r\n");
+        WSH_SHELL_PRINT_WARN("Invalid date format, expected YYYY-MM-DD\n");
 
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
     if (!app_cli_clock_parse_time(time_str, &datetime)) {
-        WSH_SHELL_PRINT_WARN("Invalid time format, expected HH:MM:SS\r\n");
+        WSH_SHELL_PRINT_WARN("Invalid time format, expected HH:MM:SS\n");
 
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
     if (!app_clock_set(&datetime)) {
-        WSH_SHELL_PRINT_ERR("Failed to set clock\r\n");
+        WSH_SHELL_PRINT_ERR("Failed to set clock\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
     if (!app_clock_get(&datetime)) {
-        WSH_SHELL_PRINT_ERR("Clock was set but readback failed\r\n");
+        WSH_SHELL_PRINT_ERR("Clock was set but readback failed\n");
 
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
-    WSH_SHELL_PRINT_INFO("Clock updated\r\n");
+    WSH_SHELL_PRINT_INFO("Clock updated\n");
     app_cli_clock_print_datetime(&datetime);
 
     return WSH_SHELL_RET_STATE_SUCCESS;
@@ -341,12 +341,12 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_invalidate_handler(const WshShellCmd_
     }
 
     if (!app_clock_invalidate()) {
-        WSH_SHELL_PRINT_ERR("Failed to invalidate clock\r\n");
+        WSH_SHELL_PRINT_ERR("Failed to invalidate clock\n");
 
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
-    WSH_SHELL_PRINT_INFO("Clock state invalidated\r\n");
+    WSH_SHELL_PRINT_INFO("Clock state invalidated\n");
 
     return WSH_SHELL_RET_STATE_SUCCESS;
 }

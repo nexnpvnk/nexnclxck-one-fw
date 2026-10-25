@@ -35,13 +35,13 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
     bsp_buzzer_status_t status;
 
     if (!bsp_buzzer_get_status(&status)) {
-        WSH_SHELL_PRINT_ERR("Buzzer unavailable\r\n");
+        WSH_SHELL_PRINT_ERR("Buzzer unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
-    WSH_SHELL_PRINT_SYS("State     : %s\r\n"
-                        "Frequency : %lu Hz\r\n"
-                        "Volume    : %u %%\r\n",
+    WSH_SHELL_PRINT_SYS("State     : %s\n"
+                        "Frequency : %lu Hz\n"
+                        "Volume    : %u %%\n",
                         status.enabled ? "on" : "off", (unsigned long)status.frequency_hz,
                         (unsigned)status.volume_percent);
 
@@ -102,17 +102,17 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
 
     if (is_set) {
         if (!has_frequency && !has_volume) {
-            WSH_SHELL_PRINT_WARN("Specify --frequency or --volume\r\n");
+            WSH_SHELL_PRINT_WARN("Specify --frequency or --volume\n");
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
         if (has_frequency && (frequency < BSP_BUZZER_FREQ_MIN_HZ || frequency > BSP_BUZZER_FREQ_MAX_HZ)) {
-            WSH_SHELL_PRINT_WARN("Invalid frequency\r\n");
+            WSH_SHELL_PRINT_WARN("Invalid frequency\n");
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
         if (has_volume && volume > BSP_BUZZER_VOLUME_MAX_PERCENT) {
-            WSH_SHELL_PRINT_WARN("Invalid volume\r\n");
+            WSH_SHELL_PRINT_WARN("Invalid volume\n");
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
 
@@ -120,12 +120,12 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
         app_sound_cancel();
 
         if (has_frequency && !bsp_buzzer_set_frequency(frequency)) {
-            WSH_SHELL_PRINT_ERR("Failed to set frequency\r\n");
+            WSH_SHELL_PRINT_ERR("Failed to set frequency\n");
             return WSH_SHELL_RET_STATE_ERROR;
         }
 
         if (has_volume && !bsp_buzzer_set_volume((uint8_t)volume)) {
-            WSH_SHELL_PRINT_ERR("Failed to set volume\r\n");
+            WSH_SHELL_PRINT_ERR("Failed to set volume\n");
             return WSH_SHELL_RET_STATE_ERROR;
         }
 
@@ -136,11 +136,11 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
         app_sound_cancel();
 
         if (!bsp_buzzer_set_enabled(is_on)) {
-            WSH_SHELL_PRINT_ERR("Buzzer unavailable\r\n");
+            WSH_SHELL_PRINT_ERR("Buzzer unavailable\n");
             return WSH_SHELL_RET_STATE_ERROR;
         }
 
-        WSH_SHELL_PRINT_INFO("Buzzer %s\r\n", is_on ? "enabled" : "disabled");
+        WSH_SHELL_PRINT_INFO("Buzzer %s\n", is_on ? "enabled" : "disabled");
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
