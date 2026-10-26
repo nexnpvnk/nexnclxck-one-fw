@@ -14,10 +14,11 @@ target_link_libraries(app_main
     PRIVATE
         bsp
         wsh_shell_integration
+        microlog
         app_cli
         app_bme280
         app_sound
         app_clock
-        microlog
+        app_light
         app_input
 )

@@ -4,6 +4,7 @@
 #include "app_cli.h"
 #include "app_clock.h"
 #include "app_input.h"
+#include "app_light.h"
 #include "app_sound.h"
 
 #include "bsp_buzzer.h"
@@ -88,10 +89,8 @@ void app_main(void) {
     /* Sound is optional; a failed buzzer must not prevent the clock from running. */
     (void)bsp_buzzer_init();
 
-    bool ws2812_ready = bsp_ws2812_init();
-
-    if (!ws2812_ready) {
-        ulog_t(ULOG_SYSLOG_ERR, TAG, "WS2812 initialization failed");
+    if (!app_light_init(12U)) {
+        ulog_t(ULOG_SYSLOG_ERR, TAG, "Lighting initialization failed\r");
     }
 
     if (!app_cli_init()) {
@@ -104,37 +103,13 @@ void app_main(void) {
 
     (void)app_sound_beep(2800U, 10U, 100U);
 
-    static const bsp_ws2812_rgb_t palette[] = {
-        {32U, 0U, 0U},
-        {0U, 32U, 0U},
-        {0U, 0U, 32U},
-    };
-
-    bsp_ws2812_rgb_t leds[BSP_WS2812_MAX_LEDS];
-
-    uint32_t last_led_ms = bsp_time_ms();
-    uint8_t led_phase = 0U;
-
     while (1) {
-        uint32_t now = bsp_time_ms();
-
-        if (ws2812_ready && (uint32_t)(now - last_led_ms) >= 1000U) {
-
-            for (uint32_t i = 0U; i < BSP_WS2812_MAX_LEDS; ++i) {
-                leds[i] = palette[((i / 2U) + led_phase) % 3U];
-            }
-
-            if (bsp_ws2812_show(leds, BSP_WS2812_MAX_LEDS)) {
-                last_led_ms = now;
-                led_phase = (uint8_t)((led_phase + 1U) % 3U);
-            }
-        }
-
-        app_input_process();
-        app_sound_process();
-        bsp_i2c_process();
-        app_bme280_process();
-        shell_process();
         app_cli_process();
+        app_input_process();
+        app_light_process();
+        app_sound_process();
+        app_bme280_process();
+        bsp_i2c_process();
+        shell_process();
     }
 }
