@@ -20,6 +20,10 @@
  * This exceeds the reset time of conventional WS2812 variants. */
 #define WS2812_LATCH_MS      2U
 
+/* Maximum expected transfer is about 360 us for 12 LEDs.
+ * Allow a generous margin for interrupt latency. */
+#define WS2812_TIMEOUT_MS    5U
+
 static uint32_t dma_buffer[WS2812_BUFFER_WORDS];
 static bsp_ws2812_rgb_t frame[BSP_WS2812_MAX_LEDS];
 
@@ -27,7 +31,14 @@ static bool initialized;
 static volatile bool busy;
 static volatile bool latch_pending;
 
-static uint32_t finished_ms;
+static volatile uint32_t finished_ms;
+static uint32_t started_ms;
+
+static volatile uint32_t completed_count;
+static volatile uint32_t failed_count;
+static volatile uint32_t missed_deadline_count;
+static volatile uint32_t timeout_count;
+static volatile bsp_ws2812_error_t last_error;
 
 static uint8_t frame_count;
 static uint8_t next_led;
@@ -65,7 +76,7 @@ static void fill_half(uint32_t* output) {
     }
 }
 
-static void stop_transfer(void) {
+static void stop_transfer(bsp_ws2812_error_t error) {
     DMA_HandleTypeDef* dma = htim2.hdma[TIM_DMA_ID_CC3];
 
     __HAL_TIM_DISABLE_DMA(&htim2, TIM_DMA_CC3);
@@ -75,40 +86,74 @@ static void stop_transfer(void) {
         (void)HAL_DMA_Abort(dma);
     }
 
-    /* Always leave the data line LOW. */
+    /* Force LOW regardless of transfer outcome. */
     GPIOD->BSRR = WS2812_RESET;
+
+    if (error == BSP_WS2812_ERROR_NONE) {
+        ++completed_count;
+    } else {
+        last_error = error;
+        ++failed_count;
+
+        if (error == BSP_WS2812_ERROR_DEADLINE) {
+            ++missed_deadline_count;
+        } else if (error == BSP_WS2812_ERROR_TIMEOUT) {
+            ++timeout_count;
+        }
+    }
 
     finished_ms = bsp_time_ms();
     latch_pending = true;
     busy = false;
 }
 
-static void half_completed(uint32_t* completed_half) {
-    ++completed_halves;
+static bool dma_phase_valid(bool first_half) {
+    uint32_t remaining = DMA1_Channel1->CNDTR;
 
-    if (completed_halves >= required_halves) {
-        stop_transfer();
+    if (first_half) {
+        /* After HT, DMA must still be reading half 1. */
+        return remaining > 0U && remaining <= WS2812_HALF_WORDS;
+    }
+
+    /* After TC, DMA must still be reading half 0. */
+    return remaining > WS2812_HALF_WORDS;
+}
+
+static void half_completed(uint32_t* completed_half, bool first_half) {
+    if (!dma_phase_valid(first_half)) {
+        stop_transfer(BSP_WS2812_ERROR_DEADLINE);
         return;
     }
 
-    /* DMA is now reading the opposite half.
-     * Refill only the half that has just been consumed. */
+    ++completed_halves;
+
+    if (completed_halves >= required_halves) {
+        stop_transfer(BSP_WS2812_ERROR_NONE);
+        return;
+    }
+
+    /* Refill the half not currently being consumed. */
     fill_half(completed_half);
+
+    /* Check that DMA did not catch up during refill. */
+    if (!dma_phase_valid(first_half)) {
+        stop_transfer(BSP_WS2812_ERROR_DEADLINE);
+    }
 }
 
 static void dma_half_callback(DMA_HandleTypeDef* dma) {
     (void)dma;
-    half_completed(&dma_buffer[0]);
+    half_completed(&dma_buffer[0], true);
 }
 
 static void dma_complete_callback(DMA_HandleTypeDef* dma) {
     (void)dma;
-    half_completed(&dma_buffer[WS2812_HALF_WORDS]);
+    half_completed(&dma_buffer[WS2812_HALF_WORDS], false);
 }
 
 static void dma_error_callback(DMA_HandleTypeDef* dma) {
     (void)dma;
-    stop_transfer();
+    stop_transfer(BSP_WS2812_ERROR_DMA);
 }
 
 bool bsp_ws2812_init(void) {
@@ -143,6 +188,27 @@ bool bsp_ws2812_init(void) {
 }
 
 bool bsp_ws2812_is_busy(void) {
+    uint32_t now = bsp_time_ms();
+
+    if (busy && (uint32_t)(now - started_ms) >= WS2812_TIMEOUT_MS) {
+
+        /*
+         * Called from foreground only.
+         * Exclude the DMA ISR while aborting a stuck transfer.
+         */
+        uint32_t irq_enabled = NVIC_GetEnableIRQ(DMA1_Channel1_IRQn);
+
+        HAL_NVIC_DisableIRQ(DMA1_Channel1_IRQn);
+
+        if (busy && (uint32_t)(bsp_time_ms() - started_ms) >= WS2812_TIMEOUT_MS) {
+            stop_transfer(BSP_WS2812_ERROR_TIMEOUT);
+        }
+
+        if (irq_enabled != 0U) {
+            HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+        }
+    }
+
     if (busy) {
         return true;
     }
@@ -177,6 +243,7 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
     fill_half(&dma_buffer[WS2812_HALF_WORDS]);
 
     busy = true;
+    started_ms = bsp_time_ms();
 
     GPIOD->BSRR = WS2812_RESET;
 
@@ -184,15 +251,45 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
     __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_CC3);
 
     if (HAL_DMA_Start_IT(dma, (uint32_t)dma_buffer, (uint32_t)&GPIOD->BSRR, WS2812_BUFFER_WORDS) != HAL_OK) {
-        busy = false;
+
+        stop_transfer(BSP_WS2812_ERROR_START);
         return false;
     }
 
     __HAL_TIM_ENABLE_DMA(&htim2, TIM_DMA_CC3);
 
     if (HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_3) != HAL_OK) {
-        stop_transfer();
+        stop_transfer(BSP_WS2812_ERROR_START);
         return false;
+    }
+
+    return true;
+}
+
+uint32_t bsp_ws2812_error_count(void) { return failed_count; }
+
+bool bsp_ws2812_get_stats(bsp_ws2812_stats_t* stats) {
+    if (stats == NULL || !initialized) {
+        return false;
+    }
+
+    /*
+     * Take a consistent snapshot of values
+     * also modified from the DMA interrupt.
+     */
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+
+    *stats = (bsp_ws2812_stats_t){
+        .completed = completed_count,
+        .failed = failed_count,
+        .missed_deadlines = missed_deadline_count,
+        .timeouts = timeout_count,
+        .last_error = last_error,
+    };
+
+    if ((primask & 1U) == 0U) {
+        __enable_irq();
     }
 
     return true;

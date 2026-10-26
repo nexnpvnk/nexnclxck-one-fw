@@ -24,6 +24,7 @@ static bool initialized;
 static bool dirty;
 static bool pending;
 static bool have_sent;
+static uint32_t observed_ws2812_errors;
 
 bool app_light_init(uint8_t count) {
     if (initialized) {
@@ -33,6 +34,8 @@ bool app_light_init(uint8_t count) {
     if (count == 0U || count > BSP_WS2812_MAX_LEDS || !bsp_ws2812_init()) {
         return false;
     }
+
+    observed_ws2812_errors = bsp_ws2812_error_count();
 
     led_count = count;
 
@@ -112,6 +115,19 @@ bool app_light_set_brightness(uint8_t value) {
 void app_light_process(void) {
     if (!initialized) {
         return;
+    }
+
+    uint32_t errors = bsp_ws2812_error_count();
+
+    if (errors != observed_ws2812_errors) {
+        observed_ws2812_errors = errors;
+
+    /*
+     * Last accepted frame may not have reached the LEDs.
+     * Render and submit the current frame again.
+     */
+        have_sent = false;
+        dirty = true;
     }
 
     uint32_t now = bsp_time_ms();
