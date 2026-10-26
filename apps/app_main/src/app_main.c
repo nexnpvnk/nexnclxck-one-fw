@@ -17,8 +17,6 @@
 #include "ulog.h"
 #include "ulog_syslog.h"
 
-#include "bsp_ws2812.h"
-
 #define TAG "main"
 
 static void logger_prefix(ulog_event* event, char* buffer, size_t size) {
@@ -90,7 +88,7 @@ void app_main(void) {
     (void)bsp_buzzer_init();
 
     if (!app_light_init(12U)) {
-        ulog_t(ULOG_SYSLOG_ERR, TAG, "Lighting initialization failed\r");
+        ulog_t(ULOG_SYSLOG_ERR, TAG, "Lighting initialization failed");
     }
 
     if (!app_cli_init()) {
