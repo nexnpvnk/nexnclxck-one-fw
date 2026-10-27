@@ -1,14 +1,16 @@
 #include "bsp_console.h"
 
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "lwrb/lwrb.h"
 #include "usart.h"
 
-#define BSP_CONSOLE_TX_BUFFER_SIZE     1024U
-#define BSP_CONSOLE_RX_BUFFER_SIZE     256U
-#define BSP_CONSOLE_RX_DMA_BUFFER_SIZE 64U
+#define BSP_CONSOLE_TX_BUFFER_SIZE     64U
+#define BSP_CONSOLE_TX_TIMEOUT_MS      100U
+#define BSP_CONSOLE_RX_BUFFER_SIZE     64U
+#define BSP_CONSOLE_RX_DMA_BUFFER_SIZE 16U
 
 static lwrb_t tx_rb;
 static uint8_t tx_buffer[BSP_CONSOLE_TX_BUFFER_SIZE];
@@ -178,9 +180,17 @@ void bsp_console_process(void) {
      * On a TX DMA error HAL restores UART gState to READY,
      * while tx_dma_active still indicates an unfinished transfer.
      */
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+
     if (tx_dma_active && huart1.gState == HAL_UART_STATE_READY) {
         (void)bsp_console_tx_recover();
+    } else {
+        /* Retry queued data if starting DMA previously failed. */
+        bsp_console_tx_start();
     }
+
+    __set_PRIMASK(primask);
 
     if (!rx_restart_pending) {
         return;
@@ -212,10 +222,7 @@ int bsp_console_read(void* data, size_t len) {
 }
 
 int bsp_console_write(const void* data, size_t len) {
-    lwrb_sz_t written;
-    uint32_t primask;
-
-    if (!initialized || data == NULL) {
+    if (!initialized || data == NULL || len > INT_MAX) {
         return -1;
     }
 
@@ -223,20 +230,47 @@ int bsp_console_write(const void* data, size_t len) {
         return 0;
     }
 
-    if (!lwrb_write_ex(&tx_rb, data, (lwrb_sz_t)len, &written, LWRB_FLAG_WRITE_ALL)) {
+    /* DMA completion and the timeout tick must be able to interrupt us.
+     * The foreground is the sole producer of the TX ring. */
+    if (__get_IPSR() != 0U || __get_PRIMASK() != 0U) {
         return -1;
     }
 
-    primask = __get_PRIMASK();
-    __disable_irq();
+    const uint8_t* bytes = data;
+    size_t queued = 0U;
+    uint32_t last_progress = HAL_GetTick();
 
-    bsp_console_tx_start();
+    for (;;) {
+        lwrb_sz_t written = lwrb_write(&tx_rb, bytes + queued, (lwrb_sz_t)(len - queued));
 
-    if (primask == 0U) {
-        __enable_irq();
+        if (written > 0U) {
+            queued += written;
+            last_progress = HAL_GetTick();
+        }
+
+        /* Service recovery here because the main loop is blocked in write. */
+        bsp_console_process();
+
+        /* The normal TX callback runs on UART TC, after the last stop bit. */
+        if (queued == len && !tx_dma_active && lwrb_get_full(&tx_rb) == 0U) {
+            return (int)len;
+        }
+
+        /* Bound a stalled transfer, not the total duration of a long message.
+         * At 115200 baud the final 63 queued bytes need less than 6 ms. */
+        if ((uint32_t)(HAL_GetTick() - last_progress) >= BSP_CONSOLE_TX_TIMEOUT_MS) {
+            __disable_irq();
+
+            if (HAL_UART_AbortTransmit(&huart1) == HAL_OK) {
+                lwrb_reset(&tx_rb);
+                tx_dma_len = 0U;
+                tx_dma_active = false;
+            }
+
+            __enable_irq();
+            return -1; /* An already transmitted prefix cannot be rolled back. */
+        }
     }
-
-    return (int)written;
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
