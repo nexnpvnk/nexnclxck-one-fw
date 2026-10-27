@@ -6,17 +6,19 @@
 
 #include <stddef.h>
 
-/* Board-specific measurement parameters. */
 #define BSP_HV_VDDA_MV        3300U
 #define BSP_HV_DIVIDER_RATIO  101U
 #define BSP_HV_ADC_MAX        4095U
 
-/* Preliminary protection thresholds. */
 #define BSP_HV_OVP_VOLTAGE_MV 260000U
-#define BSP_HV_ADC_TIMEOUT_MS 10U
-
 #define BSP_HV_RESET_MAX_MV   30000U
 
+#define BSP_HV_ADC_TIMEOUT_MS 10U
+
+/*
+ * Hardware duty limit.
+ * This does not guarantee safe inductor/MOSFET current.
+ */
 #define BSP_HV_DUTY_MAX_PM    980U
 
 #define BSP_HV_OVP_RAW        ((BSP_HV_OVP_VOLTAGE_MV * BSP_HV_ADC_MAX) / (BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO))
@@ -47,11 +49,11 @@ static void pwm_disable(void) {
         return;
     }
 
-    /* Disable output before changing the compare value. */
+    /* Inhibit the output before resetting CCR1. */
     __HAL_TIM_MOE_DISABLE(&htim17);
     __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 0U);
 
-    /* Transfer the zero compare into the active register. */
+    /* Load zero into the active compare register. */
     TIM17->EGR = TIM_EGR_UG;
 
     hv.duty_permille = 0U;
@@ -84,8 +86,8 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
     }
 
     /*
-     * Verify the TIM17 configuration expected by
-     * the inverting NPN gate driver.
+     * The board has an inverting NPN gate driver.
+     * TIM17 must use inverted polarity and HIGH idle state.
      */
     if ((TIM17->CCER & TIM_CCER_CC1P) == 0U || (TIM17->CR2 & TIM_CR2_OIS1) == 0U
         || (TIM17->BDTR & TIM_BDTR_OSSI) == 0U) {
@@ -95,8 +97,10 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
 
     hv.callback = callback;
     hv.callback_arg = arg;
+
     hv.fault = BSP_HV_FAULT_NONE;
     hv.enabled = false;
+    hv.samples = 0U;
 
     pwm_disable();
 
@@ -124,9 +128,8 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
     }
 
     /*
-     * Start with CCR1 = 0.
-     * With PWM1 + LOW polarity, PA7 must remain HIGH.
-     * Verify this behavior on the actual PCB.
+     * Start PWM with zero duty.
+     * PWM1 + LOW polarity: CCR1 = 0 means MOSFET OFF.
      */
     if (HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1) != HAL_OK) {
         (void)HAL_ADC_Stop_IT(&hadc);
@@ -151,7 +154,6 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
 
 bool bsp_hv_set_enabled(bool enabled) {
     if (!hv.initialized) {
-        trip(BSP_HV_FAULT_INIT);
         return false;
     }
 
@@ -169,11 +171,6 @@ bool bsp_hv_set_enabled(bool enabled) {
                  && (uint32_t)(HAL_GetTick() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
 
     if (ready) {
-        /*
-         * CCR1 was set to zero by pwm_disable().
-         * Re-enable the timer output without introducing
-         * an uncontrolled duty cycle.
-         */
         __HAL_TIM_MOE_ENABLE(&htim17);
         hv.enabled = true;
     }
@@ -184,14 +181,13 @@ bool bsp_hv_set_enabled(bool enabled) {
 
 bool bsp_hv_set_duty(uint16_t permille) {
     if (!hv.initialized || permille > BSP_HV_DUTY_MAX_PM) {
-        trip(BSP_HV_FAULT_INIT);
         return false;
     }
 
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
 
-    bool allowed = hv.enabled && !hv.fault;
+    bool allowed = hv.enabled && hv.fault == BSP_HV_FAULT_NONE;
 
     if (allowed) {
         uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim17) + 1U;
@@ -241,12 +237,14 @@ bool bsp_hv_get_status(bsp_hv_status_t* status) {
     status->voltage_mv = hv.voltage_mv;
     status->samples = hv.samples;
     status->adc_raw = hv.adc_raw;
+
     status->duty_permille = hv.duty_permille;
+    status->duty_limit_permille = BSP_HV_DUTY_MAX_PM;
+
     status->enabled = hv.enabled;
     status->fault = hv.fault;
-    status->pwm_available = (TIM17->CCER & TIM_CCER_CC1E) != 0U && (TIM17->CR1 & TIM_CR1_CEN) != 0U;
 
-    status->duty_limit_permille = BSP_HV_DUTY_MAX_PM;
+    status->pwm_available = (TIM17->CCER & TIM_CCER_CC1E) != 0U && (TIM17->CR1 & TIM_CR1_CEN) != 0U;
 
     __set_PRIMASK(primask);
     return true;
@@ -258,17 +256,18 @@ void bsp_hv_process(void) {
     }
 
     if ((uint32_t)(HAL_GetTick() - hv.last_sample_ms) > BSP_HV_ADC_TIMEOUT_MS) {
-        /* ADC timeout */
         trip(BSP_HV_FAULT_TIMEOUT);
     }
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc_ptr) {
+
     if (hadc_ptr->Instance != ADC1 || !hv.initialized) {
         return;
     }
 
     uint16_t raw = (uint16_t)HAL_ADC_GetValue(hadc_ptr);
+
     uint32_t voltage = adc_to_voltage(raw);
 
     hv.adc_raw = raw;
@@ -277,7 +276,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc_ptr) {
     hv.last_sample_ms = HAL_GetTick();
 
     if (raw >= BSP_HV_OVP_RAW) {
-        /* Analog watchdog / overvoltage */
         trip(BSP_HV_FAULT_OVERVOLTAGE);
         return;
     }
