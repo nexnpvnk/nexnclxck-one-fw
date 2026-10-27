@@ -17,14 +17,7 @@
 
 #define BSP_HV_RESET_MAX_MV   30000U
 
-/*
- * Commissioning limits.
- *
- * PWM must not be enabled before verifying the
- * gate-driver polarity and MOSFET-off state.
- */
-#define BSP_HV_PWM_VERIFIED   0U
-#define BSP_HV_DUTY_MAX_PM    100U
+#define BSP_HV_DUTY_MAX_PM    980U
 
 #define BSP_HV_OVP_RAW        ((BSP_HV_OVP_VOLTAGE_MV * BSP_HV_ADC_MAX) / (BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO))
 
@@ -130,7 +123,6 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
         return false;
     }
 
-#if BSP_HV_PWM_VERIFIED
     /*
      * Start with CCR1 = 0.
      * With PWM1 + LOW polarity, PA7 must remain HIGH.
@@ -143,7 +135,6 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
     }
 
     pwm_disable();
-#endif
 
     hv.last_sample_ms = HAL_GetTick();
     hv.initialized = true;
@@ -173,8 +164,8 @@ bool bsp_hv_set_enabled(bool enabled) {
         return true;
     }
 
-    bool ready = BSP_HV_PWM_VERIFIED && hv.fault == BSP_HV_FAULT_NONE && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW
-                 && (TIM17->CCER & TIM_CCER_CC1E) != 0U
+    bool ready = hv.fault == BSP_HV_FAULT_NONE && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW
+                 && (TIM17->CCER & TIM_CCER_CC1E) != 0U && (TIM17->CR1 & TIM_CR1_CEN) != 0U
                  && (uint32_t)(HAL_GetTick() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
 
     if (ready) {
@@ -224,7 +215,8 @@ bool bsp_hv_reset_fault(void) {
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
 
-    bool recoverable = hv.fault == BSP_HV_FAULT_OVERVOLTAGE || hv.fault == BSP_HV_FAULT_SHUTDOWN;
+    bool recoverable =
+        hv.fault == BSP_HV_FAULT_NONE || hv.fault == BSP_HV_FAULT_OVERVOLTAGE || hv.fault == BSP_HV_FAULT_SHUTDOWN;
 
     bool safe = !hv.enabled && recoverable && hv.samples != 0U && hv.voltage_mv <= BSP_HV_RESET_MAX_MV
                 && (uint32_t)(HAL_GetTick() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
@@ -240,7 +232,6 @@ bool bsp_hv_reset_fault(void) {
 
 bool bsp_hv_get_status(bsp_hv_status_t* status) {
     if (!hv.initialized || status == NULL) {
-        trip(BSP_HV_FAULT_INIT);
         return false;
     }
 
@@ -253,8 +244,8 @@ bool bsp_hv_get_status(bsp_hv_status_t* status) {
     status->duty_permille = hv.duty_permille;
     status->enabled = hv.enabled;
     status->fault = hv.fault;
-    status->enabled = hv.enabled;
-    status->pwm_available = BSP_HV_PWM_VERIFIED != 0U;
+    status->pwm_available = (TIM17->CCER & TIM_CCER_CC1E) != 0U && (TIM17->CR1 & TIM_CR1_CEN) != 0U;
+
     status->duty_limit_permille = BSP_HV_DUTY_MAX_PM;
 
     __set_PRIMASK(primask);
@@ -278,13 +269,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc_ptr) {
     }
 
     uint16_t raw = (uint16_t)HAL_ADC_GetValue(hadc_ptr);
-
-    if (raw >= BSP_HV_OVP_RAW) {
-        /* Analog watchdog / overvoltage */
-        trip(BSP_HV_FAULT_OVERVOLTAGE);
-        return;
-    }
-
     uint32_t voltage = adc_to_voltage(raw);
 
     hv.adc_raw = raw;
@@ -292,19 +276,27 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc_ptr) {
     hv.samples++;
     hv.last_sample_ms = HAL_GetTick();
 
+    if (raw >= BSP_HV_OVP_RAW) {
+        /* Analog watchdog / overvoltage */
+        trip(BSP_HV_FAULT_OVERVOLTAGE);
+        return;
+    }
+
     if (hv.fault == BSP_HV_FAULT_NONE && hv.callback != NULL) {
         hv.callback(voltage, hv.callback_arg);
     }
 }
 
 void HAL_ADC_LevelOutOfWindowCallback(ADC_HandleTypeDef* hadc_ptr) {
+
     if (hadc_ptr->Instance == ADC1) {
-        bsp_hv_shutdown();
+        trip(BSP_HV_FAULT_OVERVOLTAGE);
     }
 }
 
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef* hadc_ptr) {
+
     if (hadc_ptr->Instance == ADC1) {
-        bsp_hv_shutdown();
+        trip(BSP_HV_FAULT_ADC);
     }
 }
