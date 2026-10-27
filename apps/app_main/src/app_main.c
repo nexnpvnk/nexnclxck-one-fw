@@ -10,7 +10,6 @@
 #include "bsp_buzzer.h"
 #include "bsp_console.h"
 #include "bsp_i2c.h"
-#include "bsp_storage.h"
 #include "bsp_time.h"
 
 #include "shell.h"
@@ -80,9 +79,6 @@ void app_main(void) {
     if (!app_input_init()) {
         ulog_t(ULOG_SYSLOG_ERR, TAG, "Button initialization failed");
     }
-
-    /* Keep the console available for diagnostics if storage initialization fails. */
-    (void)bsp_storage_init();
 
     /* Sound is optional; a failed buzzer must not prevent the clock from running. */
     (void)bsp_buzzer_init();

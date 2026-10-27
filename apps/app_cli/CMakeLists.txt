@@ -5,7 +5,6 @@ target_sources(app_cli
         src/app_cli.c
         src/app_cli_clock.c
         src/app_cli_bme280.c
-        src/app_cli_kv.c
         src/app_cli_buzzer.c
 )
 
