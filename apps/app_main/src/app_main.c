@@ -3,6 +3,7 @@
 #include "app_bme280.h"
 #include "app_cli.h"
 #include "app_clock.h"
+#include "app_hv.h"
 #include "app_input.h"
 #include "app_light.h"
 #include "app_sound.h"
@@ -87,6 +88,10 @@ void app_main(void) {
         ulog_t(ULOG_SYSLOG_ERR, TAG, "Lighting initialization failed");
     }
 
+    if (!app_hv_init()) {
+        ulog_t(ULOG_SYSLOG_ERR, TAG, "HV initialization failed; continuing");
+    }
+
     if (!app_cli_init()) {
         while (1) {}
     }
@@ -103,6 +108,7 @@ void app_main(void) {
         app_light_process();
         app_sound_process();
         app_bme280_process();
+        app_hv_process();
         bsp_i2c_process();
         shell_process();
     }

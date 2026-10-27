@@ -6,6 +6,7 @@ target_sources(app_cli
         src/app_cli_clock.c
         src/app_cli_bme280.c
         src/app_cli_buzzer.c
+        src/app_cli_hv.c
 )
 
 target_include_directories(app_cli
@@ -18,6 +19,7 @@ target_link_libraries(app_cli
         app_clock
         app_bme280
         app_sound
+        app_hv
         bsp
         wsh_shell_integration
 )

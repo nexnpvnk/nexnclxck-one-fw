@@ -5,22 +5,30 @@
 #include "app_cli_bme280.h"
 #include "app_cli_buzzer.h"
 #include "app_cli_clock.h"
+#include "app_cli_hv.h"
 #include "shell.h"
 #include "wsh_shell.h"
 
-static const WshShellCmd_t* app_cli_commands[] = {
-    &app_cli_clock_cmd, &app_cli_bme280_cmd, &app_cli_buzzer_cmd,
-};
+static const WshShellCmd_t* app_cli_commands[] = {&app_cli_clock_cmd, &app_cli_bme280_cmd, &app_cli_buzzer_cmd,
+                                                  &app_cli_hv_cmd};
+
+static void app_cli_cancel(void) {
+    app_cli_bme280_cancel();
+    app_cli_hv_cancel();
+}
 
 bool app_cli_init(void) {
     if (!shell_commands_attach(app_cli_commands, WSH_SHELL_ARR_LEN(app_cli_commands))) {
         return false;
     }
-    shell_set_cancel_handler(app_cli_bme280_cancel);
+    shell_set_cancel_handler(app_cli_cancel);
     return true;
 }
 
-void app_cli_process(void) { app_cli_bme280_process(); }
+void app_cli_process(void) {
+    app_cli_bme280_process();
+    app_cli_hv_process();
+}
 
 bool app_cli_parse_u32(const char* text, uint32_t max, bool allow_hex, uint32_t* value) {
     if (text == NULL || value == NULL || *text == '\0') {

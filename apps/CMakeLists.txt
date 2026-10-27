@@ -1,6 +1,7 @@
 add_subdirectory(app_clock)
 add_subdirectory(app_bme280)
 add_subdirectory(app_sound)
+add_subdirectory(app_hv)
 add_subdirectory(app_cli)
 add_subdirectory(app_input)
 add_subdirectory(app_light)

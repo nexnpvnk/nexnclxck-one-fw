@@ -15,6 +15,7 @@ target_link_libraries(app_main
         bsp
         wsh_shell_integration
         microlog
+        app_hv
         app_cli
         app_bme280
         app_sound

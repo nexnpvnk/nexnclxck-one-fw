@@ -1,5 +1,6 @@
 #include "app_cli_bme280.h"
 #include "app_bme280.h"
+#include "app_cli_hv.h"
 #include "bsp_time.h"
 
 enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_STOP, OPT_END };
@@ -67,8 +68,7 @@ void app_cli_bme280_process(void) {
         WSH_SHELL_PRINT_WARN("BME280 0x%02X: %s\n", (unsigned)sample->address,
                              transport_name(sample->transport_status));
     } else {
-        WSH_SHELL_PRINT_WARN("BME280 0x%02X: Bosch error %d\n", (unsigned)sample->address,
-                             (int)sample->sensor_status);
+        WSH_SHELL_PRINT_WARN("BME280 0x%02X: Bosch error %d\n", (unsigned)sample->address, (int)sample->sensor_status);
     }
     WSH_SHELL_PRINT("%s%s", console->PS1, console->CommandLine.Buff);
     for (WshShell_Size_t i = console->CommandLine.CursorPos; i < console->CommandLine.Len; ++i) {
@@ -113,6 +113,7 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
     console = shell;
     last_start = bsp_time_ms();
     if (seen & (1U << OPT_WATCH)) {
+        app_cli_hv_cancel();
         watching = true;
         WSH_SHELL_PRINT_SYS("BME280 watch; Ctrl+C or bme280 --stop to stop output\n");
     }
