@@ -71,7 +71,7 @@ void platform_tim3_init(void) {
     TIM3->CR2 = TIM_CR2_MMS_1; /* Update event drives TRGO. */
 }
 
-/* HV: 50 kHz PWM1, inverted polarity for the board's NPN gate driver. */
+/* HV: 20 kHz PWM1, inverted polarity for the board's NPN gate driver. */
 void platform_tim17_init(void) {
     RCC->APB2ENR |= RCC_APB2ENR_TIM17EN;
     (void)RCC->APB2ENR;
@@ -79,7 +79,7 @@ void platform_tim17_init(void) {
     TIM17->CR2 = TIM_CR2_OIS1; /* HIGH idle keeps the MOSFET off. */
     TIM17->DIER = 0U;
     TIM17->PSC = 0U;
-    TIM17->ARR = 959U;
+    TIM17->ARR = 2399U;
     TIM17->RCR = 0U;
     TIM17->CNT = 0U;
     TIM17->CCR1 = 0U;

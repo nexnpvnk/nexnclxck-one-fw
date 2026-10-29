@@ -12,7 +12,6 @@
 #define BSP_HV_ADC_MAX             4095U
 
 #define BSP_HV_OVP_VOLTAGE_MV      260000U
-#define BSP_HV_RESET_MAX_MV        30000U
 
 #define BSP_HV_ADC_TIMEOUT_MS      10U
 #define BSP_HV_ADC_INIT_TIMEOUT_MS 100U
@@ -32,6 +31,9 @@ static struct {
 
     volatile uint16_t adc_raw;
     volatile uint16_t duty_permille;
+    volatile uint16_t trip_adc_raw;
+    volatile uint32_t trip_adc_isr;
+    volatile uint32_t trip_adc_tr;
 
     volatile bool enabled;
     volatile bsp_hv_fault_t fault;
@@ -95,7 +97,7 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
         || (RCC->APB1ENR & RCC_APB1ENR_TIM3EN) == 0U || (RCC->CR2 & RCC_CR2_HSI14RDY) == 0U
         || SystemCoreClock != 48000000U || (RCC->CFGR & RCC_CFGR_PPRE) != 0U || TIM3->PSC != 47U || TIM3->ARR != 499U
         || (TIM3->CR2 & TIM_CR2_MMS) != TIM_CR2_MMS_1 || (TIM3->CR1 & TIM_CR1_CEN) != 0U || TIM17->PSC != 0U
-        || TIM17->ARR != 959U || (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U || ADC1->CHSELR != ADC_CHSELR_CHSEL2
+        || TIM17->ARR != 2399U || (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U || ADC1->CHSELR != ADC_CHSELR_CHSEL2
         || ADC1->SMPR != ADC_SMPR_SMP
         || ADC1->CFGR1 != (ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD)
         || ADC1->CR != 0U) {
@@ -180,11 +182,20 @@ bool bsp_hv_set_enabled(bool enabled) {
         return true;
     }
 
-    bool ready = hv.fault == BSP_HV_FAULT_NONE && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW
+    /* Enable also retries runtime faults. Initialization/ADC
+     * failures require repair; a stale or overvoltage sample cannot enable PWM. */
+    bool recoverable = hv.fault == BSP_HV_FAULT_NONE || hv.fault == BSP_HV_FAULT_OVERVOLTAGE
+                       || hv.fault == BSP_HV_FAULT_TIMEOUT || hv.fault == BSP_HV_FAULT_SHUTDOWN;
+    bool ready = recoverable && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW
                  && (TIM17->CCER & TIM_CCER_CC1E) != 0U && (TIM17->CR1 & TIM_CR1_CEN) != 0U
+                 && (ADC1->ISR & ADC_ISR_AWD) == 0U
                  && (uint32_t)(bsp_time_ms() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
 
     if (ready) {
+        if (!hv.enabled) {
+            pwm_disable();
+            hv.fault = BSP_HV_FAULT_NONE;
+        }
         TIM17->BDTR |= TIM_BDTR_MOE;
         hv.enabled = true;
     }
@@ -217,29 +228,6 @@ bool bsp_hv_set_duty(uint16_t permille) {
     return allowed;
 }
 
-bool bsp_hv_reset_fault(void) {
-    if (!hv.initialized) {
-        return false;
-    }
-
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-
-    bool recoverable =
-        hv.fault == BSP_HV_FAULT_NONE || hv.fault == BSP_HV_FAULT_OVERVOLTAGE || hv.fault == BSP_HV_FAULT_SHUTDOWN;
-
-    bool safe = !hv.enabled && recoverable && hv.samples != 0U && hv.voltage_mv <= BSP_HV_RESET_MAX_MV
-                && (uint32_t)(bsp_time_ms() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
-
-    if (safe) {
-        pwm_disable();
-        hv.fault = BSP_HV_FAULT_NONE;
-    }
-
-    __set_PRIMASK(primask);
-    return safe;
-}
-
 bool bsp_hv_get_status(bsp_hv_status_t* status) {
     if (!hv.initialized || status == NULL) {
         return false;
@@ -254,6 +242,9 @@ bool bsp_hv_get_status(bsp_hv_status_t* status) {
 
     status->duty_permille = hv.duty_permille;
     status->duty_limit_permille = BSP_HV_DUTY_MAX_PM;
+    status->trip_adc_raw = hv.trip_adc_raw;
+    status->trip_adc_isr = hv.trip_adc_isr;
+    status->trip_adc_tr = hv.trip_adc_tr;
 
     status->enabled = hv.enabled;
     status->fault = hv.fault;
@@ -264,31 +255,41 @@ bool bsp_hv_get_status(bsp_hv_status_t* status) {
     return true;
 }
 
-void bsp_hv_process(void) {
-    if (!hv.initialized || !hv.enabled) {
-        return;
+bsp_hv_fault_t bsp_hv_process(void) {
+    if (hv.initialized && hv.enabled) {
+        /* Read the sample timestamp before time, so an ADC IRQ cannot make
+         * the subtraction wrap by publishing a newer timestamp in between. */
+        uint32_t last_sample_ms = hv.last_sample_ms;
+        uint32_t now = bsp_time_ms();
+        if ((uint32_t)(now - last_sample_ms) > BSP_HV_ADC_TIMEOUT_MS && last_sample_ms == hv.last_sample_ms) {
+            trip(BSP_HV_FAULT_TIMEOUT);
+        }
     }
-
-    if ((uint32_t)(bsp_time_ms() - hv.last_sample_ms) > BSP_HV_ADC_TIMEOUT_MS) {
-        trip(BSP_HV_FAULT_TIMEOUT);
-    }
+    return hv.fault;
 }
 
 void bsp_hv_adc_irq(void) {
     uint32_t flags = ADC1->ISR;
     uint32_t pending = flags & ADC1->IER;
+    bool have_sample = (pending & ADC_ISR_EOC) != 0U;
+    uint16_t raw = have_sample ? (uint16_t)ADC1->DR : hv.adc_raw;
 
-    /* Latch the watchdog fault before any control callback can change duty. */
-    if ((pending & ADC_ISR_AWD) != 0U) {
+    /* Disable PWM before publishing the sample or calling the application.
+     * Keep the first OVP snapshot even after later samples have decayed. */
+    if ((pending & ADC_ISR_AWD) != 0U || (have_sample && raw >= BSP_HV_OVP_RAW)) {
+        if (hv.fault == BSP_HV_FAULT_NONE) {
+            hv.trip_adc_raw = raw;
+            hv.trip_adc_isr = flags;
+            hv.trip_adc_tr = ADC1->TR;
+        }
         trip(BSP_HV_FAULT_OVERVOLTAGE);
     }
 
-    if ((pending & ADC_ISR_EOC) == 0U) {
+    if (!have_sample) {
         ADC1->ISR = pending & (ADC_ISR_AWD | ADC_ISR_OVR);
         return;
     }
 
-    uint16_t raw = (uint16_t)ADC1->DR;
     /* Preserve overwrite-on-overrun semantics: consume the latest sample.
      * Clear the snapshot flags before running the application callback. */
     ADC1->ISR = flags & (ADC_ISR_EOS | ADC_ISR_OVR | ADC_ISR_AWD);
@@ -303,12 +304,9 @@ void bsp_hv_adc_irq(void) {
     hv.samples++;
     hv.last_sample_ms = bsp_time_ms();
 
-    if (raw >= BSP_HV_OVP_RAW) {
-        trip(BSP_HV_FAULT_OVERVOLTAGE);
-        return;
-    }
-
-    if (hv.fault == BSP_HV_FAULT_NONE && hv.callback != NULL) {
-        hv.callback(voltage, hv.callback_arg);
+    /* Publish fault with the measurement so control needs no status snapshot.
+     * Measurements keep updating during a fault; duty writes remain blocked. */
+    if (hv.callback != NULL) {
+        hv.callback(voltage, hv.fault, hv.callback_arg);
     }
 }

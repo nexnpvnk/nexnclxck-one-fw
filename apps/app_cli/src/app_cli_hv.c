@@ -67,7 +67,7 @@ static WSH_SHELL_RET_STATE_t print_status(uint32_t rate_hz) {
     WSH_SHELL_PRINT_SYS(
         "HV %s | Set: %u V | Out: %lu.%03lu V | Filt: %lu.%03lu V | "
         "Duty: %u.%01u%% (limit %u.%01u%%) | ADC: %u | Rate: %lu Hz | "
-        "Range: %lu.%03lu..%lu.%03lu V | Fault: %s/%u | PWM: %s\n",
+        "Range: %lu.%03lu..%lu.%03lu V | Fault: %s/%u | PWM: %s | Request: %s\n",
         state_name(status.state), (unsigned)status.target_v,
         (unsigned long)(status.voltage_mv / 1000U), (unsigned long)(status.voltage_mv % 1000U),
         (unsigned long)(status.filtered_mv / 1000U), (unsigned long)(status.filtered_mv % 1000U),
@@ -77,7 +77,12 @@ static WSH_SHELL_RET_STATE_t print_status(uint32_t rate_hz) {
         (unsigned long)(status.min_mv / 1000U), (unsigned long)(status.min_mv % 1000U),
         (unsigned long)(status.max_mv / 1000U), (unsigned long)(status.max_mv % 1000U),
         fault_name(status.fault), (unsigned)status.bsp_fault,
-        status.pwm_available ? "READY" : "LOCKED");
+        status.pwm_available ? "READY" : "LOCKED", status.requested_enabled ? "ON" : "OFF");
+    if (status.trip_adc_isr != 0U) {
+        WSH_SHELL_PRINT_SYS("OVP snapshot | ADC: %u | ISR: 0x%08lX | TR: 0x%08lX\n",
+                            (unsigned)status.trip_adc_raw, (unsigned long)status.trip_adc_isr,
+                            (unsigned long)status.trip_adc_tr);
+    }
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
@@ -120,7 +125,6 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
     bool is_on = strcmp(cmd->Name, "on") == 0;
     bool is_off = strcmp(cmd->Name, "off") == 0;
     bool is_set = strcmp(cmd->Name, "set") == 0;
-    bool is_reset = strcmp(cmd->Name, "reset") == 0;
     uint32_t voltage_v = 0U;
     unsigned seen = 0U;
 
@@ -150,9 +154,9 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
         }
         return print_status(0U);
     }
-    if (is_on || is_off || is_reset) {
+    if (is_on || is_off) {
         if (seen != 0U) return WSH_SHELL_RET_STATE_ERR_PARAM;
-        bool success = is_reset ? app_hv_reset_fault() : app_hv_set_enabled(is_on);
+        bool success = app_hv_set_enabled(is_on);
         if (!success) {
             WSH_SHELL_PRINT_WARN("HV command refused (check PWM lock, ADC, output and fault)\n");
             return WSH_SHELL_RET_STATE_ERROR;
@@ -180,15 +184,11 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
 }
 
 static const WshShellCmd_t on_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "on", .Descr = "Enable HV regulation",
+    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "on", .Descr = "Enable HV with automatic retry",
     .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = handler,
 };
 static const WshShellCmd_t off_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "off", .Descr = "Disable HV regulation",
-    .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = handler,
-};
-static const WshShellCmd_t reset_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "reset", .Descr = "Clear recoverable HV fault",
+    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "off", .Descr = "Disable HV and automatic retry",
     .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = handler,
 };
 static const WshShellCmd_t set_cmd = {
@@ -196,13 +196,13 @@ static const WshShellCmd_t set_cmd = {
     .Options = set_opts, .OptNum = WSH_SHELL_ARR_LEN(set_opts), .Handler = handler,
 };
 static const WshShellCmd_t* const subcommands[] = {
-    &on_cmd, &off_cmd, &set_cmd, &reset_cmd,
+    &on_cmd, &off_cmd, &set_cmd,
 };
 
 const WshShellCmd_t app_cli_hv_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_USER,
     .Name = "hv",
-    .Descr = "High voltage: status / watch / set / on / off / reset",
+    .Descr = "High voltage: status / watch / set / on / off",
     .Options = read_opts,
     .OptNum = WSH_SHELL_ARR_LEN(read_opts),
     .Handler = handler,

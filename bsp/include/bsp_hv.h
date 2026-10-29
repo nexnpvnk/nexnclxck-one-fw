@@ -9,8 +9,6 @@
 extern "C" {
 #endif
 
-typedef void (*bsp_hv_sample_cb_t)(uint32_t voltage_mv, void* arg);
-
 typedef enum {
     BSP_HV_FAULT_NONE = 0,
     BSP_HV_FAULT_INIT,
@@ -20,12 +18,20 @@ typedef enum {
     BSP_HV_FAULT_SHUTDOWN,
 } bsp_hv_fault_t;
 
+typedef void (*bsp_hv_sample_cb_t)(uint32_t voltage_mv, bsp_hv_fault_t fault, void* arg);
+
 typedef struct {
     uint32_t voltage_mv;
     uint32_t samples;
     uint16_t adc_raw;
     uint16_t duty_permille;
     uint16_t duty_limit_permille;
+
+    /* First IRQ of the last OVP episode, retained across enable.
+     * DR may already contain a newer sample on OVR. */
+    uint16_t trip_adc_raw;
+    uint32_t trip_adc_isr;
+    uint32_t trip_adc_tr;
 
     bsp_hv_fault_t fault;
 
@@ -37,11 +43,10 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg);
 
 bool bsp_hv_set_enabled(bool enabled);
 bool bsp_hv_set_duty(uint16_t permille);
-bool bsp_hv_reset_fault(void);
 
 bool bsp_hv_get_status(bsp_hv_status_t* status);
 
-void bsp_hv_process(void);
+bsp_hv_fault_t bsp_hv_process(void);
 void bsp_hv_shutdown(void);
 
 /* Platform dispatch for ADC1_COMP_IRQHandler; not an application callback. */
