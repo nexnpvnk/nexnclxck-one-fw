@@ -44,6 +44,9 @@ bool bsp_hv_get_status(bsp_hv_status_t* status);
 void bsp_hv_process(void);
 void bsp_hv_shutdown(void);
 
+/* Platform dispatch for ADC1_COMP_IRQHandler; not an application callback. */
+void bsp_hv_adc_irq(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -6,7 +6,7 @@
 
 #include <string.h>
 
-#define WS2812_PIN           GPIO_PIN_2
+#define WS2812_PIN           (1U << 2U)
 #define WS2812_WORDS_PER_LED 72U
 #define WS2812_LEDS_PER_HALF 1U
 #define WS2812_HALF_WORDS    (WS2812_WORDS_PER_LED * WS2812_LEDS_PER_HALF)
@@ -77,14 +77,14 @@ static void fill_half(uint32_t* output) {
 }
 
 static void stop_transfer(bsp_ws2812_error_t error) {
-    DMA_HandleTypeDef* dma = htim2.hdma[TIM_DMA_ID_CC3];
-
-    __HAL_TIM_DISABLE_DMA(&htim2, TIM_DMA_CC3);
-    (void)HAL_TIM_OC_Stop(&htim2, TIM_CHANNEL_3);
-
-    if (dma != NULL && dma->State == HAL_DMA_STATE_BUSY) {
-        (void)HAL_DMA_Abort(dma);
-    }
+    TIM2->DIER &= ~TIM_DIER_CC3DE;
+    TIM2->CR1 &= ~TIM_CR1_CEN;
+    TIM2->CCER &= ~TIM_CCER_CC3E;
+    DMA1_Channel1->CCR &= ~DMA_CCR_EN;
+    (void)DMA1_Channel1->CCR;
+    __DSB();
+    /* ES0202: disable the channel first and clear individual flags, not GIF. */
+    DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CHTIF1 | DMA_IFCR_CTEIF1;
 
     /* Force LOW regardless of transfer outcome. */
     GPIOD->BSRR = WS2812_RESET;
@@ -141,19 +141,23 @@ static void half_completed(uint32_t* completed_half, bool first_half) {
     }
 }
 
-static void dma_half_callback(DMA_HandleTypeDef* dma) {
-    (void)dma;
-    half_completed(&dma_buffer[0], true);
-}
-
-static void dma_complete_callback(DMA_HandleTypeDef* dma) {
-    (void)dma;
-    half_completed(&dma_buffer[WS2812_HALF_WORDS], false);
-}
-
-static void dma_error_callback(DMA_HandleTypeDef* dma) {
-    (void)dma;
-    stop_transfer(BSP_WS2812_ERROR_DMA);
+void bsp_ws2812_dma_irq(void) {
+    uint32_t flags = DMA1->ISR;
+    if (!busy) {
+        DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CHTIF1 | DMA_IFCR_CTEIF1;
+        return;
+    }
+    if ((flags & DMA_ISR_TEIF1) != 0U) {
+        stop_transfer(BSP_WS2812_ERROR_DMA);
+    } else if ((flags & (DMA_ISR_HTIF1 | DMA_ISR_TCIF1)) == (DMA_ISR_HTIF1 | DMA_ISR_TCIF1)) {
+        stop_transfer(BSP_WS2812_ERROR_DEADLINE);
+    } else if ((flags & DMA_ISR_HTIF1) != 0U) {
+        DMA1->IFCR = DMA_IFCR_CHTIF1;
+        half_completed(&dma_buffer[0], true);
+    } else if ((flags & DMA_ISR_TCIF1) != 0U) {
+        DMA1->IFCR = DMA_IFCR_CTCIF1;
+        half_completed(&dma_buffer[WS2812_HALF_WORDS], false);
+    }
 }
 
 bool bsp_ws2812_init(void) {
@@ -161,22 +165,17 @@ bool bsp_ws2812_init(void) {
         return true;
     }
 
-    DMA_HandleTypeDef* dma = htim2.hdma[TIM_DMA_ID_CC3];
-
-    if (htim2.Instance != TIM2 || dma == NULL || dma->Instance != DMA1_Channel1
-        || dma->Init.Direction != DMA_MEMORY_TO_PERIPH || dma->Init.PeriphDataAlignment != DMA_PDATAALIGN_WORD
-        || dma->Init.MemDataAlignment != DMA_MDATAALIGN_WORD || dma->Init.PeriphInc != DMA_PINC_DISABLE
-        || dma->Init.MemInc != DMA_MINC_ENABLE || dma->Init.Mode != DMA_CIRCULAR || htim2.Init.Prescaler != 0U
-        || htim2.Init.Period != 19U || htim2.Instance->CCR3 != 10U) {
+    const uint32_t dma_mask =
+        DMA_CCR_EN | DMA_CCR_DIR | DMA_CCR_PINC | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE | DMA_CCR_MSIZE;
+    const uint32_t dma_expected = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1;
+    if (SystemCoreClock != 48000000U || (RCC->CFGR & RCC_CFGR_PPRE) != 0U || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U
+        || TIM2->PSC != 0U || TIM2->ARR != 19U || TIM2->CCR3 != 10U
+        || (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
         return false;
     }
 
-    dma->XferHalfCpltCallback = dma_half_callback;
-    dma->XferCpltCallback = dma_complete_callback;
-    dma->XferErrorCallback = dma_error_callback;
-
     /* CC3 compare match generates DMA requests. */
-    CLEAR_BIT(htim2.Instance->CR2, TIM_CR2_CCDS);
+    TIM2->CR2 &= ~TIM_CR2_CCDS;
 
     GPIOD->BSRR = WS2812_RESET;
 
@@ -198,14 +197,14 @@ bool bsp_ws2812_is_busy(void) {
          */
         uint32_t irq_enabled = NVIC_GetEnableIRQ(DMA1_Channel1_IRQn);
 
-        HAL_NVIC_DisableIRQ(DMA1_Channel1_IRQn);
+        NVIC_DisableIRQ(DMA1_Channel1_IRQn);
 
         if (busy && (uint32_t)(bsp_time_ms() - started_ms) >= WS2812_TIMEOUT_MS) {
             stop_transfer(BSP_WS2812_ERROR_TIMEOUT);
         }
 
         if (irq_enabled != 0U) {
-            HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+            NVIC_EnableIRQ(DMA1_Channel1_IRQn);
         }
     }
 
@@ -229,7 +228,10 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
         return false;
     }
 
-    DMA_HandleTypeDef* dma = htim2.hdma[TIM_DMA_ID_CC3];
+    if ((DMA1_Channel1->CCR & DMA_CCR_EN) != 0U || (TIM2->CR1 & TIM_CR1_CEN) != 0U) {
+        stop_transfer(BSP_WS2812_ERROR_START);
+        return false;
+    }
 
     memcpy(frame, colors, count * sizeof(frame[0]));
 
@@ -247,21 +249,22 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
 
     GPIOD->BSRR = WS2812_RESET;
 
-    __HAL_TIM_SET_COUNTER(&htim2, 0U);
-    __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_CC3);
-
-    if (HAL_DMA_Start_IT(dma, (uint32_t)dma_buffer, (uint32_t)&GPIOD->BSRR, WS2812_BUFFER_WORDS) != HAL_OK) {
-
-        stop_transfer(BSP_WS2812_ERROR_START);
-        return false;
-    }
-
-    __HAL_TIM_ENABLE_DMA(&htim2, TIM_DMA_CC3);
-
-    if (HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_3) != HAL_OK) {
-        stop_transfer(BSP_WS2812_ERROR_START);
-        return false;
-    }
+    TIM2->CNT = 0U;
+    TIM2->SR = ~TIM_SR_CC3IF;
+    DMA1_Channel1->CCR &= ~DMA_CCR_EN;
+    (void)DMA1_Channel1->CCR;
+    __DSB();
+    DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CHTIF1 | DMA_IFCR_CTEIF1;
+    DMA1_Channel1->CPAR = (uint32_t)&GPIOD->BSRR;
+    DMA1_Channel1->CMAR = (uint32_t)dma_buffer;
+    DMA1_Channel1->CNDTR = WS2812_BUFFER_WORDS;
+    DMA1_Channel1->CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PL | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1
+                         | DMA_CCR_HTIE | DMA_CCR_TCIE | DMA_CCR_TEIE;
+    __DMB();
+    DMA1_Channel1->CCR |= DMA_CCR_EN;
+    TIM2->DIER |= TIM_DIER_CC3DE;
+    TIM2->CCER |= TIM_CCER_CC3E;
+    TIM2->CR1 |= TIM_CR1_CEN;
 
     return true;
 }

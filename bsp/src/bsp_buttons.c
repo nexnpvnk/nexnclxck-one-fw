@@ -1,6 +1,6 @@
 #include "bsp_buttons.h"
 
-#include "stm32f0xx_hal.h"
+#include "stm32f0xx.h"
 
 #define BUTTON_PINS_MASK 0x0FU
 
@@ -12,8 +12,10 @@ void bsp_buttons_init(void) { buttons_capture(); }
 
 uint8_t bsp_buttons_get_pressed_mask(void) { return pressed_mask; }
 
-void HAL_GPIO_EXTI_Callback(uint16_t pin) {
-    if ((pin & BUTTON_PINS_MASK) != 0U) {
+void bsp_buttons_irq(uint32_t lines) {
+    uint32_t pending = EXTI->PR & lines & BUTTON_PINS_MASK;
+    if (pending != 0U) {
+        EXTI->PR = pending;
         buttons_capture();
     }
 }

@@ -1,7 +1,7 @@
 #include "bsp_i2c.h"
+#include "bsp_time.h"
 #include "i2c.h"
 #include "ui2c_stm32f0.h"
-#include "stm32f0xx_hal.h"
 
 #define BSP_I2C_INIT_RETRY_MS 1000U
 
@@ -10,25 +10,7 @@ static uint32_t last_init_attempt_ms;
 
 static uint32_t time_ms(void* arg) {
     (void)arg;
-    return HAL_GetTick();
-}
-
-static ui2c_stm32f0_dma_t dma_config(const DMA_HandleTypeDef* handle) {
-    ui2c_stm32f0_dma_t config = {0};
-    if (handle == NULL) {
-        return config; /* No DMA selected in CubeMX: use byte IRQs. */
-    }
-    DMA_Channel_TypeDef* const channels[] = {
-        DMA1_Channel1, DMA1_Channel2, DMA1_Channel3, DMA1_Channel4, DMA1_Channel5,
-    };
-    config.channel = handle->Instance;
-    for (uint8_t i = 0; i < 5; ++i) {
-        if (channels[i] == config.channel) {
-            config.number = i + 1U;
-            break;
-        }
-    }
-    return config;
+    return bsp_time_ms();
 }
 
 bool bsp_i2c_init(void) {
@@ -36,14 +18,14 @@ bool bsp_i2c_init(void) {
         return true;
     }
 
-    last_init_attempt_ms = HAL_GetTick();
+    last_init_attempt_ms = bsp_time_ms();
 
-    /* CubeMX owns clocks, pins, DMA and NVIC.
+    /* Core initialization owns clocks, pins, DMA and NVIC.
      * The backend owns only transfer-time state. */
     const ui2c_stm32f0_config_t hw = {
-        .instance = hi2c1.Instance,
-        .tx_dma = dma_config(hi2c1.hdmatx),
-        .rx_dma = dma_config(hi2c1.hdmarx),
+        .instance = I2C1,
+        .tx_dma = {DMA1_Channel2, 2},
+        .rx_dma = {DMA1_Channel3, 3},
         .dma_threshold = 16,
     };
 
@@ -63,7 +45,7 @@ void bsp_i2c_process(void) {
         return;
     }
 
-    if ((uint32_t)(HAL_GetTick() - last_init_attempt_ms) >= BSP_I2C_INIT_RETRY_MS) {
+    if ((uint32_t)(bsp_time_ms() - last_init_attempt_ms) >= BSP_I2C_INIT_RETRY_MS) {
         (void)bsp_i2c_init();
     }
 }

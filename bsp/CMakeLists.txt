@@ -25,10 +25,10 @@ target_include_directories(bsp
 
 target_link_libraries(bsp
     PRIVATE
-        stm32cubemx
+        platform
         lwrb
         ui2c_stm32f0
 )
 
-# Public board APIs expose the portable bus handle and the FlashDB database.
+# Public board APIs expose the portable I2C bus handle.
 target_link_libraries(bsp PUBLIC ui2c)

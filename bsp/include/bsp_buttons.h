@@ -20,6 +20,8 @@ typedef enum {
 void bsp_buttons_init(void);
 uint8_t bsp_buttons_get_pressed_mask(void);
 
+void bsp_buttons_irq(uint32_t lines);
+
 #ifdef __cplusplus
 }
 #endif

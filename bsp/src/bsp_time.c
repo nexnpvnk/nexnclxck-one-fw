@@ -1,4 +1,7 @@
 #include "bsp_time.h"
-#include "stm32f0xx_hal.h"
 
-uint32_t bsp_time_ms(void) { return HAL_GetTick(); }
+static volatile uint32_t milliseconds;
+
+uint32_t bsp_time_ms(void) { return milliseconds; }
+
+void bsp_time_tick(void) { ++milliseconds; }

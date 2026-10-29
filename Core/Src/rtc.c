@@ -1,4 +1,3 @@
-/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file    rtc.c
@@ -16,101 +15,71 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
+
 #include "rtc.h"
+#include "bsp_time.h"
 
-/* USER CODE BEGIN 0 */
+static bool ready;
 
-/* USER CODE END 0 */
-
-RTC_HandleTypeDef hrtc;
-
-/* RTC init function */
-void MX_RTC_Init(void)
-{
-
-  /* USER CODE BEGIN RTC_Init 0 */
-
-  /* USER CODE END RTC_Init 0 */
-
-  /* USER CODE BEGIN RTC_Init 1 */
-
-  /* USER CODE END RTC_Init 1 */
-
-  /** Initialize RTC Only
-  */
-  hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
-  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-  if (HAL_RTC_Init(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Enable Calibration
-  */
-  if (HAL_RTCEx_SetCalibrationOutPut(&hrtc, RTC_CALIBOUTPUT_1HZ) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN RTC_Init 2 */
-
-  /* USER CODE END RTC_Init 2 */
-
+static bool wait_flag(uint32_t flag) {
+    uint32_t start = bsp_time_ms();
+    while ((RTC->ISR & flag) == 0U) {
+        if ((uint32_t)(bsp_time_ms() - start) >= 1000U) {
+            return false;
+        }
+    }
+    return true;
 }
 
-void HAL_RTC_MspInit(RTC_HandleTypeDef* rtcHandle)
-{
-
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  if(rtcHandle->Instance==RTC)
-  {
-  /* USER CODE BEGIN RTC_MspInit 0 */
-
-  /* USER CODE END RTC_MspInit 0 */
-    /* RTC clock enable */
-    __HAL_RCC_RTC_ENABLE();
-
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-    /**RTC GPIO Configuration
-    PC13     ------> RTC_OUT_CALIB
-    */
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN RTC_MspInit 1 */
-
-  /* USER CODE END RTC_MspInit 1 */
-  }
+/* WPR must be unlocked. Writing ones preserves unrelated write-zero flags. */
+static bool sync_shadow(void) {
+    RTC->CR &= ~RTC_CR_BYPSHAD;
+    RTC->ISR = ~(RTC_ISR_RSF | RTC_ISR_INIT);
+    return wait_flag(RTC_ISR_RSF);
 }
 
-void HAL_RTC_MspDeInit(RTC_HandleTypeDef* rtcHandle)
-{
-
-  if(rtcHandle->Instance==RTC)
-  {
-  /* USER CODE BEGIN RTC_MspDeInit 0 */
-
-  /* USER CODE END RTC_MspDeInit 0 */
-    /* Peripheral clock disable */
-    __HAL_RCC_RTC_DISABLE();
-
-    /**RTC GPIO Configuration
-    PC13     ------> RTC_OUT_CALIB
-    */
-    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_13);
-
-  /* USER CODE BEGIN RTC_MspDeInit 1 */
-
-  /* USER CODE END RTC_MspDeInit 1 */
-  }
+bool rtc_begin_update(void) {
+    if ((RCC->BDCR & (RCC_BDCR_RTCEN | RCC_BDCR_LSERDY)) != (RCC_BDCR_RTCEN | RCC_BDCR_LSERDY)) {
+        ready = false;
+        return false;
+    }
+    PWR->CR |= PWR_CR_DBP;
+    RTC->WPR = 0xCAU;
+    RTC->WPR = 0x53U;
+    /* ES0202 2.11.4: synchronize shadow registers before re-entering INIT. */
+    if ((RTC->ISR & RTC_ISR_INITS) != 0U && !sync_shadow()) {
+        RTC->WPR = 0xFFU;
+        ready = false;
+        return false;
+    }
+    RTC->ISR |= RTC_ISR_INIT;
+    if (!wait_flag(RTC_ISR_INITF)) {
+        RTC->ISR &= ~RTC_ISR_INIT;
+        RTC->WPR = 0xFFU;
+        ready = false;
+        return false;
+    }
+    return true;
 }
 
-/* USER CODE BEGIN 1 */
+bool rtc_end_update(void) {
+    RTC->ISR &= ~RTC_ISR_INIT;
+    ready = sync_shadow();
+    RTC->WPR = 0xFFU;
+    return ready;
+}
 
-/* USER CODE END 1 */
+bool rtc_is_ready(void) { return ready; }
 
+void platform_rtc_init(void) {
+    if (!rtc_begin_update()) {
+        Error_Handler();
+    }
+    RTC->CR = (RTC->CR & ~(RTC_CR_FMT | RTC_CR_OSEL | RTC_CR_POL | RTC_CR_BYPSHAD)) | RTC_CR_COE | RTC_CR_COSEL;
+    RTC->PRER = 255U;
+    RTC->PRER |= 127U << 16U;
+    RTC->TAFCR &= ~RTC_TAFCR_ALARMOUTTYPE;
+    if (!rtc_end_update()) {
+        Error_Handler();
+    }
+}

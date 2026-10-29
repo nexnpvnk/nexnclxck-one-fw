@@ -1,4 +1,3 @@
-/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file    stm32f0xx_it.c
@@ -15,264 +14,38 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
 
-/* Includes ------------------------------------------------------------------*/
-#include "main.h"
 #include "stm32f0xx_it.h"
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+#include "bsp_buttons.h"
+#include "bsp_console.h"
+#include "bsp_hv.h"
 #include "bsp_i2c.h"
-/* USER CODE END Includes */
+#include "bsp_time.h"
+#include "bsp_ws2812.h"
+#include "main.h"
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN TD */
+void NMI_Handler(void) { Error_Handler(); }
 
-/* USER CODE END TD */
+void HardFault_Handler(void) { Error_Handler(); }
 
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
+void SVC_Handler(void) {}
 
-/* USER CODE END PD */
+void PendSV_Handler(void) {}
 
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
+void SysTick_Handler(void) { bsp_time_tick(); }
 
-/* USER CODE END PM */
+void EXTI0_1_IRQHandler(void) { bsp_buttons_irq(0x03U); }
 
-/* Private variables ---------------------------------------------------------*/
-/* USER CODE BEGIN PV */
+void EXTI2_3_IRQHandler(void) { bsp_buttons_irq(0x0CU); }
 
-/* USER CODE END PV */
+void DMA1_Channel1_IRQHandler(void) { bsp_ws2812_dma_irq(); }
 
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN PFP */
+void DMA1_Channel2_3_IRQHandler(void) { bsp_i2c_dma_irq(); }
 
-/* USER CODE END PFP */
+void DMA1_Channel4_5_IRQHandler(void) { bsp_console_dma_irq(); }
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+void ADC1_COMP_IRQHandler(void) { bsp_hv_adc_irq(); }
 
-/* USER CODE END 0 */
+void I2C1_IRQHandler(void) { bsp_i2c_irq(); }
 
-/* External variables --------------------------------------------------------*/
-extern ADC_HandleTypeDef hadc;
-extern DMA_HandleTypeDef hdma_i2c1_rx;
-extern DMA_HandleTypeDef hdma_i2c1_tx;
-extern I2C_HandleTypeDef hi2c1;
-extern DMA_HandleTypeDef hdma_tim2_ch3;
-extern DMA_HandleTypeDef hdma_usart1_tx;
-extern DMA_HandleTypeDef hdma_usart1_rx;
-extern UART_HandleTypeDef huart1;
-/* USER CODE BEGIN EV */
-
-/* USER CODE END EV */
-
-/******************************************************************************/
-/*           Cortex-M0 Processor Interruption and Exception Handlers          */
-/******************************************************************************/
-/**
-  * @brief This function handles Non maskable interrupt.
-  */
-void NMI_Handler(void)
-{
-  /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
-  /* USER CODE END NonMaskableInt_IRQn 0 */
-  /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
-   while (1)
-  {
-  }
-  /* USER CODE END NonMaskableInt_IRQn 1 */
-}
-
-/**
-  * @brief This function handles Hard fault interrupt.
-  */
-void HardFault_Handler(void)
-{
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
-}
-
-/**
-  * @brief This function handles System service call via SWI instruction.
-  */
-void SVC_Handler(void)
-{
-  /* USER CODE BEGIN SVC_IRQn 0 */
-
-  /* USER CODE END SVC_IRQn 0 */
-  /* USER CODE BEGIN SVC_IRQn 1 */
-
-  /* USER CODE END SVC_IRQn 1 */
-}
-
-/**
-  * @brief This function handles Pendable request for system service.
-  */
-void PendSV_Handler(void)
-{
-  /* USER CODE BEGIN PendSV_IRQn 0 */
-
-  /* USER CODE END PendSV_IRQn 0 */
-  /* USER CODE BEGIN PendSV_IRQn 1 */
-
-  /* USER CODE END PendSV_IRQn 1 */
-}
-
-/**
-  * @brief This function handles System tick timer.
-  */
-void SysTick_Handler(void)
-{
-  /* USER CODE BEGIN SysTick_IRQn 0 */
-
-  /* USER CODE END SysTick_IRQn 0 */
-  HAL_IncTick();
-  /* USER CODE BEGIN SysTick_IRQn 1 */
-
-  /* USER CODE END SysTick_IRQn 1 */
-}
-
-/******************************************************************************/
-/* STM32F0xx Peripheral Interrupt Handlers                                    */
-/* Add here the Interrupt Handlers for the used peripherals.                  */
-/* For the available peripheral interrupt handler names,                      */
-/* please refer to the startup file (startup_stm32f0xx.s).                    */
-/******************************************************************************/
-
-/**
-  * @brief This function handles EXTI line 0 and 1 interrupts.
-  */
-void EXTI0_1_IRQHandler(void)
-{
-  /* USER CODE BEGIN EXTI0_1_IRQn 0 */
-
-  /* USER CODE END EXTI0_1_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
-  /* USER CODE BEGIN EXTI0_1_IRQn 1 */
-
-  /* USER CODE END EXTI0_1_IRQn 1 */
-}
-
-/**
-  * @brief This function handles EXTI line 2 and 3 interrupts.
-  */
-void EXTI2_3_IRQHandler(void)
-{
-  /* USER CODE BEGIN EXTI2_3_IRQn 0 */
-
-  /* USER CODE END EXTI2_3_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_2);
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
-  /* USER CODE BEGIN EXTI2_3_IRQn 1 */
-
-  /* USER CODE END EXTI2_3_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 channel 1 interrupt.
-  */
-void DMA1_Channel1_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
-
-  /* USER CODE END DMA1_Channel1_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_tim2_ch3);
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
-
-  /* USER CODE END DMA1_Channel1_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 channel 2 and 3 interrupts.
-  */
-void DMA1_Channel2_3_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Channel2_3_IRQn 0 */
-  bsp_i2c_dma_irq();
-  return; /* ui2c owns transfers; HAL only initialized these channels. */
-  /* USER CODE END DMA1_Channel2_3_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_i2c1_tx);
-  HAL_DMA_IRQHandler(&hdma_i2c1_rx);
-  /* USER CODE BEGIN DMA1_Channel2_3_IRQn 1 */
-
-  /* USER CODE END DMA1_Channel2_3_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA1 channel 4 and 5 interrupts.
-  */
-void DMA1_Channel4_5_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Channel4_5_IRQn 0 */
-
-  /* USER CODE END DMA1_Channel4_5_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_usart1_tx);
-  HAL_DMA_IRQHandler(&hdma_usart1_rx);
-  /* USER CODE BEGIN DMA1_Channel4_5_IRQn 1 */
-
-  /* USER CODE END DMA1_Channel4_5_IRQn 1 */
-}
-
-/**
-  * @brief This function handles ADC and COMP interrupts (COMP interrupts through EXTI lines 21 and 22).
-  */
-void ADC1_COMP_IRQHandler(void)
-{
-  /* USER CODE BEGIN ADC1_COMP_IRQn 0 */
-
-  /* USER CODE END ADC1_COMP_IRQn 0 */
-  HAL_ADC_IRQHandler(&hadc);
-  /* USER CODE BEGIN ADC1_COMP_IRQn 1 */
-
-  /* USER CODE END ADC1_COMP_IRQn 1 */
-}
-
-/**
-  * @brief This function handles I2C1 event global interrupt / I2C1 wake-up interrupt through EXTI line 23.
-  */
-void I2C1_IRQHandler(void)
-{
-  /* USER CODE BEGIN I2C1_IRQn 0 */
-  bsp_i2c_irq();
-  return; /* ui2c owns this peripheral; bypass generated HAL dispatch. */
-  /* USER CODE END I2C1_IRQn 0 */
-  if (hi2c1.Instance->ISR & (I2C_FLAG_BERR | I2C_FLAG_ARLO | I2C_FLAG_OVR))
-  {
-    HAL_I2C_ER_IRQHandler(&hi2c1);
-  }
-  else
-  {
-    HAL_I2C_EV_IRQHandler(&hi2c1);
-  }
-  /* USER CODE BEGIN I2C1_IRQn 1 */
-
-  /* USER CODE END I2C1_IRQn 1 */
-}
-
-/**
-  * @brief This function handles USART1 global interrupt / USART1 wake-up interrupt through EXTI line 25.
-  */
-void USART1_IRQHandler(void)
-{
-  /* USER CODE BEGIN USART1_IRQn 0 */
-
-  /* USER CODE END USART1_IRQn 0 */
-  HAL_UART_IRQHandler(&huart1);
-  /* USER CODE BEGIN USART1_IRQn 1 */
-
-  /* USER CODE END USART1_IRQn 1 */
-}
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */
+void USART1_IRQHandler(void) { bsp_console_uart_irq(); }

@@ -49,6 +49,9 @@ uint32_t bsp_ws2812_error_count(void);
 /* Diagnostic snapshot; call from foreground context. */
 bool bsp_ws2812_get_stats(bsp_ws2812_stats_t* stats);
 
+/* Platform dispatch for DMA1_Channel1_IRQHandler. */
+void bsp_ws2812_dma_irq(void);
+
 #ifdef __cplusplus
 }
 #endif

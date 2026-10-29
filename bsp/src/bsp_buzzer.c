@@ -1,5 +1,6 @@
 #include "bsp_buzzer.h"
 
+#include <stddef.h>
 #include "tim.h"
 
 #define BSP_BUZZER_TIMER_MAX_PERIOD 65536U
@@ -10,14 +11,16 @@ static uint32_t frequency_hz = BSP_BUZZER_FREQ_DEFAULT_HZ;
 static uint8_t volume_percent = BSP_BUZZER_VOLUME_DEFAULT_PERCENT;
 
 static uint32_t timer_tick_hz(void) {
-    uint32_t clock_hz = HAL_RCC_GetPCLK1Freq();
+    uint32_t clock_hz = SystemCoreClock;
+    uint32_t divider = (RCC->CFGR & RCC_CFGR_PPRE) >> RCC_CFGR_PPRE_Pos;
 
     /* STM32F0 timer clock doubles when APB prescaler != 1. */
-    if ((RCC->CFGR & RCC_CFGR_PPRE_2) != 0U) {
+    if (divider >= 4U) {
+        clock_hz >>= divider - 3U;
         clock_hz *= 2U;
     }
 
-    return clock_hz / (htim16.Init.Prescaler + 1U);
+    return clock_hz / (TIM16->PSC + 1U);
 }
 
 static uint32_t calculate_compare(uint32_t period) {
@@ -50,17 +53,17 @@ static bool configure_frequency(uint32_t requested_hz) {
         return false;
     }
 
-    /* ARR and CCR1 are preloaded by CubeMX.
+    /* ARR and CCR1 are preloaded by platform_tim16_init.
      * Prevent an update event between the writes
      * so the next PWM cycle uses a matching pair. */
-    TIM_TypeDef* timer = htim16.Instance;
+    TIM_TypeDef* timer = TIM16;
     uint32_t cr1 = timer->CR1;
 
     timer->CR1 = cr1 | TIM_CR1_UDIS;
 
-    __HAL_TIM_SET_AUTORELOAD(&htim16, period - 1U);
+    TIM16->ARR = period - 1U;
 
-    __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, calculate_compare(period));
+    TIM16->CCR1 = calculate_compare(period);
 
     timer->CR1 = cr1;
 
@@ -72,21 +75,21 @@ bool bsp_buzzer_init(void) {
         return true;
     }
 
-    if (htim16.Instance != TIM16 || !configure_frequency(BSP_BUZZER_FREQ_DEFAULT_HZ)) {
+    if ((RCC->APB2ENR & RCC_APB2ENR_TIM16EN) == 0U || !configure_frequency(BSP_BUZZER_FREQ_DEFAULT_HZ)) {
         return false;
     }
 
     /* Load the initially silent PWM registers
      * before connecting TIM16_CH1. */
-    __HAL_TIM_SET_COUNTER(&htim16, 0U);
+    TIM16->CNT = 0U;
 
-    htim16.Instance->EGR = TIM_EGR_UG;
+    TIM16->EGR = TIM_EGR_UG;
 
-    __HAL_TIM_CLEAR_FLAG(&htim16, TIM_FLAG_UPDATE);
+    TIM16->SR = ~TIM_SR_UIF;
 
-    if (HAL_TIM_PWM_Start(&htim16, TIM_CHANNEL_1) != HAL_OK) {
-        return false;
-    }
+    TIM16->CCER |= TIM_CCER_CC1E;
+    TIM16->BDTR |= TIM_BDTR_MOE;
+    TIM16->CR1 |= TIM_CR1_CEN;
 
     frequency_hz = BSP_BUZZER_FREQ_DEFAULT_HZ;
     volume_percent = BSP_BUZZER_VOLUME_DEFAULT_PERCENT;
@@ -113,9 +116,9 @@ bool bsp_buzzer_set_volume(uint8_t requested_percent) {
 
     volume_percent = requested_percent;
 
-    uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim16) + 1U;
+    uint32_t period = TIM16->ARR + 1U;
 
-    __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, calculate_compare(period));
+    TIM16->CCR1 = calculate_compare(period);
 
     return true;
 }
@@ -127,9 +130,9 @@ bool bsp_buzzer_set_enabled(bool on) {
 
     enabled = on;
 
-    uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim16) + 1U;
+    uint32_t period = TIM16->ARR + 1U;
 
-    __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, calculate_compare(period));
+    TIM16->CCR1 = calculate_compare(period);
 
     return true;
 }

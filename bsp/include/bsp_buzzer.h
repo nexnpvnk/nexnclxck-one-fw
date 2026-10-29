@@ -21,7 +21,7 @@ typedef struct {
     bool enabled;
 } bsp_buzzer_status_t;
 
-/* Call once after MX_TIM16_Init().
+/* Call once after platform_tim16_init().
  * PWM starts silent (PA6 low). */
 bool bsp_buzzer_init(void);
 

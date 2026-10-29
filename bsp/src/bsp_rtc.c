@@ -1,142 +1,77 @@
 #include "bsp_rtc.h"
-
+#include <stddef.h>
 #include "rtc.h"
-#include "stm32f0xx_hal_rcc.h"
 
-#define BSP_RTC_YEAR_BASE    2000U
+#define BSP_RTC_YEAR_BASE 2000U
+#define BSP_RTC_BKP_MAGIC 0x434C4B31U /* "CLK1" */
 
-#define BSP_RTC_BKP_REGISTER RTC_BKP_DR0
-#define BSP_RTC_BKP_MAGIC    0x434C4B31U /* "CLK1" */
+static uint8_t from_bcd(uint32_t value) { return (uint8_t)((value >> 4U) * 10U + (value & 15U)); }
 
-static bool sync(void) {
-    HAL_StatusTypeDef status;
-
-    /*
-     * STM32F051 errata ES0202 2.11.4:
-     * before entering RTC initialization mode again,
-     * BYPSHAD must be cleared and RSF synchronization completed.
-     */
-    if (HAL_RTCEx_DisableBypassShadow(&hrtc) != HAL_OK) {
-        return false;
-    }
-
-    __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
-
-    status = HAL_RTC_WaitForSynchro(&hrtc);
-
-    __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
-
-    return status == HAL_OK;
-}
+static uint32_t to_bcd(uint32_t value) { return ((value / 10U) << 4U) | (value % 10U); }
 
 bool bsp_rtc_read(bsp_rtc_datetime_t* datetime) {
-    RTC_TimeTypeDef time = {0};
-    RTC_DateTypeDef date = {0};
-
-    if (datetime == NULL) {
+    if (datetime == NULL || !rtc_is_ready()) {
         return false;
     }
-
-    /*
-     * STM32 RTC shadow registers must be read in this order:
-     * time first, date second.
-     */
-    if (HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN) != HAL_OK) {
-        return false;
+    /* ES0202 2.11.2: retry if SSR changed during the shadow snapshot.
+     * Every SSR/TR read is followed by DR to release the shadow lock. */
+    for (unsigned attempt = 0U; attempt < 3U; ++attempt) {
+        uint32_t subsecond = RTC->SSR;
+        uint32_t time = RTC->TR;
+        uint32_t date = RTC->DR;
+        uint32_t after = RTC->SSR;
+        (void)RTC->DR;
+        if (subsecond != after) {
+            continue;
+        }
+        datetime->year = BSP_RTC_YEAR_BASE + from_bcd((date >> 16U) & 0xFFU);
+        datetime->month = from_bcd((date >> 8U) & 0x1FU);
+        datetime->day = from_bcd(date & 0x3FU);
+        datetime->weekday = (uint8_t)((date >> 13U) & 7U);
+        datetime->hour = from_bcd((time >> 16U) & 0x3FU);
+        datetime->minute = from_bcd((time >> 8U) & 0x7FU);
+        datetime->second = from_bcd(time & 0x7FU);
+        return true;
     }
-
-    if (HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN) != HAL_OK) {
-        return false;
-    }
-
-    datetime->year = BSP_RTC_YEAR_BASE + date.Year;
-    datetime->month = date.Month;
-    datetime->day = date.Date;
-    datetime->weekday = date.WeekDay;
-
-    datetime->hour = time.Hours;
-    datetime->minute = time.Minutes;
-    datetime->second = time.Seconds;
-
-    return true;
+    return false;
 }
 
 bool bsp_rtc_write(const bsp_rtc_datetime_t* datetime) {
-    RTC_TimeTypeDef time = {0};
-    RTC_DateTypeDef date = {0};
-
-    if (datetime == NULL) {
+    if (datetime == NULL || datetime->year < 2000U || datetime->year > 2099U || datetime->month < 1U
+        || datetime->month > 12U || datetime->day < 1U || datetime->day > 31U || datetime->weekday < 1U
+        || datetime->weekday > 7U || datetime->hour > 23U || datetime->minute > 59U || datetime->second > 59U) {
         return false;
     }
-
-    time.Hours = datetime->hour;
-    time.Minutes = datetime->minute;
-    time.Seconds = datetime->second;
-    time.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-    time.StoreOperation = RTC_STOREOPERATION_RESET;
-
-    date.Year = (uint8_t)(datetime->year - BSP_RTC_YEAR_BASE);
-
-    date.Month = datetime->month;
-    date.Date = datetime->day;
-
-    date.WeekDay = datetime->weekday;
-
-    /*
-     * SystemClock_Config() already enables backup-domain access.
-     * Keep it enabled during normal firmware operation.
-     */
-    HAL_PWR_EnableBkUpAccess();
-
-    /*
-     * Mark the calendar invalid until the whole update succeeds.
-     */
-    HAL_RTCEx_BKUPWrite(&hrtc, BSP_RTC_BKP_REGISTER, 0U);
-
-    if (HAL_RTC_SetTime(&hrtc, &time, RTC_FORMAT_BIN) != HAL_OK) {
+    PWR->CR |= PWR_CR_DBP;
+    RTC->BKP0R = 0U;
+    if (!rtc_begin_update()) {
         return false;
     }
-
-    /*
-     * Required for STM32F051 RTC errata ES0202 2.11.4.
-     */
-    if (!sync()) {
+    /* Date and time form one update; validity is published only after synchronization. */
+    RTC->TR = (to_bcd(datetime->hour) << 16U) | (to_bcd(datetime->minute) << 8U) | to_bcd(datetime->second);
+    RTC->DR = (to_bcd(datetime->year - BSP_RTC_YEAR_BASE) << 16U) | ((uint32_t)datetime->weekday << 13U)
+              | (to_bcd(datetime->month) << 8U) | to_bcd(datetime->day);
+    RTC->CR |= RTC_CR_COE | RTC_CR_COSEL;
+    if (!rtc_end_update()) {
         return false;
     }
-
-    if (HAL_RTC_SetDate(&hrtc, &date, RTC_FORMAT_BIN) != HAL_OK) {
-        return false;
-    }
-
-    if (!sync()) {
-        return false;
-    }
-
-    if (HAL_RTCEx_SetCalibrationOutPut(&hrtc, RTC_CALIBOUTPUT_1HZ) != HAL_OK) {
-        return false;
-    }
-
-    HAL_RTCEx_BKUPWrite(&hrtc, BSP_RTC_BKP_REGISTER, BSP_RTC_BKP_MAGIC);
-
+    RTC->BKP0R = BSP_RTC_BKP_MAGIC;
     return true;
 }
 
-bool bsp_rtc_is_valid(void) { return HAL_RTCEx_BKUPRead(&hrtc, BSP_RTC_BKP_REGISTER) == BSP_RTC_BKP_MAGIC; }
+bool bsp_rtc_is_valid(void) { return rtc_is_ready() && RTC->BKP0R == BSP_RTC_BKP_MAGIC; }
 
 bool bsp_rtc_invalidate(void) {
-    HAL_PWR_EnableBkUpAccess();
-
-    HAL_RTCEx_BKUPWrite(&hrtc, BSP_RTC_BKP_REGISTER, 0U);
-
-    return !bsp_rtc_is_valid();
+    PWR->CR |= PWR_CR_DBP;
+    RTC->BKP0R = 0U;
+    return RTC->BKP0R == 0U;
 }
 
 bool bsp_rtc_get_status(bsp_rtc_status_t* status) {
     if (status == NULL) {
         return false;
     }
-
-    status->ready = HAL_RTC_GetState(&hrtc) == HAL_RTC_STATE_READY;
-    status->source_ready = __HAL_RCC_GET_FLAG(RCC_FLAG_LSERDY) != RESET;
+    status->ready = rtc_is_ready();
+    status->source_ready = (RCC->BDCR & RCC_BDCR_LSERDY) != 0U;
     return true;
 }
