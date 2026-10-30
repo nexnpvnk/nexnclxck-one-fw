@@ -33,8 +33,6 @@ static struct {
 
     volatile uint16_t target_v;
     volatile uint32_t filtered_mv;
-    volatile uint32_t min_mv;
-    volatile uint32_t max_mv;
 
     uint32_t active_goal_mv;
 
@@ -67,27 +65,17 @@ static void trip(app_hv_fault_t reason) {
 static void control_step(void) {
     uint32_t goal_mv = (uint32_t)hv.target_v * 1000U;
 
-    /* A new target starts a new transition. */
+    /* A new target starts a transition, preserving the operating integral.
+     * Negative error reduces P immediately and unwinds I without a restart at zero. */
     if (goal_mv != hv.active_goal_mv) {
-        uint32_t previous_goal_mv = hv.active_goal_mv;
         hv.active_goal_mv = goal_mv;
         hv.start_steps = 0U;
         hv.settle_steps = 0U;
         hv.state = APP_HV_STARTING;
-
-        /*
-         * When lowering the target, discard the accumulated
-         * output so the Boost converter does not keep
-         * charging the output capacitor.
-         */
-        if (goal_mv < previous_goal_mv) {
-            hv.integral_q16 = 0;
-        }
     }
 
     /*
-     * Startup timeout is meaningful only before regulation
-     * has been reached.
+     * Allow 20 seconds to acquire or regain regulation.
      */
     if (hv.state == APP_HV_STARTING) {
         if (hv.start_steps < HV_START_TIMEOUT_STEPS) {
@@ -142,37 +130,33 @@ static void control_step(void) {
         return;
     }
 
-    if (hv.state == APP_HV_STARTING) {
-        if (hv.filtered_mv + HV_REGULATION_BAND_MV >= goal_mv && hv.filtered_mv <= goal_mv + HV_REGULATION_BAND_MV) {
+    if (hv.filtered_mv + HV_REGULATION_BAND_MV >= goal_mv && hv.filtered_mv <= goal_mv + HV_REGULATION_BAND_MV) {
+        if (hv.state == APP_HV_STARTING) {
             if (++hv.settle_steps >= HV_SETTLE_STEPS) {
                 hv.state = APP_HV_RUNNING;
+                hv.start_steps = 0U;
             }
-        } else {
-            hv.settle_steps = 0U;
+        }
+    } else {
+        hv.settle_steps = 0U;
+        if (hv.state == APP_HV_RUNNING) {
+            hv.state = APP_HV_STARTING;
+            hv.start_steps = 0U;
         }
     }
 }
 
 /* Called from ADC interrupt context at 2 kHz. */
-static void on_sample(uint32_t voltage_mv, bsp_hv_fault_t fault, void* arg) {
+static void on_sample(uint32_t voltage_mv, bsp_hv_fault_t fault, bool valid, void* arg) {
     (void)arg;
 
-    if (!hv.have_sample) {
-        hv.filtered_mv = voltage_mv;
-        hv.min_mv = voltage_mv;
-        hv.max_mv = voltage_mv;
-        hv.have_sample = true;
-    } else {
-        int32_t delta = (int32_t)voltage_mv - (int32_t)hv.filtered_mv;
-
-        hv.filtered_mv = (uint32_t)((int32_t)hv.filtered_mv + delta / (1L << HV_FILTER_SHIFT));
-
-        if (voltage_mv < hv.min_mv) {
-            hv.min_mv = voltage_mv;
-        }
-
-        if (voltage_mv > hv.max_mv) {
-            hv.max_mv = voltage_mv;
+    if (valid) {
+        if (!hv.have_sample) {
+            hv.filtered_mv = voltage_mv;
+            hv.have_sample = true;
+        } else {
+            int32_t delta = (int32_t)voltage_mv - (int32_t)hv.filtered_mv;
+            hv.filtered_mv = (uint32_t)((int32_t)hv.filtered_mv + delta / (1L << HV_FILTER_SHIFT));
         }
     }
 
@@ -182,6 +166,12 @@ static void on_sample(uint32_t voltage_mv, bsp_hv_fault_t fault, void* arg) {
 
     if (fault != BSP_HV_FAULT_NONE) {
         trip(APP_HV_FAULT_BSP);
+        return;
+    }
+
+    if (!valid) {
+        hv.control_divider = 0U;
+        hv.settle_steps = 0U;
         return;
     }
 
@@ -224,8 +214,6 @@ static bool start(void) {
     hv.settle_steps = 0U;
 
     hv.active_goal_mv = (uint32_t)hv.target_v * 1000U;
-    hv.min_mv = hv.filtered_mv;
-    hv.max_mv = hv.filtered_mv;
 
     hv.fault = APP_HV_FAULT_NONE;
     hv.state = APP_HV_STARTING;
@@ -339,18 +327,12 @@ bool app_hv_get_status(app_hv_status_t* status) {
     status->voltage_mv = hw.voltage_mv;
     status->filtered_mv = hv.filtered_mv;
 
-    status->min_mv = hv.min_mv;
-    status->max_mv = hv.max_mv;
-
     status->samples = hw.samples;
     status->adc_raw = hw.adc_raw;
 
     status->target_v = hv.target_v;
     status->duty_permille = hw.duty_permille;
     status->duty_limit_permille = hw.duty_limit_permille;
-    status->trip_adc_raw = hw.trip_adc_raw;
-    status->trip_adc_isr = hw.trip_adc_isr;
-    status->trip_adc_tr = hw.trip_adc_tr;
 
     status->state = hv.state;
     status->fault = hv.fault;

@@ -67,22 +67,15 @@ static WSH_SHELL_RET_STATE_t print_status(uint32_t rate_hz) {
     WSH_SHELL_PRINT_SYS(
         "HV %s | Set: %u V | Out: %lu.%03lu V | Filt: %lu.%03lu V | "
         "Duty: %u.%01u%% (limit %u.%01u%%) | ADC: %u | Rate: %lu Hz | "
-        "Range: %lu.%03lu..%lu.%03lu V | Fault: %s/%u | PWM: %s | Request: %s\n",
+        "Fault: %s/%u | PWM: %s | Request: %s\n",
         state_name(status.state), (unsigned)status.target_v,
         (unsigned long)(status.voltage_mv / 1000U), (unsigned long)(status.voltage_mv % 1000U),
         (unsigned long)(status.filtered_mv / 1000U), (unsigned long)(status.filtered_mv % 1000U),
         (unsigned)(status.duty_permille / 10U), (unsigned)(status.duty_permille % 10U),
         (unsigned)(status.duty_limit_permille / 10U), (unsigned)(status.duty_limit_permille % 10U),
         (unsigned)status.adc_raw, (unsigned long)rate_hz,
-        (unsigned long)(status.min_mv / 1000U), (unsigned long)(status.min_mv % 1000U),
-        (unsigned long)(status.max_mv / 1000U), (unsigned long)(status.max_mv % 1000U),
         fault_name(status.fault), (unsigned)status.bsp_fault,
         status.pwm_available ? "READY" : "LOCKED", status.requested_enabled ? "ON" : "OFF");
-    if (status.trip_adc_isr != 0U) {
-        WSH_SHELL_PRINT_SYS("OVP snapshot | ADC: %u | ISR: 0x%08lX | TR: 0x%08lX\n",
-                            (unsigned)status.trip_adc_raw, (unsigned long)status.trip_adc_isr,
-                            (unsigned long)status.trip_adc_tr);
-    }
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 

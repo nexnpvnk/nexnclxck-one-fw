@@ -30,16 +30,11 @@ typedef enum {
 typedef struct {
     uint32_t voltage_mv;
     uint32_t filtered_mv;
-    uint32_t min_mv;
-    uint32_t max_mv;
     uint32_t samples;
     uint16_t adc_raw;
     uint16_t target_v;
     uint16_t duty_permille;
     uint16_t duty_limit_permille;
-    uint16_t trip_adc_raw;
-    uint32_t trip_adc_isr;
-    uint32_t trip_adc_tr;
     app_hv_state_t state;
     app_hv_fault_t fault;
     uint8_t bsp_fault;

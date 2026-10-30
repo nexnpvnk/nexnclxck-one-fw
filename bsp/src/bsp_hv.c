@@ -12,6 +12,7 @@
 #define BSP_HV_ADC_MAX             4095U
 
 #define BSP_HV_OVP_VOLTAGE_MV      260000U
+#define BSP_HV_OVP_CONFIRM_SAMPLES 3U
 
 #define BSP_HV_ADC_TIMEOUT_MS      10U
 #define BSP_HV_ADC_INIT_TIMEOUT_MS 100U
@@ -31,9 +32,8 @@ static struct {
 
     volatile uint16_t adc_raw;
     volatile uint16_t duty_permille;
-    volatile uint16_t trip_adc_raw;
-    volatile uint32_t trip_adc_isr;
-    volatile uint32_t trip_adc_tr;
+    uint8_t ovp_samples;
+    volatile bool ovp_suspended;
 
     volatile bool enabled;
     volatile bsp_hv_fault_t fault;
@@ -60,6 +60,8 @@ static void pwm_disable(void) {
 
     hv.duty_permille = 0U;
     hv.enabled = false;
+    hv.ovp_suspended = false;
+    hv.ovp_samples = 0U;
 }
 
 static void trip(bsp_hv_fault_t reason) {
@@ -196,7 +198,10 @@ bool bsp_hv_set_enabled(bool enabled) {
             pwm_disable();
             hv.fault = BSP_HV_FAULT_NONE;
         }
-        TIM17->BDTR |= TIM_BDTR_MOE;
+        /* Only the ADC confirmation path may release a temporary OVP hold. */
+        if (!hv.ovp_suspended) {
+            TIM17->BDTR |= TIM_BDTR_MOE;
+        }
         hv.enabled = true;
     }
 
@@ -240,11 +245,8 @@ bool bsp_hv_get_status(bsp_hv_status_t* status) {
     status->samples = hv.samples;
     status->adc_raw = hv.adc_raw;
 
-    status->duty_permille = hv.duty_permille;
+    status->duty_permille = hv.ovp_suspended ? 0U : hv.duty_permille;
     status->duty_limit_permille = BSP_HV_DUTY_MAX_PM;
-    status->trip_adc_raw = hv.trip_adc_raw;
-    status->trip_adc_isr = hv.trip_adc_isr;
-    status->trip_adc_tr = hv.trip_adc_tr;
 
     status->enabled = hv.enabled;
     status->fault = hv.fault;
@@ -273,16 +275,17 @@ void bsp_hv_adc_irq(void) {
     uint32_t pending = flags & ADC1->IER;
     bool have_sample = (pending & ADC_ISR_EOC) != 0U;
     uint16_t raw = have_sample ? (uint16_t)ADC1->DR : hv.adc_raw;
+    bool watchdog = (pending & ADC_ISR_AWD) != 0U;
+    bool high = have_sample && raw >= BSP_HV_OVP_RAW;
 
-    /* Disable PWM before publishing the sample or calling the application.
-     * Keep the first OVP snapshot even after later samples have decayed. */
-    if ((pending & ADC_ISR_AWD) != 0U || (have_sample && raw >= BSP_HV_OVP_RAW)) {
-        if (hv.fault == BSP_HV_FAULT_NONE) {
-            hv.trip_adc_raw = raw;
-            hv.trip_adc_isr = flags;
-            hv.trip_adc_tr = ADC1->TR;
+    /* Stop energy input immediately, retaining CCR1 and the requested duty.
+     * ADC freshness monitoring stays active while the output is held off. */
+    if (watchdog || high) {
+        TIM17->BDTR &= ~TIM_BDTR_MOE;
+        __DSB();
+        if (hv.enabled && hv.fault == BSP_HV_FAULT_NONE) {
+            hv.ovp_suspended = true;
         }
-        trip(BSP_HV_FAULT_OVERVOLTAGE);
     }
 
     if (!have_sample) {
@@ -304,9 +307,25 @@ void bsp_hv_adc_irq(void) {
     hv.samples++;
     hv.last_sample_ms = bsp_time_ms();
 
-    /* Publish fault with the measurement so control needs no status snapshot.
-     * Measurements keep updating during a fault; duty writes remain blocked. */
+    if (hv.fault == BSP_HV_FAULT_NONE) {
+        if (high) {
+            if (++hv.ovp_samples >= BSP_HV_OVP_CONFIRM_SAMPLES) {
+                trip(BSP_HV_FAULT_OVERVOLTAGE);
+            }
+        } else {
+            hv.ovp_samples = 0U;
+            /* An AWD flag with a newer safe DR sample still needs a clean EOC.
+             * Do not re-enable if another conversion has raised AWD meanwhile. */
+            if (!watchdog && (ADC1->ISR & ADC_ISR_AWD) == 0U && hv.ovp_suspended && hv.enabled) {
+                hv.ovp_suspended = false;
+                TIM17->BDTR |= TIM_BDTR_MOE;
+            }
+        }
+    }
+
+    bool valid = !high && !watchdog && !hv.ovp_suspended;
+    /* Suspect samples cannot change either the application's filter or PI. */
     if (hv.callback != NULL) {
-        hv.callback(voltage, hv.fault, hv.callback_arg);
+        hv.callback(voltage, hv.fault, valid, hv.callback_arg);
     }
 }

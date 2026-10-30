@@ -18,7 +18,8 @@ typedef enum {
     BSP_HV_FAULT_SHUTDOWN,
 } bsp_hv_fault_t;
 
-typedef void (*bsp_hv_sample_cb_t)(uint32_t voltage_mv, bsp_hv_fault_t fault, void* arg);
+/* Invalid samples update raw telemetry but must not drive the PI/filter. */
+typedef void (*bsp_hv_sample_cb_t)(uint32_t voltage_mv, bsp_hv_fault_t fault, bool valid, void* arg);
 
 typedef struct {
     uint32_t voltage_mv;
@@ -26,12 +27,6 @@ typedef struct {
     uint16_t adc_raw;
     uint16_t duty_permille;
     uint16_t duty_limit_permille;
-
-    /* First IRQ of the last OVP episode, retained across enable.
-     * DR may already contain a newer sample on OVR. */
-    uint16_t trip_adc_raw;
-    uint32_t trip_adc_isr;
-    uint32_t trip_adc_tr;
 
     bsp_hv_fault_t fault;
 
