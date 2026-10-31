@@ -23,6 +23,15 @@
  */
 #define BSP_HV_DUTY_MAX_PM         980U
 
+#define BSP_HV_PWM_TICK_HZ ((uint32_t)(BSP_BOARD_TIMER_CLOCK_HZ / (BSP_BOARD_HV_PWM_PSC + 1U)))
+
+_Static_assert(BSP_BOARD_HV_PWM_RATE_HZ >= BSP_HV_PWM_MIN_HZ
+                   && BSP_BOARD_HV_PWM_RATE_HZ <= BSP_HV_PWM_MAX_HZ,
+               "The default HV PWM frequency must be within the runtime range");
+_Static_assert(BSP_HV_PWM_TICK_HZ / BSP_HV_PWM_MAX_HZ >= 2U
+                   && (BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ <= 65536U,
+               "The runtime HV PWM periods must fit the 16-bit timer");
+
 #define BSP_HV_OVP_RAW             ((BSP_HV_OVP_VOLTAGE_MV * BSP_HV_ADC_MAX) / (BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO))
 
 static struct {
@@ -233,6 +242,30 @@ bool bsp_hv_set_duty(uint16_t permille) {
     return allowed;
 }
 
+bool bsp_hv_set_frequency(uint32_t frequency_hz) {
+    if (!hv.initialized || frequency_hz < BSP_HV_PWM_MIN_HZ || frequency_hz > BSP_HV_PWM_MAX_HZ) {
+        return false;
+    }
+
+    uint32_t period = (BSP_HV_PWM_TICK_HZ + frequency_hz / 2U) / frequency_hz;
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+
+    if (TIM17->ARR != period - 1U) {
+        /* Both registers have preload enabled. UDIS prevents a timer update
+         * between the writes; masking IRQs excludes concurrent duty/fault writes.
+         * The next overflow loads a matching pair without resetting CNT or MOE. */
+        uint32_t cr1 = TIM17->CR1;
+        TIM17->CR1 = cr1 | TIM_CR1_UDIS;
+        TIM17->ARR = period - 1U;
+        TIM17->CCR1 = (period * hv.duty_permille + 500U) / 1000U;
+        TIM17->CR1 = cr1;
+    }
+
+    __set_PRIMASK(primask);
+    return true;
+}
+
 bool bsp_hv_get_status(bsp_hv_status_t* status) {
     if (!hv.initialized || status == NULL) {
         return false;
@@ -243,6 +276,10 @@ bool bsp_hv_get_status(bsp_hv_status_t* status) {
 
     status->voltage_mv = hv.voltage_mv;
     status->samples = hv.samples;
+    /* ARR may be pending until the next overflow. Report the realizable rate,
+     * rounded to whole Hz, rather than echoing the requested frequency. */
+    uint32_t period = TIM17->ARR + 1U;
+    status->pwm_frequency_hz = (BSP_HV_PWM_TICK_HZ + period / 2U) / period;
     status->adc_raw = hv.adc_raw;
 
     status->duty_permille = hv.ovp_suspended ? 0U : hv.duty_permille;

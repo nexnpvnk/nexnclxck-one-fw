@@ -296,6 +296,10 @@ bool app_hv_set_voltage(uint16_t voltage_v) {
     return true;
 }
 
+bool app_hv_set_frequency(uint32_t frequency_hz) {
+    return hv.initialized && bsp_hv_set_frequency(frequency_hz);
+}
+
 bool app_hv_set_enabled(bool enabled) {
     if (!hv.initialized) {
         return false;
@@ -336,6 +340,7 @@ bool app_hv_get_status(app_hv_status_t* status) {
     status->filtered_mv = hv.filtered_mv;
 
     status->samples = hw.samples;
+    status->pwm_frequency_hz = hw.pwm_frequency_hz;
     status->adc_raw = hw.adc_raw;
 
     status->target_v = hv.target_v;

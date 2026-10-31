@@ -31,6 +31,7 @@ typedef struct {
     uint32_t voltage_mv;
     uint32_t filtered_mv;
     uint32_t samples;
+    uint32_t pwm_frequency_hz;
     uint16_t adc_raw;
     uint16_t target_v;
     uint16_t duty_permille;
@@ -46,6 +47,8 @@ typedef struct {
 bool app_hv_init(void);
 void app_hv_process(void);
 bool app_hv_set_voltage(uint16_t voltage_v);
+/* Runtime PWM change; preserves target, PI state and requested enable state. */
+bool app_hv_set_frequency(uint32_t frequency_hz);
 /* Enable requests immediate start and automatic retry; disable cancels both. */
 bool app_hv_set_enabled(bool enabled);
 bool app_hv_get_status(app_hv_status_t* status);

@@ -10,6 +10,9 @@
 /* Configured TIM3 trigger frequency, available without MCU register headers. */
 #define BSP_HV_SAMPLE_RATE_HZ ((uint32_t)BSP_BOARD_HV_ADC_RATE_HZ)
 
+#define BSP_HV_PWM_MIN_HZ 20000U
+#define BSP_HV_PWM_MAX_HZ 50000U
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,6 +32,7 @@ typedef void (*bsp_hv_sample_cb_t)(uint32_t voltage_mv, bsp_hv_fault_t fault, bo
 typedef struct {
     uint32_t voltage_mv;
     uint32_t samples;
+    uint32_t pwm_frequency_hz;
     uint16_t adc_raw;
     uint16_t duty_permille;
     uint16_t duty_limit_permille;
@@ -43,6 +47,8 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg);
 
 bool bsp_hv_set_enabled(bool enabled);
 bool bsp_hv_set_duty(uint16_t permille);
+/* Foreground only. Apply at a period boundary, preserving requested duty and enable state. */
+bool bsp_hv_set_frequency(uint32_t frequency_hz);
 
 bool bsp_hv_get_status(bsp_hv_status_t* status);
 
