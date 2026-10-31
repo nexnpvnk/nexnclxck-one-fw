@@ -3,14 +3,13 @@
 #include "app_cli_hv.h"
 #include "bsp_time.h"
 
-enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_STOP, OPT_END };
+enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_END };
 
 static const WshShellOption_t options[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show latest temperature, pressure and humidity")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_WATCH,
      WSH_SHELL_OPT_WO_PARAM(WSH_SHELL_OPT_ACCESS_READ, "-w", "--watch", "Show cached values once per second")},
-    {OPT_STOP, WSH_SHELL_OPT_WO_PARAM(WSH_SHELL_OPT_ACCESS_READ, "-s", "--stop", "Stop console output")},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
@@ -102,20 +101,12 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
         }
         seen |= 1U << id;
     }
-    if (seen & (1U << OPT_STOP)) {
-        if (seen != (1U << OPT_STOP)) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        app_cli_bme280_cancel();
-        WSH_SHELL_PRINT_SYS("BME280 output stopped\n");
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
     console = shell;
     last_start = bsp_time_ms();
     if (seen & (1U << OPT_WATCH)) {
         app_cli_hv_cancel();
         watching = true;
-        WSH_SHELL_PRINT_SYS("BME280 watch; Ctrl+C or bme280 --stop to stop output\n");
+        WSH_SHELL_PRINT_SYS("BME280 watch; Ctrl+C to stop output\n");
     }
     requested = true;
     return WSH_SHELL_RET_STATE_SUCCESS;
@@ -124,7 +115,7 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
 const WshShellCmd_t app_cli_bme280_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_LOW_LEVEL,
     .Name = "bme280",
-    .Descr = "BME280 cached values: show / watch / stop",
+    .Descr = "BME280 cached values: show / watch",
     .Options = options,
     .OptNum = WSH_SHELL_ARR_LEN(options),
     .Handler = handler,

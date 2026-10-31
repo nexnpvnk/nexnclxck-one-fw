@@ -8,13 +8,12 @@
 #include <stddef.h>
 #include <string.h>
 
-enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_STOP, OPT_VOLTAGE, OPT_END };
+enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_VOLTAGE, OPT_END };
 
 static const WshShellOption_t read_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show HV status")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_WATCH, WSH_SHELL_OPT_WO_PARAM(WSH_SHELL_OPT_ACCESS_READ, "-w", "--watch", "Monitor once per second")},
-    {OPT_STOP, WSH_SHELL_OPT_WO_PARAM(WSH_SHELL_OPT_ACCESS_READ, "-s", "--stop", "Stop HV monitor")},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
@@ -156,11 +155,6 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
         }
         return print_status(0U);
     }
-    if (seen == (1U << OPT_STOP)) {
-        app_cli_hv_cancel();
-        WSH_SHELL_PRINT_SYS("HV monitor stopped\n");
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
     if (seen == (1U << OPT_WATCH)) {
         app_cli_bme280_cancel();
         console = shell;
@@ -169,7 +163,7 @@ static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t a
         last_samples = status.samples;
         last_print_ms = bsp_time_ms();
         watching = true;
-        WSH_SHELL_PRINT_SYS("HV watch; Ctrl+C or hv -s to stop output\n");
+        WSH_SHELL_PRINT_SYS("HV watch; Ctrl+C to stop output\n");
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
     if (seen != 0U) return WSH_SHELL_RET_STATE_ERR_PARAM;
