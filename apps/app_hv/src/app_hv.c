@@ -7,14 +7,13 @@
 #include <stddef.h>
 
 /*
- * ADC:     2000 Hz
- * Control: 1000 Hz
+ * ADC rate comes from BSP; control runs every HV_CONTROL_DIVIDER samples.
  *
  * Duty uses Q16 permille; error uses 0.1 V units.
  * Kp = 2.5 permille/V; Ki ~= 4.88 permille/(V*s) at 1 kHz.
  * These gains require validation on the board, including no-load startup.
  */
-#define HV_ADC_RATE_HZ         2000U
+#define HV_ADC_RATE_HZ         BSP_HV_SAMPLE_RATE_HZ
 #define HV_CONTROL_DIVIDER     2U
 #define HV_CONTROL_RATE_HZ     (HV_ADC_RATE_HZ / HV_CONTROL_DIVIDER)
 #define HV_FILTER_SHIFT        2U
@@ -26,6 +25,15 @@
 #define HV_SETTLE_STEPS        (HV_CONTROL_RATE_HZ / 20U) /* 50 ms within the band. */
 #define HV_START_TIMEOUT_STEPS (20U * HV_CONTROL_RATE_HZ)
 #define HV_RETRY_DELAY_MS      1000U
+
+_Static_assert(HV_CONTROL_DIVIDER > 0U && HV_CONTROL_DIVIDER <= UINT8_MAX,
+               "The control divider must fit its 8-bit counter");
+_Static_assert(HV_ADC_RATE_HZ > 0U && HV_ADC_RATE_HZ % HV_CONTROL_DIVIDER == 0U,
+               "ADC samples must divide exactly into control steps");
+_Static_assert(HV_CONTROL_RATE_HZ % 20U == 0U && HV_SETTLE_STEPS > 0U && HV_SETTLE_STEPS <= UINT16_MAX,
+               "The 50 ms settling interval must be exact and fit its 16-bit counter");
+_Static_assert(HV_START_TIMEOUT_STEPS <= UINT16_MAX, "The startup timeout must fit its 16-bit counter");
+_Static_assert(HV_KI_Q16 > 0L, "The selected control rate must retain a nonzero integral gain");
 
 static struct {
     volatile app_hv_state_t state;
@@ -146,7 +154,7 @@ static void control_step(void) {
     }
 }
 
-/* Called from ADC interrupt context at 2 kHz. */
+/* Called from ADC interrupt context at BSP_HV_SAMPLE_RATE_HZ. */
 static void on_sample(uint32_t voltage_mv, bsp_hv_fault_t fault, bool valid, void* arg) {
     (void)arg;
 

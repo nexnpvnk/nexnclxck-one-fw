@@ -5,6 +5,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "bsp_board_config.h"
+
+/* Configured TIM3 trigger frequency, available without MCU register headers. */
+#define BSP_HV_SAMPLE_RATE_HZ ((uint32_t)BSP_BOARD_HV_ADC_RATE_HZ)
+
 #ifdef __cplusplus
 extern "C" {
 #endif

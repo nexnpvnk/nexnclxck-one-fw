@@ -1,13 +1,14 @@
 
 #include "bsp_ws2812.h"
 
+#include "bsp_board_config.h"
 #include "bsp_time.h"
 #include "tim.h"
 
 #include <string.h>
 
 #define WS2812_PIN           (1U << 2U)
-#define WS2812_WORDS_PER_LED 72U
+#define WS2812_WORDS_PER_LED (24U * BSP_BOARD_WS2812_SYMBOLS_PER_BIT)
 #define WS2812_LEDS_PER_HALF 1U
 #define WS2812_HALF_WORDS    (WS2812_WORDS_PER_LED * WS2812_LEDS_PER_HALF)
 #define WS2812_BUFFER_WORDS  (WS2812_HALF_WORDS * 2U)
@@ -23,6 +24,12 @@
 /* Maximum expected transfer is about 360 us for 12 LEDs.
  * Allow a generous margin for interrupt latency. */
 #define WS2812_TIMEOUT_MS    5U
+
+_Static_assert(BSP_BOARD_WS2812_SYMBOLS_PER_BIT == 3U, "The BSRR encoder emits three symbols per bit");
+_Static_assert(WS2812_LEDS_PER_HALF > 0U && WS2812_LEDS_PER_HALF <= UINT8_MAX && WS2812_BUFFER_WORDS <= UINT16_MAX,
+               "The circular buffer must have nonempty halves and fit DMA CNDTR");
+_Static_assert(BSP_WS2812_MAX_LEDS > 0U && BSP_WS2812_MAX_LEDS <= UINT8_MAX,
+               "The frame length must fit the LED counters");
 
 static uint32_t dma_buffer[WS2812_BUFFER_WORDS];
 static bsp_ws2812_rgb_t frame[BSP_WS2812_MAX_LEDS];
@@ -168,8 +175,9 @@ bool bsp_ws2812_init(void) {
     const uint32_t dma_mask =
         DMA_CCR_EN | DMA_CCR_DIR | DMA_CCR_PINC | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE | DMA_CCR_MSIZE;
     const uint32_t dma_expected = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1;
-    if (SystemCoreClock != 48000000U || (RCC->CFGR & RCC_CFGR_PPRE) != 0U || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U
-        || TIM2->PSC != 0U || TIM2->ARR != 19U || TIM2->CCR3 != 10U
+    if (SystemCoreClock != BSP_BOARD_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
+        || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U || TIM2->PSC != BSP_BOARD_WS2812_PSC
+        || TIM2->ARR != BSP_BOARD_WS2812_ARR || TIM2->CCR3 != BSP_BOARD_WS2812_CCR3
         || (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
         return false;
     }

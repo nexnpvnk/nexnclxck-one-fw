@@ -97,10 +97,11 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
     /* Check only CKMODE in CFGR2: reserved bits can read back nonzero. */
     if ((RCC->APB2ENR & (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)) != (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)
         || (RCC->APB1ENR & RCC_APB1ENR_TIM3EN) == 0U || (RCC->CR2 & RCC_CR2_HSI14RDY) == 0U
-        || SystemCoreClock != 48000000U || (RCC->CFGR & RCC_CFGR_PPRE) != 0U || TIM3->PSC != 47U || TIM3->ARR != 499U
-        || (TIM3->CR2 & TIM_CR2_MMS) != TIM_CR2_MMS_1 || (TIM3->CR1 & TIM_CR1_CEN) != 0U || TIM17->PSC != 0U
-        || TIM17->ARR != 2399U || (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U || ADC1->CHSELR != ADC_CHSELR_CHSEL2
-        || ADC1->SMPR != ADC_SMPR_SMP
+        || SystemCoreClock != BSP_BOARD_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
+        || TIM3->PSC != BSP_BOARD_HV_ADC_PSC || TIM3->ARR != BSP_BOARD_HV_ADC_ARR
+        || (TIM3->CR2 & TIM_CR2_MMS) != TIM_CR2_MMS_1 || (TIM3->CR1 & TIM_CR1_CEN) != 0U
+        || TIM17->PSC != BSP_BOARD_HV_PWM_PSC || TIM17->ARR != BSP_BOARD_HV_PWM_ARR
+        || (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U || ADC1->CHSELR != ADC_CHSELR_CHSEL2 || ADC1->SMPR != ADC_SMPR_SMP
         || ADC1->CFGR1 != (ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD)
         || ADC1->CR != 0U) {
         trip(BSP_HV_FAULT_INIT);
@@ -188,9 +189,8 @@ bool bsp_hv_set_enabled(bool enabled) {
      * failures require repair; a stale or overvoltage sample cannot enable PWM. */
     bool recoverable = hv.fault == BSP_HV_FAULT_NONE || hv.fault == BSP_HV_FAULT_OVERVOLTAGE
                        || hv.fault == BSP_HV_FAULT_TIMEOUT || hv.fault == BSP_HV_FAULT_SHUTDOWN;
-    bool ready = recoverable && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW
-                 && (TIM17->CCER & TIM_CCER_CC1E) != 0U && (TIM17->CR1 & TIM_CR1_CEN) != 0U
-                 && (ADC1->ISR & ADC_ISR_AWD) == 0U
+    bool ready = recoverable && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW && (TIM17->CCER & TIM_CCER_CC1E) != 0U
+                 && (TIM17->CR1 & TIM_CR1_CEN) != 0U && (ADC1->ISR & ADC_ISR_AWD) == 0U
                  && (uint32_t)(bsp_time_ms() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
 
     if (ready) {

@@ -18,6 +18,7 @@
 #include "main.h"
 #include "adc.h"
 #include "app_main.h"
+#include "bsp_board_config.h"
 #include "bsp_hv.h"
 #include "bsp_time.h"
 #include "dma.h"
@@ -26,6 +27,10 @@
 #include "rtc.h"
 #include "tim.h"
 #include "usart.h"
+
+_Static_assert(BSP_BOARD_PLL_MULTIPLIER >= 2U && BSP_BOARD_PLL_MULTIPLIER <= 16U,
+               "STM32F051 PLL multiplication must be between 2 and 16");
+_Static_assert(BSP_BOARD_HCLK_HZ > 0U && BSP_BOARD_HCLK_HZ <= 48000000UL, "STM32F051 HCLK must not exceed 48 MHz");
 
 static void wait_bits(volatile uint32_t* reg, uint32_t mask, uint32_t value, uint32_t timeout) {
     uint32_t start = bsp_time_ms();
@@ -52,14 +57,15 @@ void SystemClock_Config(void) {
     RCC->CR &= ~RCC_CR_PLLON;
     wait_bits(&RCC->CR, RCC_CR_PLLRDY, 0U, 100U);
     FLASH->ACR = FLASH_ACR_PRFTBE | FLASH_ACR_LATENCY;
-    RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE | RCC_CFGR_PLLSRC | RCC_CFGR_PLLMUL)) | RCC_CFGR_PLLMUL12;
+    RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE | RCC_CFGR_PLLSRC | RCC_CFGR_PLLMUL))
+                | ((BSP_BOARD_PLL_MULTIPLIER - 2U) << RCC_CFGR_PLLMUL_Pos);
     RCC->CFGR2 &= ~RCC_CFGR2_PREDIV;
     RCC->CR |= RCC_CR_PLLON;
     wait_bits(&RCC->CR, RCC_CR_PLLRDY, RCC_CR_PLLRDY, 100U);
     RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_PLL;
     wait_bits(&RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL, 100U);
     SystemCoreClockUpdate();
-    if (SystemCoreClock != 48000000U || SysTick_Config(SystemCoreClock / 1000U) != 0U) {
+    if (SystemCoreClock != BSP_BOARD_HCLK_HZ || SysTick_Config(SystemCoreClock / 1000U) != 0U) {
         Error_Handler();
     }
     NVIC_SetPriority(SysTick_IRQn, 3U);
