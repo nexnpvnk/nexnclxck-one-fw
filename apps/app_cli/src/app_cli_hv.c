@@ -1,19 +1,18 @@
 #include "app_cli_hv.h"
 
 #include "app_cli.h"
-#include "app_cli_bme280.h"
 #include "app_hv.h"
 #include "bsp_time.h"
 
-#include <stddef.h>
-#include <string.h>
+#include "bsp_hv.h"
 
 enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_VOLTAGE, OPT_END };
 
 static const WshShellOption_t read_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show HV status")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
-    {OPT_WATCH, WSH_SHELL_OPT_WO_PARAM(WSH_SHELL_OPT_ACCESS_READ, "-w", "--watch", "Monitor once per second")},
+    {OPT_WATCH, WSH_SHELL_OPT_WO_PARAM(WSH_SHELL_OPT_ACCESS_READ, "-w", "--watch",
+                                      "Watch filtered/target V, duty, ADC rate and faults once per second")},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
@@ -30,10 +29,8 @@ static const WshShellOption_t set_opts[] = {
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
-static WshShell_t* console;
 static uint32_t last_print_ms;
 static uint32_t last_samples;
-static bool watching;
 
 static const char* state_name(app_hv_state_t state) {
     switch (state) {
@@ -56,131 +53,229 @@ static const char* fault_name(app_hv_fault_t fault) {
     }
 }
 
-static WSH_SHELL_RET_STATE_t print_status(uint32_t rate_hz) {
+static const char* bsp_fault_name(uint8_t fault) {
+    switch ((bsp_hv_fault_t)fault) {
+        case BSP_HV_FAULT_NONE: return "NONE";
+        case BSP_HV_FAULT_INIT: return "INIT";
+        case BSP_HV_FAULT_ADC: return "ADC";
+        case BSP_HV_FAULT_OVERVOLTAGE: return "OVERVOLTAGE";
+        case BSP_HV_FAULT_TIMEOUT: return "TIMEOUT";
+        case BSP_HV_FAULT_SHUTDOWN: return "SHUTDOWN";
+        default: return "UNKNOWN";
+    }
+}
+
+static void print_status(const app_hv_status_t* status) {
+    WSH_SHELL_PRINT_SYS(
+        "State            : %s\n"
+        "Enable requested : %s (automatic retry %s)\n"
+        "Target           : %u V\n"
+        "Output           : %lu.%03lu V\n"
+        "Filtered output  : %lu.%03lu V\n"
+        "Duty             : %u.%01u%% (limit %u.%01u%%)\n"
+        "ADC              : %u\n"
+        "PWM available    : %s\n"
+        "Fault            : %s / %s\n",
+        state_name(status->state), status->requested_enabled ? "yes" : "no",
+        status->requested_enabled ? "enabled" : "disabled", (unsigned)status->target_v,
+        (unsigned long)(status->voltage_mv / 1000U), (unsigned long)(status->voltage_mv % 1000U),
+        (unsigned long)(status->filtered_mv / 1000U), (unsigned long)(status->filtered_mv % 1000U),
+        (unsigned)(status->duty_permille / 10U), (unsigned)(status->duty_permille % 10U),
+        (unsigned)(status->duty_limit_permille / 10U), (unsigned)(status->duty_limit_permille % 10U),
+        (unsigned)status->adc_raw, status->pwm_available ? "yes" : "no",
+        fault_name(status->fault), bsp_fault_name(status->bsp_fault));
+}
+
+static void print_watch_status(const app_hv_status_t* status, const char* rate) {
+    WSH_SHELL_PRINT_SYS(
+        "HV %s | Out/Set: %lu.%03lu/%u V | Duty: %u.%01u%% | %s | %s/%s\n",
+        state_name(status->state),
+        (unsigned long)(status->filtered_mv / 1000U), (unsigned long)(status->filtered_mv % 1000U),
+        (unsigned)status->target_v,
+        (unsigned)(status->duty_permille / 10U), (unsigned)(status->duty_permille % 10U), rate,
+        fault_name(status->fault), bsp_fault_name(status->bsp_fault));
+}
+
+bool app_cli_hv_watch_print(void) {
+    uint32_t now = bsp_time_ms();
+    uint32_t elapsed = now - last_print_ms;
+    app_hv_status_t status;
+    if (!app_hv_get_status(&status)) return false;
+    uint32_t samples = status.samples - last_samples;
+    last_samples = status.samples;
+    last_print_ms = now;
+    /* Skip an interval that cannot be scaled safely in 32 bits. The saved
+     * counters above let the next tick resume normal rate calculation. */
+    if (elapsed == 0U || samples > UINT32_MAX / 1000U) {
+        print_watch_status(&status, "n/a");
+        return true;
+    }
+    uint32_t rate_hz = samples * 1000U / elapsed;
+    char rate[24];
+    WSH_SHELL_SNPRINTF(rate, sizeof(rate), "%lu Hz", (unsigned long)rate_hz);
+    print_watch_status(&status, rate);
+    return true;
+}
+
+static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
+                                          const WshShell_Char_t* argv[], void* ctx) {
+    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    WshShell_t* shell = ctx;
+    if (!WshShell_IsAuth(shell)) return WSH_SHELL_RET_STATE_ERR_PARAM;
+    WshShell_Size_t pos = 0U;
+    bool help = false;
+    bool watch = false;
+    while (pos < argc) {
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
+        if (opt.Option == NULL || opt.ParseError) return WSH_SHELL_RET_STATE_ERR_PARAM;
+        switch (opt.Option->ID) {
+            case OPT_DEFAULT: break;
+            case OPT_HELP: help = true; break;
+            case OPT_WATCH:
+                if (watch) {
+                    WSH_SHELL_PRINT_WARN("Specify --watch only once\n");
+                    return WSH_SHELL_RET_STATE_ERR_PARAM;
+                }
+                watch = true;
+                break;
+            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
+    }
+    if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
+        return WSH_SHELL_RET_STATE_SUCCESS;
+    }
     app_hv_status_t status;
     if (!app_hv_get_status(&status)) {
         WSH_SHELL_PRINT_ERR("HV unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-
-    WSH_SHELL_PRINT_SYS(
-        "HV %s | Set: %u V | Out: %lu.%03lu V | Filt: %lu.%03lu V | "
-        "Duty: %u.%01u%% (limit %u.%01u%%) | ADC: %u | Rate: %lu Hz | "
-        "Fault: %s/%u | PWM: %s | Request: %s\n",
-        state_name(status.state), (unsigned)status.target_v,
-        (unsigned long)(status.voltage_mv / 1000U), (unsigned long)(status.voltage_mv % 1000U),
-        (unsigned long)(status.filtered_mv / 1000U), (unsigned long)(status.filtered_mv % 1000U),
-        (unsigned)(status.duty_permille / 10U), (unsigned)(status.duty_permille % 10U),
-        (unsigned)(status.duty_limit_permille / 10U), (unsigned)(status.duty_limit_permille % 10U),
-        (unsigned)status.adc_raw, (unsigned long)rate_hz,
-        fault_name(status.fault), (unsigned)status.bsp_fault,
-        status.pwm_available ? "READY" : "LOCKED", status.requested_enabled ? "ON" : "OFF");
+    if (watch) {
+        last_samples = status.samples;
+        last_print_ms = bsp_time_ms();
+        app_cli_watch_start(APP_CLI_WATCH_HV, ctx);
+        print_watch_status(&status, "n/a");
+    } else {
+        print_status(&status);
+    }
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-void app_cli_hv_cancel(void) { watching = false; }
-
-void app_cli_hv_process(void) {
-    if (!watching || console == NULL) return;
-    if (console->CurrUser == NULL || console->Interact.Handler != NULL) {
-        app_cli_hv_cancel();
-        return;
-    }
-    uint32_t now = bsp_time_ms();
-    uint32_t elapsed = now - last_print_ms;
-    if (elapsed < 1000U) return;
-    app_hv_status_t status;
-    if (!app_hv_get_status(&status)) {
-        app_cli_hv_cancel();
-        return;
-    }
-    uint32_t rate_hz = ((status.samples - last_samples) * 1000U / elapsed);
-    last_samples = status.samples;
-    last_print_ms = now;
-
-    /* Preserve partially typed shell command, as done in app_cli_bme280. */
-    WSH_SHELL_PRINT("\r\033[2K");
-    (void)print_status(rate_hz);
-    WSH_SHELL_PRINT("%s%s", console->PS1, console->CommandLine.Buff);
-    for (WshShell_Size_t i = console->CommandLine.CursorPos; i < console->CommandLine.Len; ++i) {
-        WSH_SHELL_PRINT("\b");
-    }
-}
-
-static WSH_SHELL_RET_STATE_t handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                     const WshShell_Char_t* argv[], void* ctx) {
-    if (cmd == NULL || argv == NULL || ctx == NULL || ((WshShell_t*)ctx)->CurrUser == NULL) {
+static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
+                                         const WshShell_Char_t* argv[], void* ctx) {
+    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
+    if (!WshShell_IsAuth(shell)) return WSH_SHELL_RET_STATE_ERR_PARAM;
     WshShell_Size_t pos = 0U;
-    bool is_on = strcmp(cmd->Name, "on") == 0;
-    bool is_off = strcmp(cmd->Name, "off") == 0;
-    bool is_set = strcmp(cmd->Name, "set") == 0;
-    uint32_t voltage_v = 0U;
-    unsigned seen = 0U;
-
+    bool help = false;
+    const char* voltage_text = NULL;
     while (pos < argc) {
         WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
         if (opt.Option == NULL || opt.ParseError) return WSH_SHELL_RET_STATE_ERR_PARAM;
-        unsigned id = opt.Option->ID;
-        if (id == OPT_DEFAULT) continue;
-        if (id == OPT_HELP) {
-            WshShellCmd_PrintOptionsOverview(cmd);
-            return WSH_SHELL_RET_STATE_SUCCESS;
-        }
-        if (id >= OPT_END || (seen & (1U << id))) return WSH_SHELL_RET_STATE_ERR_PARAM;
-        seen |= 1U << id;
-        if (id == OPT_VOLTAGE) {
-            if (!is_set || (size_t)opt.TokenPos + 1U >= argc ||
-                !app_cli_parse_u32(argv[opt.TokenPos + 1U], APP_HV_MAX_VOLTAGE_V, false, &voltage_v)) {
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-            }
+        switch (opt.Option->ID) {
+            case OPT_DEFAULT: break;
+            case OPT_HELP: help = true; break;
+            case OPT_VOLTAGE:
+                if (voltage_text != NULL) {
+                    WSH_SHELL_PRINT_WARN("Specify --voltage only once\n");
+                    return WSH_SHELL_RET_STATE_ERR_PARAM;
+                }
+                voltage_text = argv[opt.TokenPos + 1U];
+                break;
+            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
-
-    if (is_set) {
-        if (seen != (1U << OPT_VOLTAGE) || !app_hv_set_voltage((uint16_t)voltage_v)) {
-            WSH_SHELL_PRINT_WARN("Specify voltage 100..250 V\n");
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        return print_status(0U);
-    }
-    if (is_on || is_off) {
-        if (seen != 0U) return WSH_SHELL_RET_STATE_ERR_PARAM;
-        bool success = app_hv_set_enabled(is_on);
-        if (!success) {
-            WSH_SHELL_PRINT_WARN("HV command refused (check PWM lock, ADC, output and fault)\n");
-            return WSH_SHELL_RET_STATE_ERROR;
-        }
-        return print_status(0U);
-    }
-    if (seen == (1U << OPT_WATCH)) {
-        app_cli_bme280_cancel();
-        console = shell;
-        app_hv_status_t status;
-        if (!app_hv_get_status(&status)) return WSH_SHELL_RET_STATE_ERROR;
-        last_samples = status.samples;
-        last_print_ms = bsp_time_ms();
-        watching = true;
-        WSH_SHELL_PRINT_SYS("HV watch; Ctrl+C to stop output\n");
+    if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
-    if (seen != 0U) return WSH_SHELL_RET_STATE_ERR_PARAM;
-    return print_status(0U);
+    uint32_t voltage_v;
+    if (voltage_text == NULL) {
+        WSH_SHELL_PRINT_WARN("Specify --voltage (100..250 V); see hv set --help\n");
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    if (!app_cli_parse_u32(voltage_text, UINT32_MAX, false, &voltage_v)) {
+        WSH_SHELL_PRINT_WARN("Invalid voltage: expected an integer (100..250 V)\n");
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    if (voltage_v < APP_HV_MIN_VOLTAGE_V || voltage_v > APP_HV_MAX_VOLTAGE_V) {
+        WSH_SHELL_PRINT_WARN("Voltage must be 100..250 V\n");
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    if (!app_hv_set_voltage((uint16_t)voltage_v)) {
+        WSH_SHELL_PRINT_ERR("HV unavailable; target unchanged\n");
+        return WSH_SHELL_RET_STATE_ERROR;
+    }
+    WSH_SHELL_PRINT_INFO("HV target updated: %u V\n", (unsigned)voltage_v);
+    return WSH_SHELL_RET_STATE_SUCCESS;
+}
+
+static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
+                                             const WshShell_Char_t* argv[], void* ctx, bool enabled) {
+    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    WshShell_t* shell = ctx;
+    if (!WshShell_IsAuth(shell)) return WSH_SHELL_RET_STATE_ERR_PARAM;
+    WshShell_Size_t pos = 0U;
+    bool help = false;
+    while (pos < argc) {
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
+        if (opt.Option == NULL || opt.ParseError) return WSH_SHELL_RET_STATE_ERR_PARAM;
+        switch (opt.Option->ID) {
+            case OPT_DEFAULT: break;
+            case OPT_HELP: help = true; break;
+            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
+    }
+    if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
+        return WSH_SHELL_RET_STATE_SUCCESS;
+    }
+    if (!app_hv_set_enabled(enabled)) {
+        WSH_SHELL_PRINT_ERR("HV unavailable\n");
+        return WSH_SHELL_RET_STATE_ERROR;
+    }
+    if (enabled) {
+        WSH_SHELL_PRINT_INFO("HV enable requested; automatic retry enabled\n");
+    } else {
+        WSH_SHELL_PRINT_INFO("HV disabled; automatic retry disabled\n");
+    }
+    app_hv_status_t status;
+    if (!app_hv_get_status(&status)) {
+        WSH_SHELL_PRINT_ERR("Request accepted, but HV status unavailable\n");
+        return WSH_SHELL_RET_STATE_ERROR;
+    }
+    WSH_SHELL_PRINT_SYS("State: %s | Fault: %s/%s\n", state_name(status.state), fault_name(status.fault),
+                        bsp_fault_name(status.bsp_fault));
+    return WSH_SHELL_RET_STATE_SUCCESS;
+}
+
+static WSH_SHELL_RET_STATE_t on_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
+                                        const WshShell_Char_t* argv[], void* ctx) {
+    return control_handler(cmd, argc, argv, ctx, true);
+}
+
+static WSH_SHELL_RET_STATE_t off_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
+                                         const WshShell_Char_t* argv[], void* ctx) {
+    return control_handler(cmd, argc, argv, ctx, false);
 }
 
 static const WshShellCmd_t on_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "on", .Descr = "Enable HV with automatic retry",
-    .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = handler,
+    .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = on_handler,
 };
 static const WshShellCmd_t off_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "off", .Descr = "Disable HV and automatic retry",
-    .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = handler,
+    .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = off_handler,
 };
 static const WshShellCmd_t set_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "set", .Descr = "Set HV target voltage",
-    .Options = set_opts, .OptNum = WSH_SHELL_ARR_LEN(set_opts), .Handler = handler,
+    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "set", .Descr = "Set HV target voltage: hv set -v <100..250>",
+    .Options = set_opts, .OptNum = WSH_SHELL_ARR_LEN(set_opts), .Handler = set_handler,
 };
 static const WshShellCmd_t* const subcommands[] = {
     &on_cmd, &off_cmd, &set_cmd,
@@ -192,7 +287,7 @@ const WshShellCmd_t app_cli_hv_cmd = {
     .Descr = "High voltage: status / watch / set / on / off",
     .Options = read_opts,
     .OptNum = WSH_SHELL_ARR_LEN(read_opts),
-    .Handler = handler,
+    .Handler = read_handler,
     .SubCmds = subcommands,
     .SubCmdNum = WSH_SHELL_ARR_LEN(subcommands),
 };

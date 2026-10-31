@@ -103,7 +103,6 @@ void app_main(void) {
     (void)app_sound_beep(2800U, 10U, 100U);
 
     while (1) {
-        app_cli_process();
         app_input_process();
         app_light_process();
         app_sound_process();
@@ -111,5 +110,7 @@ void app_main(void) {
         app_hv_process();
         bsp_i2c_process();
         shell_process();
+        /* Handle cancellation and commands before the next periodic CLI output. */
+        app_cli_process();
     }
 }

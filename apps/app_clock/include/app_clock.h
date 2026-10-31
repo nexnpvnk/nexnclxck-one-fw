@@ -37,6 +37,8 @@ typedef struct {
 
 bool app_clock_get(app_clock_datetime_t* datetime);
 bool app_clock_set(const app_clock_datetime_t* datetime);
+/* Pure calendar validation (2000..2099); does not access the RTC. */
+bool app_clock_datetime_is_valid(const app_clock_datetime_t* datetime);
 
 bool app_clock_is_valid(void);
 bool app_clock_invalidate(void);

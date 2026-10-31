@@ -8,9 +8,7 @@ extern "C" {
 #endif
 
 extern const WshShellCmd_t app_cli_bme280_cmd;
-
-void app_cli_bme280_process(void);
-void app_cli_bme280_cancel(void);
+bool app_cli_bme280_watch_print(void);
 
 #ifdef __cplusplus
 }

@@ -8,9 +8,7 @@ extern "C" {
 #endif
 
 extern const WshShellCmd_t app_cli_hv_cmd;
-
-void app_cli_hv_process(void);
-void app_cli_hv_cancel(void);
+bool app_cli_hv_watch_print(void);
 
 #ifdef __cplusplus
 }

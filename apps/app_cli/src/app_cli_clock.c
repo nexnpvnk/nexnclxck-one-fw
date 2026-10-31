@@ -6,44 +6,26 @@
 #include "app_clock.h"
 #include "wsh_shell.h"
 
-enum {
-    CLOCK_READ_OPT_DEF,
-    CLOCK_READ_OPT_HELP,
-    CLOCK_READ_OPT_END_ID,
-};
-
-enum {
-    CLOCK_SET_OPT_DEF,
-    CLOCK_SET_OPT_HELP,
-    CLOCK_SET_OPT_DATE,
-    CLOCK_SET_OPT_TIME,
-    CLOCK_SET_OPT_END_ID,
-};
-
-enum {
-    CLOCK_INVALIDATE_OPT_DEF,
-    CLOCK_INVALIDATE_OPT_HELP,
-    CLOCK_INVALIDATE_OPT_END_ID,
-};
+enum { OPT_DEFAULT, OPT_HELP, OPT_DATE, OPT_TIME, OPT_END };
 
 static const WshShellOption_t clock_read_opts[] = {
-    {CLOCK_READ_OPT_DEF, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show current date and time")},
-    {CLOCK_READ_OPT_HELP, WSH_SHELL_OPT_HELP()},
-    {CLOCK_READ_OPT_END_ID, WSH_SHELL_OPT_END()},
+    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show RTC diagnostics, date and time")},
+    {OPT_HELP, WSH_SHELL_OPT_HELP()},
+    {OPT_END, WSH_SHELL_OPT_END()},
 };
 
 static const WshShellOption_t clock_set_opts[] = {
-    {CLOCK_SET_OPT_DEF, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set date and time")},
-    {CLOCK_SET_OPT_HELP, WSH_SHELL_OPT_HELP()},
-    {CLOCK_SET_OPT_DATE, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-d", "--date", "Date in YYYY-MM-DD format")},
-    {CLOCK_SET_OPT_TIME, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-t", "--time", "Time in HH:MM:SS format")},
-    {CLOCK_SET_OPT_END_ID, WSH_SHELL_OPT_END()},
+    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set date and time (both required)")},
+    {OPT_HELP, WSH_SHELL_OPT_HELP()},
+    {OPT_DATE, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-d", "--date", "Date YYYY-MM-DD (2000..2099)")},
+    {OPT_TIME, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-t", "--time", "Time HH:MM:SS (00:00:00..23:59:59)")},
+    {OPT_END, WSH_SHELL_OPT_END()},
 };
 
 static const WshShellOption_t clock_invalidate_opts[] = {
-    {CLOCK_INVALIDATE_OPT_DEF, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_ADMIN, "Invalidate stored clock state")},
-    {CLOCK_INVALIDATE_OPT_HELP, WSH_SHELL_OPT_HELP()},
-    {CLOCK_INVALIDATE_OPT_END_ID, WSH_SHELL_OPT_END()},
+    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_ADMIN, "Invalidate stored clock state")},
+    {OPT_HELP, WSH_SHELL_OPT_HELP()},
+    {OPT_END, WSH_SHELL_OPT_END()},
 };
 
 static const char* const clock_weekday_names[] = {
@@ -125,64 +107,37 @@ static void app_cli_clock_print_datetime(const app_clock_datetime_t* datetime) {
                         (unsigned)datetime->minute, (unsigned)datetime->second);
 }
 
-static WSH_SHELL_RET_STATE_t app_cli_clock_parse_read_options(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
-                                                              const WshShell_Char_t* pArgv[], void* pShellCtx,
-                                                              bool* help) {
-
-    WshShell_t* shell;
-    WshShell_Size_t token_pos = 0U;
-
-    if ((pcCmd == NULL) || (pArgv == NULL) || (pShellCtx == NULL) || (help == NULL)) {
+static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
+                                          void* ctx) {
+    app_clock_status_t status;
+    app_clock_datetime_t datetime;
+    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-
-    shell = (WshShell_t*)pShellCtx;
-
-    if (shell->CurrUser == NULL) {
+    WshShell_t* shell = ctx;
+    if (!WshShell_IsAuth(shell)) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-
-    *help = false;
-
-    while (token_pos < argc) {
-        WshShellOption_Ctx_t opt_ctx;
-
-        opt_ctx = WshShellCmd_ParseOpt(pcCmd, argc, pArgv, shell->CurrUser->Rights, &token_pos);
-
-        if (opt_ctx.Option == NULL || opt_ctx.ParseError) {
+    WshShell_Size_t pos = 0U;
+    bool help = false;
+    while (pos < argc) {
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
+        if (opt.Option == NULL || opt.ParseError) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
-
-        switch (opt_ctx.Option->ID) {
-            case CLOCK_READ_OPT_DEF: break;
-
-            case CLOCK_READ_OPT_HELP:
-                WshShellCmd_PrintOptionsOverview(pcCmd);
-                *help = true;
-                break;
-
+        switch (opt.Option->ID) {
+            case OPT_DEFAULT: break;
+            case OPT_HELP: help = true; break;
             default: return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
-
-    return WSH_SHELL_RET_STATE_SUCCESS;
-}
-
-static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
-                                                   const WshShell_Char_t* pArgv[], void* pShellCtx) {
-    app_clock_status_t status;
-    app_clock_datetime_t datetime;
-    bool help;
-
-    if (app_cli_clock_parse_read_options(pcCmd, argc, pArgv, pShellCtx, &help) != WSH_SHELL_RET_STATE_SUCCESS) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-
     if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
     if (!app_clock_get_status(&status)) {
+        WSH_SHELL_PRINT_ERR("RTC status unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
@@ -194,10 +149,12 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, W
 
     if (!status.datetime_valid) {
         WSH_SHELL_PRINT_WARN("Clock is not set\n");
+        WSH_SHELL_PRINT_SYS("Use: clock set -d YYYY-MM-DD -t HH:MM:SS (years 2000..2099)\n");
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
     if (!app_clock_get(&datetime)) {
+        WSH_SHELL_PRINT_ERR("Failed to read RTC date and time\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
@@ -207,94 +164,71 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_handler(const WshShellCmd_t* pcCmd, W
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
-                                                       const WshShell_Char_t* pArgv[], void* pShellCtx) {
+static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
+                                         void* ctx) {
 
-    WshShell_t* shell;
-    WshShell_Size_t token_pos = 0U;
     app_clock_datetime_t datetime = {0};
-
-    char date_str[11] = {0};
-    char time_str[9] = {0};
-
-    bool date_set = false;
-    bool time_set = false;
-
-    if ((pcCmd == NULL) || (pArgv == NULL) || (pShellCtx == NULL)) {
+    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-
-    shell = (WshShell_t*)pShellCtx;
-
-    while (token_pos < argc) {
-        WshShellOption_Ctx_t opt_ctx;
-        WSH_SHELL_RET_STATE_t ret;
-
-        opt_ctx = WshShellCmd_ParseOpt(pcCmd, argc, pArgv, shell->CurrUser->Rights, &token_pos);
-
-        if (opt_ctx.Option == NULL || opt_ctx.ParseError) {
+    WshShell_t* shell = ctx;
+    if (!WshShell_IsAuth(shell)) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    WshShell_Size_t pos = 0U;
+    bool help = false;
+    const char* date_text = NULL;
+    const char* time_text = NULL;
+    while (pos < argc) {
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
+        if (opt.Option == NULL || opt.ParseError) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
-
-        switch (opt_ctx.Option->ID) {
-            case CLOCK_SET_OPT_DEF: break;
-
-            case CLOCK_SET_OPT_HELP: WshShellCmd_PrintOptionsOverview(pcCmd); return WSH_SHELL_RET_STATE_SUCCESS;
-
-            case CLOCK_SET_OPT_DATE:
-                if (date_set || opt_ctx.TokenPos + 1U >= argc
-                    || WSH_SHELL_STRLEN(pArgv[opt_ctx.TokenPos + 1U]) != sizeof(date_str) - 1U) {
+        switch (opt.Option->ID) {
+            case OPT_DEFAULT: break;
+            case OPT_HELP: help = true; break;
+            case OPT_DATE:
+                if (date_text != NULL) {
+                    WSH_SHELL_PRINT_WARN("Specify --date only once\n");
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
-                ret = WshShellCmd_GetOptValue(&opt_ctx, argc, pArgv, sizeof(date_str) - 1U, date_str);
-
-                if (ret != WSH_SHELL_RET_STATE_SUCCESS) {
-                    return ret;
-                }
-
-                date_set = true;
+                date_text = argv[opt.TokenPos + 1U];
                 break;
-
-            case CLOCK_SET_OPT_TIME:
-                if (time_set || opt_ctx.TokenPos + 1U >= argc
-                    || WSH_SHELL_STRLEN(pArgv[opt_ctx.TokenPos + 1U]) != sizeof(time_str) - 1U) {
+            case OPT_TIME:
+                if (time_text != NULL) {
+                    WSH_SHELL_PRINT_WARN("Specify --time only once\n");
                     return WSH_SHELL_RET_STATE_ERR_PARAM;
                 }
-                ret = WshShellCmd_GetOptValue(&opt_ctx, argc, pArgv, sizeof(time_str) - 1U, time_str);
-
-                if (ret != WSH_SHELL_RET_STATE_SUCCESS) {
-                    return ret;
-                }
-
-                time_set = true;
+                time_text = argv[opt.TokenPos + 1U];
                 break;
-
             default: return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
-
-    if (!date_set || !time_set) {
-        WSH_SHELL_PRINT_WARN("Both --date and --time are required\n");
-
-        WshShellCmd_PrintOptionsOverview(pcCmd);
-
+    if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
+        return WSH_SHELL_RET_STATE_SUCCESS;
+    }
+    if (date_text == NULL || time_text == NULL) {
+        WSH_SHELL_PRINT_WARN("Both --date and --time are required; see clock set --help\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
-    if (!app_cli_clock_parse_date(date_str, &datetime)) {
-        WSH_SHELL_PRINT_WARN("Invalid date format, expected YYYY-MM-DD\n");
-
+    if (!app_cli_clock_parse_date(date_text, &datetime)) {
+        WSH_SHELL_PRINT_WARN("Invalid date format: expected YYYY-MM-DD\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
-    if (!app_cli_clock_parse_time(time_str, &datetime)) {
-        WSH_SHELL_PRINT_WARN("Invalid time format, expected HH:MM:SS\n");
-
+    if (!app_cli_clock_parse_time(time_text, &datetime)) {
+        WSH_SHELL_PRINT_WARN("Invalid time format: expected HH:MM:SS\n");
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    if (!app_clock_datetime_is_valid(&datetime)) {
+        WSH_SHELL_PRINT_WARN("Invalid date or time: years 2000..2099, time 00:00:00..23:59:59\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
     if (!app_clock_set(&datetime)) {
-        WSH_SHELL_PRINT_ERR("Failed to set clock\n");
+        WSH_SHELL_PRINT_ERR("Failed to write RTC date and time\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
@@ -310,34 +244,32 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_set_handler(const WshShellCmd_t* pcCm
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t app_cli_clock_invalidate_handler(const WshShellCmd_t* pcCmd, WshShell_Size_t argc,
-                                                              const WshShell_Char_t* pArgv[], void* pShellCtx) {
+static WSH_SHELL_RET_STATE_t invalidate_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
+                                                const WshShell_Char_t* argv[], void* ctx) {
 
-    WshShell_t* shell;
-    WshShell_Size_t token_pos = 0U;
-
-    if ((pcCmd == NULL) || (pArgv == NULL) || (pShellCtx == NULL)) {
+    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-
-    shell = (WshShell_t*)pShellCtx;
-
-    while (token_pos < argc) {
-        WshShellOption_Ctx_t opt_ctx;
-
-        opt_ctx = WshShellCmd_ParseOpt(pcCmd, argc, pArgv, shell->CurrUser->Rights, &token_pos);
-
-        if (opt_ctx.Option == NULL || opt_ctx.ParseError) {
+    WshShell_t* shell = ctx;
+    if (!WshShell_IsAuth(shell)) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    WshShell_Size_t pos = 0U;
+    bool help = false;
+    while (pos < argc) {
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
+        if (opt.Option == NULL || opt.ParseError) {
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
-
-        switch (opt_ctx.Option->ID) {
-            case CLOCK_INVALIDATE_OPT_DEF: break;
-
-            case CLOCK_INVALIDATE_OPT_HELP: WshShellCmd_PrintOptionsOverview(pcCmd); return WSH_SHELL_RET_STATE_SUCCESS;
-
+        switch (opt.Option->ID) {
+            case OPT_DEFAULT: break;
+            case OPT_HELP: help = true; break;
             default: return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
+    }
+    if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
+        return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
     if (!app_clock_invalidate()) {
@@ -354,10 +286,10 @@ static WSH_SHELL_RET_STATE_t app_cli_clock_invalidate_handler(const WshShellCmd_
 static const WshShellCmd_t clock_set_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_USER,
     .Name = "set",
-    .Descr = "Set RTC date and time",
+    .Descr = "Set RTC date and time: clock set -d YYYY-MM-DD -t HH:MM:SS",
     .Options = clock_set_opts,
     .OptNum = WSH_SHELL_ARR_LEN(clock_set_opts),
-    .Handler = app_cli_clock_set_handler,
+    .Handler = set_handler,
 };
 
 static const WshShellCmd_t clock_invalidate_cmd = {
@@ -366,7 +298,7 @@ static const WshShellCmd_t clock_invalidate_cmd = {
     .Descr = "Invalidate current RTC date and time",
     .Options = clock_invalidate_opts,
     .OptNum = WSH_SHELL_ARR_LEN(clock_invalidate_opts),
-    .Handler = app_cli_clock_invalidate_handler,
+    .Handler = invalidate_handler,
 };
 
 static const WshShellCmd_t* const clock_subcommands[] = {
@@ -380,7 +312,7 @@ const WshShellCmd_t app_cli_clock_cmd = {
     .Descr = "RTC clock and calendar management",
     .Options = clock_read_opts,
     .OptNum = WSH_SHELL_ARR_LEN(clock_read_opts),
-    .Handler = app_cli_clock_handler,
+    .Handler = read_handler,
     .SubCmds = clock_subcommands,
     .SubCmdNum = WSH_SHELL_ARR_LEN(clock_subcommands),
 };

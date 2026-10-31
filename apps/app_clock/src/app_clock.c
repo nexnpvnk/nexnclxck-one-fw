@@ -26,7 +26,7 @@ static uint8_t days_in_month(uint16_t year, uint8_t month) {
     return days[month - 1U];
 }
 
-static bool datetime_is_valid(const app_clock_datetime_t* datetime) {
+bool app_clock_datetime_is_valid(const app_clock_datetime_t* datetime) {
     uint8_t days;
 
     if (datetime == NULL) {
@@ -121,7 +121,7 @@ bool app_clock_get(app_clock_datetime_t* datetime) {
 bool app_clock_set(const app_clock_datetime_t* datetime) {
     bsp_rtc_datetime_t bsp_rtc_datetime;
 
-    if (!datetime_is_valid(datetime)) {
+    if (!app_clock_datetime_is_valid(datetime)) {
         return false;
     }
 
