@@ -95,8 +95,8 @@ void app_main(void) {
 
     if (!app_display_init()) {
         nixie_issue_t issue = app_display_last_issue();
-        printf("Display disabled: %s, element=%u group=%u; edit app_display/src/display_profile.c\n",
-               nixie_status_name(issue.status), (unsigned)issue.element, (unsigned)issue.group);
+        printf("Display disabled: %s, element=%u; edit app_display/src/display_profile.c\n",
+               nixie_status_name(issue.status), (unsigned)issue.element);
     }
 
     if (!app_cli_init()) {

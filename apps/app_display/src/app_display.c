@@ -10,7 +10,7 @@
 static app_display_profile_t selected;
 static nixie_frame_t frame;
 static nixie_plan_t scratch_plan;
-static nixie_issue_t last_issue = {NIXIE_NOT_READY, UINT8_MAX, UINT8_MAX};
+static nixie_issue_t last_issue = {NIXIE_NOT_READY, UINT8_MAX};
 static uint32_t last_step_ms;
 static uint32_t demo_step;
 static uint8_t demo_point_fill;
@@ -18,65 +18,44 @@ static bool initialized;
 static bool enabled;
 static bool dirty;
 
-/* Numeric groups cycle through all their symbols in descriptor order, with a
- * one-symbol offset between numeric elements. Other groups keep their first
+/* Numeric elements cycle through all their symbols in descriptor order, with a
+ * one-symbol offset between numeric elements. Other elements keep their first
  * symbol, except the configured points used by the fill pattern. */
 static void demo_frame(const app_display_profile_t* profile, uint32_t step, uint8_t point_fill) {
     nixie_frame_clear(&frame);
     frame.brightness_pm = profile->brightness_pm;
+    for (uint8_t a = 0U; a < NIXIE_MAX_ANODES; ++a) {
+        frame.anode_brightness_pm[a] = profile->anode_brightness_pm[a];
+    }
     uint8_t symbol_offset = 0U;
     for (uint8_t e = 0U; e < profile->board.element_count; ++e) {
         const nixie_tube_t* tube = profile->board.elements[e].tube;
         bool has_digits = false;
-        for (uint8_t g = 0U; g < tube->group_count; ++g) {
-            uint8_t symbol_count = 0U;
-            bool numeric_group = false;
-            for (uint8_t s = 0U; s < tube->symbol_count; ++s) {
-                if (tube->symbols[s].group != g) {
-                    continue;
-                }
-                ++symbol_count;
-                if (tube->symbols[s].id < 10U) {
-                    numeric_group = true;
-                }
+        for (uint8_t s = 0U; s < tube->symbol_count; ++s) {
+            if (tube->symbols[s].id < 10U) {
+                has_digits = true;
+                break;
             }
-            has_digits |= numeric_group;
-            /* Board validation guarantees at least one symbol in every group. */
-            uint8_t index = numeric_group ? (uint8_t)((step % symbol_count + symbol_offset) % symbol_count) : 0U;
-            uint8_t chosen = NIXIE_SYMBOL_BLANK;
-            for (uint8_t s = 0U; s < tube->symbol_count; ++s) {
-                if (tube->symbols[s].group != g) {
-                    continue;
-                }
-                if (index == 0U) {
-                    chosen = tube->symbols[s].id;
-                    break;
-                }
-                --index;
-            }
-            frame.cells[e][g].symbol = chosen;
-            frame.cells[e][g].brightness_pm = profile->cell_brightness_pm[e][g];
         }
+        uint8_t index = has_digits ? (uint8_t)((step % tube->symbol_count + symbol_offset) % tube->symbol_count) : 0U;
+        frame.symbols[e] = tube->symbols[index].id;
         if (has_digits) {
             ++symbol_offset;
         }
     }
     for (uint8_t p = point_fill; p < profile->demo_point_count; ++p) {
-        uint8_t e = profile->demo_point_order[p];
-        for (uint8_t g = 0U; g < profile->board.elements[e].tube->group_count; ++g) {
-            frame.cells[e][g].symbol = NIXIE_SYMBOL_BLANK;
-        }
+        frame.symbols[profile->demo_point_order[p]] = NIXIE_SYMBOL_BLANK;
     }
 }
 
 static nixie_status_t publish_configuration(const app_display_profile_t* profile, bool restart_demo) {
     if (profile == NULL || profile->demo_step_ms == 0U) {
-        last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX, UINT8_MAX};
+        last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX};
         return last_issue.status;
     }
     if (profile->timing.refresh_rate_hz < APP_DISPLAY_REFRESH_RATE_MIN_HZ
         || profile->timing.refresh_rate_hz > APP_DISPLAY_REFRESH_RATE_MAX_HZ) {
-        last_issue = (nixie_issue_t){NIXIE_INVALID_TIMING, UINT8_MAX, UINT8_MAX};
+        last_issue = (nixie_issue_t){NIXIE_INVALID_TIMING, UINT8_MAX};
         return last_issue.status;
     }
     nixie_status_t result = nixie_validate_board(&profile->board, bsp_nixie_caps(), &last_issue);
@@ -85,21 +64,20 @@ static nixie_status_t publish_configuration(const app_display_profile_t* profile
     }
     if (profile->demo_point_count > profile->board.element_count
         || (profile->demo_point_count != 0U && profile->demo_point_order == NULL)) {
-        last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX, UINT8_MAX};
+        last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX};
         return last_issue.status;
     }
     uint32_t points = 0U;
     for (uint8_t p = 0U; p < profile->demo_point_count; ++p) {
         uint8_t e = profile->demo_point_order[p];
         if (e >= profile->board.element_count || (points & (1UL << e)) != 0U) {
-            last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, e, UINT8_MAX};
+            last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, e};
             return last_issue.status;
         }
         points |= 1UL << e;
     }
-    /* A tube's total symbol count bounds the cycle length of each of its groups.
-     * Cover every demo symbol, with all point symbols visible. Partially filled
-     * patterns only blank cells and cannot introduce another symbol. */
+    /* Cover every demo symbol with all points visible. Partially filled patterns
+     * only remove cathodes from the same anode slot and cannot add a symbol. */
     uint8_t validation_steps = 1U;
     for (uint8_t e = 0U; e < profile->board.element_count; ++e) {
         uint8_t count = profile->board.elements[e].tube->symbol_count;
@@ -140,7 +118,7 @@ bool app_display_init(void) {
         return true;
     }
     if (!bsp_nixie_init()) {
-        last_issue = (nixie_issue_t){NIXIE_NOT_READY, UINT8_MAX, UINT8_MAX};
+        last_issue = (nixie_issue_t){NIXIE_NOT_READY, UINT8_MAX};
         return false;
     }
     return app_display_configure(&display_default_profile) == NIXIE_OK;
@@ -194,15 +172,15 @@ nixie_status_t app_display_set_timing(const nixie_timing_t* timing) {
     return publish_configuration(&candidate, false);
 }
 
-nixie_status_t app_display_set_cell_brightness(uint8_t element, uint8_t group, uint16_t brightness_pm) {
+nixie_status_t app_display_set_anode_brightness(uint8_t anode, uint16_t brightness_pm) {
     if (!initialized) {
         return NIXIE_NOT_READY;
     }
-    if (element >= selected.board.element_count || group >= selected.board.elements[element].tube->group_count) {
+    if (anode >= bsp_nixie_caps()->anode_count || brightness_pm > NIXIE_BRIGHTNESS_MAX) {
         return NIXIE_INVALID_ARGUMENT;
     }
     app_display_profile_t candidate = selected;
-    candidate.cell_brightness_pm[element][group] = brightness_pm;
+    candidate.anode_brightness_pm[anode] = brightness_pm;
     return publish_configuration(&candidate, false);
 }
 
@@ -242,8 +220,7 @@ void app_display_process(bool power_ready) {
             (void)bsp_nixie_set_enabled(false);
             enabled = false;
             initialized = false;
-            printf("Display stopped: %s, element=%u group=%u\n", nixie_status_name(result),
-                   (unsigned)last_issue.element, (unsigned)last_issue.group);
+            printf("Display stopped: %s, element=%u\n", nixie_status_name(result), (unsigned)last_issue.element);
             return;
         }
     }

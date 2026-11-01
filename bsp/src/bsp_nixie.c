@@ -30,7 +30,7 @@ typedef struct {
     nixie_timing_t timing;
     uint16_t slot_us;
     uint8_t slot_count;
-    hw_slot_t slots[NIXIE_MAX_SLOTS];
+    hw_slot_t slots[NIXIE_MAX_ANODES];
 } hw_plan_t;
 
 typedef enum { SLOT_SKIPPED, SLOT_BLANKING, SLOT_ON, SLOT_HOLD, SLOT_DONE } slot_state_t;

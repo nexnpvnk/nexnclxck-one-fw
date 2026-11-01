@@ -4,12 +4,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Logical elements and scan slots are independent of physical anode count.
- * Keep the slot budget bounded without allocating three slots for every element. */
+/* One scan slot per distinct wired anode, one selectable electrode per element.
+ * Shared-anode elements must have separate current-limiting paths. */
 #define NIXIE_MAX_ELEMENTS       16U
+#define NIXIE_MAX_ANODES         16U
 #define NIXIE_MAX_CATHODES       16U
-#define NIXIE_MAX_GROUPS         3U
-#define NIXIE_MAX_SLOTS          24U
 #define NIXIE_BRIGHTNESS_MAX     1000U
 
 #define NIXIE_CHANNEL_UNASSIGNED UINT8_MAX
@@ -32,9 +31,8 @@ typedef enum {
 } nixie_status_t;
 
 typedef struct {
-    uint8_t id;        /* 0..9 are digits; other IDs are application-defined. */
-    uint8_t group;     /* Alternatives in one group share a slot. */
-    uint16_t cathodes; /* Bits refer to the tube's local cathode indices. */
+    uint8_t id;      /* 0..9 are digits; other IDs are application-defined. */
+    uint8_t cathode; /* Local cathode index in cathode_channels/cathode_pins. */
 } nixie_symbol_t;
 
 typedef struct {
@@ -44,15 +42,14 @@ typedef struct {
     uint8_t anode_pin;
     const uint8_t* cathode_pins;
     uint8_t cathode_count;
-    uint8_t group_count;
     const nixie_symbol_t* symbols;
     uint8_t symbol_count;
 } nixie_tube_t;
 
 typedef struct {
     const nixie_tube_t* tube;
-    /* Shared anodes are allowed when the elements have disjoint cathode channels.
-     * A fixed-return element must have exclusive use of its anode. */
+    /* Same-anode elements light together and need independent current limiting
+     * and disjoint cathode channels. A fixed return requires an exclusive anode. */
     uint8_t anode_channel;
     /* One entry per local cathode, not per digit or physical package pin. */
     const uint8_t* cathode_channels;
@@ -65,8 +62,8 @@ typedef struct {
 } nixie_board_t;
 
 typedef struct {
-    uint16_t refresh_rate_hz; /* A complete scan, including every reserved group slot. */
-    /* Anodes stay off for this interval before cathodes are changed. */
+    uint16_t refresh_rate_hz; /* A complete scan of all distinct wired anodes. */
+    /* Anodes stay off for this interval before selecting the next cathodes. */
     uint16_t blanking_time_us;
 } nixie_timing_t;
 
@@ -78,32 +75,27 @@ typedef struct {
 
 typedef struct {
     uint16_t brightness_pm;
-    uint8_t symbol;
-} nixie_cell_t;
-
-typedef struct {
-    uint16_t brightness_pm;
-    nixie_cell_t cells[NIXIE_MAX_ELEMENTS][NIXIE_MAX_GROUPS];
+    uint16_t anode_brightness_pm[NIXIE_MAX_ANODES]; /* Indexed by carrier ANODE_n. */
+    uint8_t symbols[NIXIE_MAX_ELEMENTS];            /* Symbol ID per logical element. */
 } nixie_frame_t;
 
 typedef struct {
-    uint16_t cathodes; /* Logical carrier channels; 0 is valid for fixed return. */
-    uint16_t on_us;    /* 0 means blank; this slot still occupies time. */
+    uint16_t cathodes; /* Carrier mask; 0 is valid for an exclusive fixed return. */
+    uint16_t on_us;    /* Common anode PWM; 0 is dark but still reserves the slot. */
     uint8_t anode;
 } nixie_slot_t;
 
 typedef struct {
     nixie_timing_t timing;
     uint16_t slot_us;
-    uint8_t slot_count;
-    nixie_slot_t slots[NIXIE_MAX_SLOTS];
+    uint8_t slot_count; /* Distinct wired anodes, independent of the frame content. */
+    nixie_slot_t slots[NIXIE_MAX_ANODES];
 } nixie_plan_t;
 
 typedef struct {
     nixie_status_t status;
-    /* UINT8_MAX means the error is not associated with a specific cell. */
+    /* UINT8_MAX means the error is not associated with a specific element. */
     uint8_t element;
-    uint8_t group;
 } nixie_issue_t;
 
 /* All functions are foreground-only, have no hardware side effects and allocate

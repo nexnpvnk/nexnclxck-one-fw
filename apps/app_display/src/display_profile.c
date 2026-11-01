@@ -7,17 +7,17 @@
 /* Local cathodes 0..9 mean digit electrodes, index 10 means the IN-12B comma.
  * The first ten entries are also the complete symbol set of IN-12A. */
 static const nixie_symbol_t in12_symbols[] = {
-    {0U, 0U, 1U << 0U},
-    {1U, 0U, 1U << 1U},
-    {2U, 0U, 1U << 2U},
-    {3U, 0U, 1U << 3U},
-    {4U, 0U, 1U << 4U},
-    {5U, 0U, 1U << 5U},
-    {6U, 0U, 1U << 6U},
-    {7U, 0U, 1U << 7U},
-    {8U, 0U, 1U << 8U},
-    {9U, 0U, 1U << 9U},
-    {NIXIE_SYMBOL_DOT, 0U, 1U << 10U},
+    {0U, 0U},
+    {1U, 1U},
+    {2U, 2U},
+    {3U, 3U},
+    {4U, 4U},
+    {5U, 5U},
+    {6U, 6U},
+    {7U, 7U},
+    {8U, 8U},
+    {9U, 9U},
+    {NIXIE_SYMBOL_DOT, 10U},
 };
 
 /* Optional package-pin metadata. Fill from your lamp documentation if desired.
@@ -29,7 +29,6 @@ const nixie_tube_t display_tube_in12a = {
     .anode_pin = 0U,
     .cathode_pins = in12_package_cathodes,
     .cathode_count = 10U,
-    .group_count = 1U,
     .symbols = in12_symbols,
     .symbol_count = 10U,
 };
@@ -39,16 +38,14 @@ const nixie_tube_t display_tube_in12b = {
     .anode_pin = 0U,
     .cathode_pins = in12_package_cathodes,
     .cathode_count = 11U,
-    .group_count = 1U, /* Digits and comma are alternatives in the same slot. */
     .symbols = in12_symbols,
     .symbol_count = 11U,
 };
 
-static const nixie_symbol_t separator_symbols[] = {{NIXIE_SYMBOL_ON, 0U, 1U}};
+static const nixie_symbol_t separator_symbols[] = {{NIXIE_SYMBOL_ON, 0U}};
 static const nixie_tube_t separator = {
     .name = "External separator",
     .cathode_count = 1U,
-    .group_count = 1U,
     .symbols = separator_symbols,
     .symbol_count = 1U,
 };
@@ -71,14 +68,13 @@ static const uint8_t in12_cathode_channels[] = {
     15, /* internal comma, IN-12B only */
 };
 
-/* Each entry describes one independent point in the left/right visual pair.
- * Preserve the known channels; fill the second point of each pair yourself.
- * These arrays list separate elements, not multiple cathodes of one tube. */
+/* One cathode channel per separately controlled point, each with its own
+ * current-limiting resistor. All selected points can light together on A2. */
 static const uint8_t separator_left_channels[] = {3, 13};
 static const uint8_t separator_right_channels[] = {7, 10};
 
 /* Logical elements: digits 0..5, left pair 6..7, right pair 8..9.
- * The four points share ANODE_2 but have independent cathode channels/brightness.
+ * The four points share ANODE_2 and its PWM brightness, with individual on/off.
  * Other boards may assign a separate anode to each point or pair: change each
  * anode_channel accordingly. Shared-anode elements must have disjoint cathodes.
  * Points wired to the same anode AND cathode form one controlled element. */
@@ -114,22 +110,20 @@ const app_display_profile_t display_default_profile = {
             .refresh_rate_hz = 100,
             .blanking_time_us = 500U,
         },
-    .brightness_pm = 1000U, /* Global 0..1000; each cell also has its own factor. */
-    /* Per element/group, 0..1000. IN-12A/B: group 0=selected digit or comma.
-     * Points: [6][0]/[7][0]=left pair, [8][0]/[9][0]=right pair.
-     * Unused group entries have no effect. */
-    .cell_brightness_pm =
+    .brightness_pm = 1000U, /* Global 0..1000, multiplied by the anode factor. */
+    /* Per ANODE_n, 0..1000. Entry [2] controls all four external points.
+     * All elements sharing an anode have the same PWM brightness.
+     * Entries for unused/unavailable anodes have no effect. */
+    .anode_brightness_pm =
         {
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
-            {1000U, 1000U, 1000U},
+            [0] = 1000U,
+            [1] = 1000U,
+            [2] = 1000U, /* All external points on A2. */
+            [3] = 1000U,
+            [4] = 1000U,
+            [5] = 1000U,
+            [6] = 1000U,
+            [7] = 1000U,
         },
     .demo_step_ms = 1000U,
     .demo_point_order = demo_point_order,
