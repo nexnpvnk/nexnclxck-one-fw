@@ -23,13 +23,13 @@
  */
 #define BSP_HV_DUTY_MAX_PM         980U
 
-#define BSP_HV_PWM_TICK_HZ ((uint32_t)(BSP_BOARD_TIMER_CLOCK_HZ / (BSP_BOARD_HV_PWM_PSC + 1U)))
+#define BSP_HV_PWM_TICK_HZ ((uint32_t)PLATFORM_HCLK_HZ) /* TIM17 PSC=0. */
 
 _Static_assert(BSP_BOARD_HV_PWM_RATE_HZ >= BSP_HV_PWM_MIN_HZ
                    && BSP_BOARD_HV_PWM_RATE_HZ <= BSP_HV_PWM_MAX_HZ,
                "The default HV PWM frequency must be within the runtime range");
 _Static_assert(BSP_HV_PWM_TICK_HZ / BSP_HV_PWM_MAX_HZ >= 2U
-                   && (BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ <= 65536U,
+                   && (BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ <= (uint32_t)UINT16_MAX + 1U,
                "The runtime HV PWM periods must fit the 16-bit timer");
 
 #define BSP_HV_OVP_RAW             ((BSP_HV_OVP_VOLTAGE_MV * BSP_HV_ADC_MAX) / (BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO))
@@ -106,10 +106,10 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
     /* Check only CKMODE in CFGR2: reserved bits can read back nonzero. */
     if ((RCC->APB2ENR & (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)) != (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)
         || (RCC->APB1ENR & RCC_APB1ENR_TIM3EN) == 0U || (RCC->CR2 & RCC_CR2_HSI14RDY) == 0U
-        || SystemCoreClock != BSP_BOARD_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
-        || TIM3->PSC != BSP_BOARD_HV_ADC_PSC || TIM3->ARR != BSP_BOARD_HV_ADC_ARR
+        || SystemCoreClock != PLATFORM_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
+        || TIM3->PSC != PLATFORM_TIM_US_PSC || TIM3->ARR != PLATFORM_TIM3_ARR
         || (TIM3->CR2 & TIM_CR2_MMS) != TIM_CR2_MMS_1 || (TIM3->CR1 & TIM_CR1_CEN) != 0U
-        || TIM17->PSC != BSP_BOARD_HV_PWM_PSC || TIM17->ARR != BSP_BOARD_HV_PWM_ARR
+        || TIM17->PSC != 0U || TIM17->ARR != PLATFORM_TIM17_ARR
         || (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U || ADC1->CHSELR != ADC_CHSELR_CHSEL2 || ADC1->SMPR != ADC_SMPR_SMP
         || ADC1->CFGR1 != (ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD)
         || ADC1->CR != 0U) {

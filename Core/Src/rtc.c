@@ -77,7 +77,7 @@ void platform_rtc_init(void) {
     }
     RTC->CR = (RTC->CR & ~(RTC_CR_FMT | RTC_CR_OSEL | RTC_CR_POL | RTC_CR_BYPSHAD)) | RTC_CR_COE | RTC_CR_COSEL;
     RTC->PRER = 255U;
-    RTC->PRER |= 127U << 16U;
+    RTC->PRER |= RTC_PRER_PREDIV_A;
     RTC->TAFCR &= ~RTC_TAFCR_ALARMOUTTYPE;
     if (!rtc_end_update()) {
         Error_Handler();

@@ -2,7 +2,7 @@
 
 #include "stm32f0xx.h"
 
-#define BUTTON_PINS_MASK 0x0FU
+#define BUTTON_PINS_MASK (GPIO_IDR_0 | GPIO_IDR_1 | GPIO_IDR_2 | GPIO_IDR_3)
 
 static volatile uint8_t pressed_mask;
 

@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include "tim.h"
 
-#define BSP_BUZZER_TIMER_MAX_PERIOD 65536U
+#define BSP_BUZZER_TIMER_MAX_PERIOD ((uint32_t)UINT16_MAX + 1U)
 
 static bool initialized;
 static bool enabled;

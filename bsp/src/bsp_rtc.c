@@ -24,13 +24,13 @@ bool bsp_rtc_read(bsp_rtc_datetime_t* datetime) {
         if (subsecond != after) {
             continue;
         }
-        datetime->year = BSP_RTC_YEAR_BASE + from_bcd((date >> 16U) & 0xFFU);
-        datetime->month = from_bcd((date >> 8U) & 0x1FU);
-        datetime->day = from_bcd(date & 0x3FU);
-        datetime->weekday = (uint8_t)((date >> 13U) & 7U);
-        datetime->hour = from_bcd((time >> 16U) & 0x3FU);
-        datetime->minute = from_bcd((time >> 8U) & 0x7FU);
-        datetime->second = from_bcd(time & 0x7FU);
+        datetime->year = BSP_RTC_YEAR_BASE + from_bcd((date & (RTC_DR_YT | RTC_DR_YU)) >> RTC_DR_YU_Pos);
+        datetime->month = from_bcd((date & (RTC_DR_MT | RTC_DR_MU)) >> RTC_DR_MU_Pos);
+        datetime->day = from_bcd((date & (RTC_DR_DT | RTC_DR_DU)) >> RTC_DR_DU_Pos);
+        datetime->weekday = (uint8_t)((date & RTC_DR_WDU) >> RTC_DR_WDU_Pos);
+        datetime->hour = from_bcd((time & (RTC_TR_HT | RTC_TR_HU)) >> RTC_TR_HU_Pos);
+        datetime->minute = from_bcd((time & (RTC_TR_MNT | RTC_TR_MNU)) >> RTC_TR_MNU_Pos);
+        datetime->second = from_bcd((time & (RTC_TR_ST | RTC_TR_SU)) >> RTC_TR_SU_Pos);
         return true;
     }
     return false;
@@ -48,9 +48,11 @@ bool bsp_rtc_write(const bsp_rtc_datetime_t* datetime) {
         return false;
     }
     /* Date and time form one update; validity is published only after synchronization. */
-    RTC->TR = (to_bcd(datetime->hour) << 16U) | (to_bcd(datetime->minute) << 8U) | to_bcd(datetime->second);
-    RTC->DR = (to_bcd(datetime->year - BSP_RTC_YEAR_BASE) << 16U) | ((uint32_t)datetime->weekday << 13U)
-              | (to_bcd(datetime->month) << 8U) | to_bcd(datetime->day);
+    RTC->TR = (to_bcd(datetime->hour) << RTC_TR_HU_Pos) | (to_bcd(datetime->minute) << RTC_TR_MNU_Pos)
+              | (to_bcd(datetime->second) << RTC_TR_SU_Pos);
+    RTC->DR = (to_bcd(datetime->year - BSP_RTC_YEAR_BASE) << RTC_DR_YU_Pos)
+              | ((uint32_t)datetime->weekday << RTC_DR_WDU_Pos) | (to_bcd(datetime->month) << RTC_DR_MU_Pos)
+              | (to_bcd(datetime->day) << RTC_DR_DU_Pos);
     RTC->CR |= RTC_CR_COE | RTC_CR_COSEL;
     if (!rtc_end_update()) {
         return false;

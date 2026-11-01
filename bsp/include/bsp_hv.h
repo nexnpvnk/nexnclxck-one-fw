@@ -7,8 +7,8 @@
 
 #include "bsp_board_config.h"
 
-/* Configured TIM3 trigger frequency, available without MCU register headers. */
-#define BSP_HV_SAMPLE_RATE_HZ ((uint32_t)BSP_BOARD_HV_ADC_RATE_HZ)
+/* Requested ADC rate; Core checks that the configured TIM3 period is exact. */
+#define BSP_HV_SAMPLE_RATE_HZ ((uint32_t)BSP_BOARD_HV_ADC_TARGET_RATE_HZ)
 
 #define BSP_HV_PWM_MIN_HZ 20000U
 #define BSP_HV_PWM_MAX_HZ 50000U

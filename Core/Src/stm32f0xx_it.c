@@ -34,9 +34,9 @@ void PendSV_Handler(void) {}
 
 void SysTick_Handler(void) { bsp_time_tick(); }
 
-void EXTI0_1_IRQHandler(void) { bsp_buttons_irq(0x03U); }
+void EXTI0_1_IRQHandler(void) { bsp_buttons_irq(EXTI_PR_PR0 | EXTI_PR_PR1); }
 
-void EXTI2_3_IRQHandler(void) { bsp_buttons_irq(0x0CU); }
+void EXTI2_3_IRQHandler(void) { bsp_buttons_irq(EXTI_PR_PR2 | EXTI_PR_PR3); }
 
 void DMA1_Channel1_IRQHandler(void) { bsp_ws2812_dma_irq(); }
 

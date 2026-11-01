@@ -25,8 +25,8 @@ void platform_adc_init(void) {
     /* Configuration only. Calibration and conversion start belong to BSP HV. */
     RCC->APB2RSTR |= RCC_APB2RSTR_ADC1RST;
     RCC->APB2RSTR &= ~RCC_APB2RSTR_ADC1RST;
-    GPIOA->MODER |= 3U << 4U;
-    GPIOA->PUPDR &= ~(3U << 4U);
+    GPIOA->MODER |= GPIO_MODER_MODER2;
+    GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR2;
     ADC1->IER = 0U;
     /* 12-bit, right aligned, one channel, rising TIM3 TRGO, overwrite on OVR. */
     ADC1->CFGR1 = ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD;

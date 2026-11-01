@@ -7,14 +7,10 @@
 
 #include <string.h>
 
-#define WS2812_PIN           (1U << 2U)
 #define WS2812_WORDS_PER_LED (24U * BSP_BOARD_WS2812_SYMBOLS_PER_BIT)
 #define WS2812_LEDS_PER_HALF 1U
 #define WS2812_HALF_WORDS    (WS2812_WORDS_PER_LED * WS2812_LEDS_PER_HALF)
 #define WS2812_BUFFER_WORDS  (WS2812_HALF_WORDS * 2U)
-
-#define WS2812_SET           ((uint32_t)WS2812_PIN)
-#define WS2812_RESET         ((uint32_t)WS2812_PIN << 16U)
 
 /* Two millisecond ticks guarantee more than 1 ms LOW
  * even if the completion timestamp is taken just before SysTick.
@@ -26,7 +22,7 @@
 #define WS2812_TIMEOUT_MS    5U
 
 _Static_assert(BSP_BOARD_WS2812_SYMBOLS_PER_BIT == 3U, "The BSRR encoder emits three symbols per bit");
-_Static_assert(WS2812_LEDS_PER_HALF > 0U && WS2812_LEDS_PER_HALF <= UINT8_MAX && WS2812_BUFFER_WORDS <= UINT16_MAX,
+_Static_assert(WS2812_LEDS_PER_HALF > 0U && WS2812_LEDS_PER_HALF <= UINT8_MAX && WS2812_BUFFER_WORDS <= DMA_CNDTR_NDT,
                "The circular buffer must have nonempty halves and fit DMA CNDTR");
 _Static_assert(BSP_WS2812_MAX_LEDS > 0U && BSP_WS2812_MAX_LEDS <= UINT8_MAX,
                "The frame length must fit the LED counters");
@@ -56,9 +52,9 @@ static uint32_t* encode_byte(uint32_t* output, uint8_t value) {
     for (uint8_t bit = 0U; bit < 8U; ++bit) {
         bool one = (value & (0x80U >> bit)) != 0U;
 
-        *output++ = WS2812_SET;
-        *output++ = one ? 0U : WS2812_RESET;
-        *output++ = one ? WS2812_RESET : 0U;
+        *output++ = GPIO_BSRR_BS_2;
+        *output++ = one ? 0U : GPIO_BSRR_BR_2;
+        *output++ = one ? GPIO_BSRR_BR_2 : 0U;
     }
 
     return output;
@@ -77,7 +73,7 @@ static void fill_half(uint32_t* output) {
             /* Inactive DMA data must never raise PD2.
              * This also protects the circular wrap at frame end. */
             for (uint32_t j = 0U; j < WS2812_WORDS_PER_LED; ++j) {
-                *output++ = WS2812_RESET;
+                *output++ = GPIO_BSRR_BR_2;
             }
         }
     }
@@ -94,7 +90,7 @@ static void stop_transfer(bsp_ws2812_error_t error) {
     DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CHTIF1 | DMA_IFCR_CTEIF1;
 
     /* Force LOW regardless of transfer outcome. */
-    GPIOD->BSRR = WS2812_RESET;
+    GPIOD->BSRR = GPIO_BSRR_BR_2;
 
     if (error == BSP_WS2812_ERROR_NONE) {
         ++completed_count;
@@ -175,17 +171,16 @@ bool bsp_ws2812_init(void) {
     const uint32_t dma_mask =
         DMA_CCR_EN | DMA_CCR_DIR | DMA_CCR_PINC | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE | DMA_CCR_MSIZE;
     const uint32_t dma_expected = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1;
-    if (SystemCoreClock != BSP_BOARD_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
-        || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U || TIM2->PSC != BSP_BOARD_WS2812_PSC
-        || TIM2->ARR != BSP_BOARD_WS2812_ARR || TIM2->CCR3 != BSP_BOARD_WS2812_CCR3
-        || (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
+    if (SystemCoreClock != PLATFORM_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
+        || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U || TIM2->PSC != 0U || TIM2->ARR != PLATFORM_TIM2_ARR
+        || TIM2->CCR3 != PLATFORM_TIM2_CCR3 || (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
         return false;
     }
 
     /* CC3 compare match generates DMA requests. */
     TIM2->CR2 &= ~TIM_CR2_CCDS;
 
-    GPIOD->BSRR = WS2812_RESET;
+    GPIOD->BSRR = GPIO_BSRR_BR_2;
 
     busy = false;
     latch_pending = false;
@@ -255,7 +250,7 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
     busy = true;
     started_ms = bsp_time_ms();
 
-    GPIOD->BSRR = WS2812_RESET;
+    GPIOD->BSRR = GPIO_BSRR_BR_2;
 
     TIM2->CNT = 0U;
     TIM2->SR = ~TIM_SR_CC3IF;
