@@ -13,32 +13,48 @@ static nixie_plan_t scratch_plan;
 static nixie_issue_t last_issue = {NIXIE_NOT_READY, UINT8_MAX, UINT8_MAX};
 static uint32_t last_step_ms;
 static uint8_t demo_digit;
+static uint8_t demo_point_fill;
 static bool initialized;
 static bool enabled;
 static bool dirty;
 
-/* Alternative symbols in group 0 render the current digit. A one-symbol group
- * (an internal point or external separator) renders its sole symbol throughout. */
-static void demo_frame(const app_display_profile_t* profile, uint8_t digit) {
+/* Numeric elements are shifted by one digit from left to right. Auxiliary
+ * groups stay visible, except the configured points used by the fill pattern. */
+static void demo_frame(const app_display_profile_t* profile, uint8_t digit, uint8_t point_fill) {
     nixie_frame_clear(&frame);
     frame.brightness_pm = profile->brightness_pm;
+    uint8_t digit_offset = 0U;
     for (uint8_t e = 0U; e < profile->board.element_count; ++e) {
         const nixie_tube_t* tube = profile->board.elements[e].tube;
+        uint8_t shifted_digit = (uint8_t)((digit + digit_offset) % 10U);
+        bool has_digits = false;
         for (uint8_t g = 0U; g < tube->group_count; ++g) {
             uint8_t chosen = NIXIE_SYMBOL_BLANK;
             for (uint8_t s = 0U; s < tube->symbol_count; ++s) {
                 if (tube->symbols[s].group != g) {
                     continue;
                 }
-                if (chosen == NIXIE_SYMBOL_BLANK || tube->symbols[s].id == digit) {
+                if (tube->symbols[s].id < 10U) {
+                    has_digits = true;
+                }
+                if (chosen == NIXIE_SYMBOL_BLANK || tube->symbols[s].id == shifted_digit) {
                     chosen = tube->symbols[s].id;
                 }
-                if (tube->symbols[s].id == digit) {
+                if (tube->symbols[s].id == shifted_digit) {
                     break;
                 }
             }
             frame.cells[e][g].symbol = chosen;
             frame.cells[e][g].brightness_pm = profile->cell_brightness_pm[e][g];
+        }
+        if (has_digits) {
+            ++digit_offset;
+        }
+    }
+    for (uint8_t p = point_fill; p < profile->demo_point_count; ++p) {
+        uint8_t e = profile->demo_point_order[p];
+        for (uint8_t g = 0U; g < profile->board.elements[e].tube->group_count; ++g) {
+            frame.cells[e][g].symbol = NIXIE_SYMBOL_BLANK;
         }
     }
 }
@@ -48,20 +64,41 @@ static nixie_status_t publish_configuration(const app_display_profile_t* profile
         last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX, UINT8_MAX};
         return last_issue.status;
     }
+    if (profile->timing.refresh_hz < APP_DISPLAY_REFRESH_MIN_HZ
+        || profile->timing.refresh_hz > APP_DISPLAY_REFRESH_MAX_HZ) {
+        last_issue = (nixie_issue_t){NIXIE_INVALID_TIMING, UINT8_MAX, UINT8_MAX};
+        return last_issue.status;
+    }
     nixie_status_t result = nixie_validate_board(&profile->board, bsp_nixie_caps(), &last_issue);
     if (result != NIXIE_OK) {
         return result;
     }
-    /* Reject a profile which would work for 0 but fail later in the demo. */
+    if (profile->demo_point_count > profile->board.element_count
+        || (profile->demo_point_count != 0U && profile->demo_point_order == NULL)) {
+        last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX, UINT8_MAX};
+        return last_issue.status;
+    }
+    uint32_t points = 0U;
+    for (uint8_t p = 0U; p < profile->demo_point_count; ++p) {
+        uint8_t e = profile->demo_point_order[p];
+        if (e >= profile->board.element_count || (points & (1UL << e)) != 0U) {
+            last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, e, UINT8_MAX};
+            return last_issue.status;
+        }
+        points |= 1UL << e;
+    }
+    /* All digits and all point symbols are validated. Partially filled patterns
+     * only blank some of these cells and cannot introduce another symbol. */
     for (uint8_t digit = 0U; digit < 10U; ++digit) {
-        demo_frame(profile, digit);
+        demo_frame(profile, digit, profile->demo_point_count);
         result = nixie_compile(&profile->board, &profile->timing, &frame, bsp_nixie_caps(), &scratch_plan, &last_issue);
         if (result != NIXIE_OK) {
             return result;
         }
     }
     uint8_t next_digit = restart_demo ? 0U : demo_digit;
-    demo_frame(profile, next_digit);
+    uint8_t next_fill = restart_demo ? 0U : demo_point_fill;
+    demo_frame(profile, next_digit, next_fill);
     result = nixie_compile(&profile->board, &profile->timing, &frame, bsp_nixie_caps(), &scratch_plan, &last_issue);
     if (result == NIXIE_OK) {
         result = bsp_nixie_present(&scratch_plan);
@@ -70,6 +107,7 @@ static nixie_status_t publish_configuration(const app_display_profile_t* profile
     if (result == NIXIE_OK) {
         selected = *profile;
         demo_digit = next_digit;
+        demo_point_fill = next_fill;
         dirty = false;
         if (restart_demo) {
             last_step_ms = bsp_time_ms();
@@ -94,13 +132,37 @@ nixie_status_t app_display_configure(const app_display_profile_t* profile) {
     return publish_configuration(profile, true);
 }
 
-nixie_status_t app_display_set_brightness(uint16_t brightness_pm) {
+nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_hz) {
     if (!initialized) {
         return NIXIE_NOT_READY;
     }
     app_display_profile_t candidate = selected;
     candidate.brightness_pm = brightness_pm;
+    candidate.timing.refresh_hz = refresh_hz;
     return publish_configuration(&candidate, false);
+}
+
+bool app_display_get_status(app_display_status_t* status) {
+    if (status == NULL || !initialized) {
+        return false;
+    }
+    bsp_nixie_status_t hardware;
+    if (!bsp_nixie_get_status(&hardware)) {
+        return false;
+    }
+    *status = (app_display_status_t){
+        .brightness_pm = selected.brightness_pm,
+        .refresh_hz = selected.timing.refresh_hz,
+        .running = hardware.running,
+    };
+    return true;
+}
+
+nixie_status_t app_display_set_brightness(uint16_t brightness_pm) {
+    if (!initialized) {
+        return NIXIE_NOT_READY;
+    }
+    return app_display_set_parameters(brightness_pm, selected.timing.refresh_hz);
 }
 
 nixie_status_t app_display_set_timing(const nixie_timing_t* timing) {
@@ -142,11 +204,12 @@ void app_display_process(bool power_ready) {
     }
     if ((uint32_t)(now - last_step_ms) >= selected.demo_step_ms) {
         demo_digit = (uint8_t)((demo_digit + 1U) % 10U);
+        demo_point_fill = demo_point_fill < selected.demo_point_count ? (uint8_t)(demo_point_fill + 1U) : 0U;
         last_step_ms = now;
         dirty = true;
     }
     if (dirty) {
-        demo_frame(&selected, demo_digit);
+        demo_frame(&selected, demo_digit, demo_point_fill);
         nixie_status_t result =
             nixie_compile(&selected.board, &selected.timing, &frame, bsp_nixie_caps(), &scratch_plan, &last_issue);
         if (result == NIXIE_OK) {

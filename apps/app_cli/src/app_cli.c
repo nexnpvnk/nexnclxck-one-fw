@@ -5,13 +5,14 @@
 #include "app_cli_bme280.h"
 #include "app_cli_buzzer.h"
 #include "app_cli_clock.h"
+#include "app_cli_display.h"
 #include "app_cli_hv.h"
 #include "bsp_time.h"
 #include "shell.h"
 #include "wsh_shell.h"
 
 static const WshShellCmd_t* app_cli_commands[] = {&app_cli_clock_cmd, &app_cli_bme280_cmd, &app_cli_buzzer_cmd,
-                                                  &app_cli_hv_cmd};
+                                                  &app_cli_hv_cmd, &app_cli_display_cmd};
 
 static struct {
     WshShell_t* console;

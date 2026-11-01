@@ -32,8 +32,6 @@ const nixie_tube_t display_tube_in12a = {
     .group_count = 1U,
     .symbols = in12_symbols,
     .symbol_count = 10U,
-    .min_on_us = 0U, /* Unspecified; fill verified pulse limits, if available. */
-    .max_on_us = 0U,
 };
 
 const nixie_tube_t display_tube_in12b = {
@@ -44,8 +42,6 @@ const nixie_tube_t display_tube_in12b = {
     .group_count = 2U, /* Separate fixed slots for the digit and comma. */
     .symbols = in12_symbols,
     .symbol_count = 11U,
-    .min_on_us = 0U,
-    .max_on_us = 0U,
 };
 
 static const nixie_symbol_t separator_symbols[] = {{NIXIE_SYMBOL_ON, 0U, 1U}};
@@ -99,6 +95,12 @@ static const nixie_element_t upper_board[] = {
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_right_channels[1]},
 };
 
+/* Clockwise, assuming each pair is listed upper point first:
+ *   6 (left upper)    8 (right upper)
+ *   7 (left lower)    9 (right lower)
+ * Reorder these indices if the physical point arrangement differs. */
+static const uint8_t demo_point_order[] = {6U, 8U, 9U, 7U};
+
 const app_display_profile_t display_default_profile = {
     .board =
         {
@@ -106,15 +108,11 @@ const app_display_profile_t display_default_profile = {
             .elements = upper_board,
             .element_count = sizeof(upper_board) / sizeof(upper_board[0]),
         },
-    /* Initial scheduling settings, NOT verified electrical ratings. TIM1 runs
-     * at 1 MHz. Smaller guards need measured IRQ and switching timing. */
+    /* Wait for the TLP627 anode switch to turn off before changing cathodes. */
     .timing =
         {
-            .refresh_hz = 400,
+            .refresh_hz = 100,
             .dead_time_us = 100U,
-            .turn_off_us = 20U,
-            .cathode_setup_us = 20U,
-            .max_lateness_us = 20U,
         },
     .brightness_pm = 1000U, /* Global 0..1000; each cell also has its own factor. */
     /* Per element/group, 0..1000. IN-12B: group 0=digit, group 1=comma.
@@ -134,4 +132,6 @@ const app_display_profile_t display_default_profile = {
             {1000U, 1000U, 1000U},
         },
     .demo_step_ms = 200U,
+    .demo_point_order = demo_point_order,
+    .demo_point_count = sizeof(demo_point_order) / sizeof(demo_point_order[0]),
 };

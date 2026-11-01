@@ -95,7 +95,7 @@ PSC к ближайшему целому, усечение периода ARR и
 | HV ADC | PA2 / IN2, HSI14 14 МГц, 12 бит, sampling 239.5 cycles, TIM3 TRGO 2 кГц |
 | RTC | LSE, prescaler 127/255, 24 часа, калибровочный выход PC13 1 Гц |
 | Кнопки | PC0..PC3 pull-up, EXTI по обоим фронтам |
-| Индикация ГРИ | TIM1 1 МГц, update + CC1/CC2/CC3 IRQ priority 2, GPIO BSRR; без DMA |
+| Индикация ГРИ | TIM1 1 МГц, update + CC1/CC2 IRQ priority 2, GPIO BSRR; dead time для TLP627, без DMA |
 | Аноды | ANODE_0..7: PB11, PB10, PB2, PB1, PB0, PC5, PC4, PA5 |
 | Катоды | CATHODE_0..15: PB9, PB8, PB5, PB4, PB3, PC12, PC11, PC10, PC8, PC9, PC7, PC6, PB15, PB14, PB13, PB12 |
 

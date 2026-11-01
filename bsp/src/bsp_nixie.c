@@ -12,13 +12,12 @@ typedef struct {
 
 static const pin_t anodes[] = {BSP_NIXIE_ANODE_BINDINGS};
 static const pin_t cathodes[] = {BSP_NIXIE_CATHODE_BINDINGS};
-static const nixie_caps_t caps = {8U, 16U, UINT16_MAX, 20U};
+static const nixie_caps_t caps = {.anode_count = 8U, .cathode_count = 16U, .max_slot_us = UINT16_MAX};
 
 _Static_assert(sizeof(anodes) / sizeof(anodes[0]) == 8U, "Carrier has eight anodes");
 _Static_assert(sizeof(cathodes) / sizeof(cathodes[0]) == 16U, "Carrier has sixteen cathodes");
 
-#define TIMER_FLAGS (TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF | TIM_SR_CC3IF)
-#define TIMER_IRQS  (TIM_DIER_UIE | TIM_DIER_CC1IE | TIM_DIER_CC2IE | TIM_DIER_CC3IE)
+#define TIMER_FLAGS (TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF)
 
 typedef struct {
     uint32_t cathode_b;
@@ -34,7 +33,7 @@ typedef struct {
     hw_slot_t slots[NIXIE_MAX_SLOTS];
 } hw_plan_t;
 
-typedef enum { SLOT_SKIPPED, SLOT_CATHODES, SLOT_ANODE, SLOT_OFF, SLOT_DONE } slot_state_t;
+typedef enum { SLOT_SKIPPED, SLOT_DEAD, SLOT_ON, SLOT_HOLD, SLOT_DONE } slot_state_t;
 
 /* Only IRQ reads the active plan. Foreground writes the other one exclusively,
  * then publishes its index in a short interrupt-masked section. */
@@ -50,8 +49,6 @@ static volatile uint32_t frame_count;
 static volatile uint32_t missed_slots;
 static uint8_t slot_index;
 static slot_state_t slot_state;
-static uint16_t anodes_off_at;
-static uint16_t cathodes_set_at;
 
 static void anodes_off(void) {
     GPIOA->BSRR = BSP_NIXIE_ANODE_A_MASK << 16U;
@@ -82,11 +79,49 @@ static void skip_slot(void) {
     slot_state = SLOT_SKIPPED;
     TIM1->DIER = TIM_DIER_UIE;
     /* Preserve an update which may have arrived during this handler. */
-    TIM1->SR = ~(TIM_SR_CC1IF | TIM_SR_CC2IF | TIM_SR_CC3IF);
+    TIM1->SR = ~(TIM_SR_CC1IF | TIM_SR_CC2IF);
 }
 
-static bool event_on_time(uint16_t now, uint16_t target, const hw_plan_t* plan) {
-    return now >= target && (uint32_t)now - target <= plan->timing.max_lateness_us && (TIM1->SR & TIM_SR_UIF) == 0U;
+/* Dead time has elapsed. Change cathodes only now, after the TLP627 turn-off
+ * interval. Arm PWM from the actual anode-on write without fixed IRQ margins. */
+static void illuminate_slot(void) {
+    const hw_plan_t* plan = &plans[active];
+    const hw_slot_t* slot = &plan->slots[slot_index];
+    uint32_t key = __get_PRIMASK();
+    __disable_irq();
+    TIM1->DIER = TIM_DIER_UIE;
+    TIM1->SR = ~(TIM_SR_CC1IF | TIM_SR_CC2IF);
+    if ((TIM1->SR & TIM_SR_UIF) != 0U) {
+        skip_slot();
+        __set_PRIMASK(key);
+        return;
+    }
+    GPIOB->BSRR = slot->cathode_b;
+    GPIOC->BSRR = slot->cathode_c;
+    __DSB();
+    anodes[slot->anode].port->BSRR = anodes[slot->anode].pin;
+    __DSB();
+    uint32_t end = TIM1->CNT + slot->on_us;
+    if ((TIM1->SR & TIM_SR_UIF) != 0U) {
+        skip_slot();
+    } else if (end >= plan->slot_us) {
+        /* Full brightness (or a delayed start): the next update ends the pulse. */
+        slot_state = SLOT_HOLD;
+    } else {
+        TIM1->CCR2 = end;
+        TIM1->SR = ~TIM_SR_CC2IF;
+        slot_state = SLOT_ON;
+        TIM1->DIER = TIM_DIER_UIE | TIM_DIER_CC2IE;
+        /* A short pulse may already have ended while compare was programmed.
+         * Finish it immediately instead of imposing a minimum PWM width. */
+        if (TIM1->CNT >= end || (TIM1->SR & TIM_SR_UIF) != 0U) {
+            anodes_off();
+            TIM1->DIER = TIM_DIER_UIE;
+            TIM1->SR = ~TIM_SR_CC2IF;
+            slot_state = SLOT_DONE;
+        }
+    }
+    __set_PRIMASK(key);
 }
 
 /* Called after all anodes are off, with any old compare flags cleared. */
@@ -98,17 +133,26 @@ static void arm_slot(void) {
         slot_state = SLOT_DONE;
         return;
     }
-    TIM1->CCR1 = (uint32_t)plan->timing.turn_off_us + plan->timing.max_lateness_us;
-    /* Reserve update-IRQ latency so dead_time is a minimum measured from the
-     * actual anode-off write, rather than merely from the timer boundary. */
-    TIM1->CCR2 = (uint32_t)plan->timing.dead_time_us + plan->timing.max_lateness_us;
-    TIM1->CCR3 = TIM1->CCR2 + slot->on_us;
-    slot_state = SLOT_CATHODES;
-    if (TIM1->CNT > plan->timing.max_lateness_us || (TIM1->SR & TIM_SR_UIF) != 0U) {
+    /* Start the wait after the actual GPIO-off writes, so IRQ latency can only
+     * lengthen the optocoupler's turn-off interval. */
+    uint32_t start = TIM1->CNT + plan->timing.dead_time_us;
+    slot_state = SLOT_DEAD;
+    if (start >= plan->slot_us || (TIM1->SR & TIM_SR_UIF) != 0U) {
         skip_slot();
         return;
     }
-    TIM1->DIER = TIMER_IRQS;
+    if (plan->timing.dead_time_us == 0U) {
+        illuminate_slot();
+        return;
+    }
+    TIM1->CCR1 = start;
+    TIM1->SR = ~TIM_SR_CC1IF;
+    TIM1->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE;
+    /* Handle a compare already reached during register programming, without
+     * waiting or dropping a slot just because dead time is short. */
+    if (TIM1->CNT >= start || (TIM1->SR & TIM_SR_UIF) != 0U) {
+        illuminate_slot();
+    }
 }
 
 static void timer_start(void) {
@@ -121,10 +165,9 @@ static void timer_start(void) {
     TIM1->EGR = TIM_EGR_UG;
     TIM1->SR = 0U;
     slot_index = 0U;
-    anodes_off_at = 0U;
-    arm_slot();
     running = true;
     TIM1->CR1 |= TIM_CR1_CEN;
+    arm_slot();
 }
 
 void bsp_nixie_hw_init(void) {
@@ -288,8 +331,8 @@ void bsp_nixie_timer_irq(void) {
     }
     if ((flags & TIM_SR_UIF) != 0U) {
         anodes_off();
-        anodes_off_at = (uint16_t)TIM1->CNT;
-        if (slot_state != SLOT_DONE && slot_state != SLOT_SKIPPED) {
+        TIM1->DIER = TIM_DIER_UIE;
+        if (slot_state == SLOT_DEAD || slot_state == SLOT_ON) {
             ++missed_slots;
         }
         TIM1->SR = ~TIMER_FLAGS;
@@ -310,9 +353,8 @@ void bsp_nixie_timer_irq(void) {
                     TIM1->CNT = 0U;
                     TIM1->EGR = TIM_EGR_UG;
                     TIM1->SR = 0U;
-                    anodes_off_at = 0U;
-                    arm_slot();
                     TIM1->CR1 |= TIM_CR1_CEN;
+                    arm_slot();
                     return;
                 }
             }
@@ -321,48 +363,16 @@ void bsp_nixie_timer_irq(void) {
         return;
     }
 
-    const hw_plan_t* plan = &plans[active];
-    const hw_slot_t* slot = &plan->slots[slot_index];
-    uint16_t now = (uint16_t)TIM1->CNT;
-    /* Do not replay accumulated phases after a delayed IRQ. */
-    if ((flags & (flags - 1U)) != 0U) {
-        skip_slot();
-        return;
-    }
-    TIM1->SR = ~flags;
-    if (flags == TIM_SR_CC3IF) {
+    if ((flags & TIM_SR_CC2IF) != 0U) {
         anodes_off();
-        now = (uint16_t)TIM1->CNT;
-        if (slot_state != SLOT_OFF || !event_on_time(now, (uint16_t)TIM1->CCR3, plan)) {
-            skip_slot();
-        } else {
-            slot_state = SLOT_DONE;
+        TIM1->DIER = TIM_DIER_UIE;
+        TIM1->SR = ~TIM_SR_CC2IF;
+        slot_state = SLOT_DONE;
+    } else if ((flags & TIM_SR_CC1IF) != 0U) {
+        TIM1->DIER = TIM_DIER_UIE;
+        TIM1->SR = ~TIM_SR_CC1IF;
+        if (slot_state == SLOT_DEAD) {
+            illuminate_slot();
         }
-    } else if (flags == TIM_SR_CC1IF && slot_state == SLOT_CATHODES && event_on_time(now, (uint16_t)TIM1->CCR1, plan)
-               && (uint32_t)now >= (uint32_t)anodes_off_at + plan->timing.turn_off_us) {
-        GPIOB->BSRR = slot->cathode_b;
-        GPIOC->BSRR = slot->cathode_c;
-        __DSB();
-        cathodes_set_at = (uint16_t)TIM1->CNT;
-        slot_state = SLOT_ANODE;
-    } else if (flags == TIM_SR_CC2IF && slot_state == SLOT_ANODE) {
-        /* A higher-priority IRQ must not intervene between checking the deadline
-         * and asserting an anode. This section contains no loops or callbacks. */
-        uint32_t key = __get_PRIMASK();
-        __disable_irq();
-        now = (uint16_t)TIM1->CNT;
-        if (event_on_time(now, (uint16_t)TIM1->CCR2, plan)
-            && (uint32_t)now >= (uint32_t)anodes_off_at + plan->timing.dead_time_us
-            && (uint32_t)now >= (uint32_t)cathodes_set_at + plan->timing.cathode_setup_us
-            && (TIM1->SR & TIM_SR_CC3IF) == 0U) {
-            anodes[slot->anode].port->BSRR = anodes[slot->anode].pin;
-            __DSB();
-            slot_state = SLOT_OFF;
-        } else {
-            skip_slot();
-        }
-        __set_PRIMASK(key);
-    } else {
-        skip_slot();
     }
 }

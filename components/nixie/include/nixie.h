@@ -47,9 +47,6 @@ typedef struct {
     uint8_t group_count;
     const nixie_symbol_t* symbols;
     uint8_t symbol_count;
-    /* 0 means unspecified, NOT a verified electrical rating. */
-    uint16_t min_on_us;
-    uint16_t max_on_us;
 } nixie_tube_t;
 
 typedef struct {
@@ -69,17 +66,14 @@ typedef struct {
 
 typedef struct {
     uint16_t refresh_hz; /* A complete scan, including every reserved group slot. */
+    /* Anodes stay off for this interval before cathodes are changed. */
     uint16_t dead_time_us;
-    uint16_t turn_off_us;
-    uint16_t cathode_setup_us;
-    uint16_t max_lateness_us;
 } nixie_timing_t;
 
 typedef struct {
     uint8_t anode_count;
     uint8_t cathode_count;
     uint16_t max_slot_us;
-    uint16_t min_phase_us;
 } nixie_caps_t;
 
 typedef struct {

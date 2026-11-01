@@ -11,7 +11,7 @@ static nixie_status_t report(nixie_issue_t* issue, nixie_status_t status, uint8_
 
 static bool valid_caps(const nixie_caps_t* caps) {
     return caps != NULL && caps->anode_count > 0U && caps->anode_count <= 16U && caps->cathode_count > 0U
-           && caps->cathode_count <= NIXIE_MAX_CATHODES && caps->max_slot_us > 0U && caps->min_phase_us > 0U;
+           && caps->cathode_count <= NIXIE_MAX_CATHODES && caps->max_slot_us > 0U;
 }
 
 void nixie_frame_clear(nixie_frame_t* frame) {
@@ -40,8 +40,7 @@ nixie_status_t nixie_validate_board(const nixie_board_t* board, const nixie_caps
         const nixie_tube_t* tube = element->tube;
         if (tube == NULL || tube->cathode_count == 0U || tube->cathode_count > NIXIE_MAX_CATHODES
             || tube->group_count == 0U || tube->group_count > NIXIE_MAX_GROUPS || tube->symbols == NULL
-            || tube->symbol_count == 0U || tube->symbol_count > 32U
-            || (tube->max_on_us != 0U && tube->min_on_us > tube->max_on_us)) {
+            || tube->symbol_count == 0U || tube->symbol_count > 32U) {
             return report(issue, NIXIE_INVALID_TUBE, e, UINT8_MAX);
         }
         if ((uint32_t)slot_count + tube->group_count > NIXIE_MAX_SLOTS) {
@@ -106,24 +105,18 @@ nixie_status_t nixie_validate_plan(const nixie_plan_t* plan, const nixie_caps_t*
     if (!valid_caps(caps) || plan == NULL || plan->slot_count == 0U || plan->slot_count > NIXIE_MAX_SLOTS) {
         return NIXIE_INVALID_ARGUMENT;
     }
-    const nixie_timing_t* t = &plan->timing;
-    uint32_t cathode_at = (uint32_t)t->turn_off_us + t->max_lateness_us;
-    uint32_t anode_at = (uint32_t)t->dead_time_us + t->max_lateness_us;
-    uint32_t tail = (uint32_t)t->max_lateness_us + caps->min_phase_us;
-    if (t->refresh_hz == 0U || t->max_lateness_us == 0U || t->turn_off_us < caps->min_phase_us
-        || t->cathode_setup_us < caps->min_phase_us || anode_at < cathode_at + t->cathode_setup_us + t->max_lateness_us
-        || plan->slot_us > caps->max_slot_us || plan->slot_us <= anode_at + tail) {
+    if (plan->timing.refresh_hz == 0U || plan->slot_us > caps->max_slot_us
+        || plan->slot_us <= plan->timing.dead_time_us) {
         return NIXIE_INVALID_TIMING;
     }
-    uint32_t max_on = plan->slot_us - anode_at - tail;
+    uint32_t max_on = plan->slot_us - plan->timing.dead_time_us;
     for (uint8_t s = 0U; s < plan->slot_count; ++s) {
         const nixie_slot_t* slot = &plan->slots[s];
         if (slot->anode >= caps->anode_count || ((uint32_t)slot->cathodes >> caps->cathode_count) != 0U
             || (slot->cathodes & (slot->cathodes - 1U)) != 0U) {
             return NIXIE_INVALID_WIRING;
         }
-        if (slot->on_us != 0U
-            && (slot->on_us < (uint32_t)caps->min_phase_us + t->max_lateness_us || slot->on_us > max_on)) {
+        if (slot->on_us > max_on) {
             return NIXIE_INVALID_TIMING;
         }
     }
@@ -156,7 +149,7 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
     if (result != NIXIE_OK) {
         return report(issue, result, UINT8_MAX, UINT8_MAX);
     }
-    uint32_t budget = slot_us - timing->dead_time_us - 2U * timing->max_lateness_us - caps->min_phase_us;
+    uint32_t budget = slot_us - timing->dead_time_us;
     uint8_t slot_index = 0U;
     for (uint8_t e = 0U; e < board->element_count; ++e) {
         const nixie_element_t* element = &board->elements[e];
@@ -191,13 +184,8 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
             if (brightness == 0U) {
                 continue;
             }
-            uint32_t on_us = (budget * brightness + 500U) / 1000U;
-            uint32_t minimum = tube->min_on_us > caps->min_phase_us ? tube->min_on_us : caps->min_phase_us;
-            if (on_us < minimum + timing->max_lateness_us
-                || (tube->max_on_us != 0U && on_us + timing->max_lateness_us > tube->max_on_us)) {
-                return report(issue, NIXIE_INVALID_TIMING, e, g);
-            }
-            slot->on_us = (uint16_t)on_us;
+            /* Quantize to microseconds. A pulse rounding to zero is simply blank. */
+            slot->on_us = (uint16_t)((budget * brightness + 500U) / 1000U);
         }
     }
     return report(issue, nixie_validate_plan(plan, caps), UINT8_MAX, UINT8_MAX);
@@ -210,7 +198,7 @@ const char* nixie_status_name(nixie_status_t status) {
         case NIXIE_INVALID_TUBE: return "invalid tube description";
         case NIXIE_INVALID_WIRING: return "invalid/unassigned wiring";
         case NIXIE_INVALID_SYMBOL: return "unsupported symbol/group";
-        case NIXIE_INVALID_TIMING: return "unachievable timing/brightness";
+        case NIXIE_INVALID_TIMING: return "invalid refresh period/dead time";
         case NIXIE_BUSY: return "pending frame busy";
         case NIXIE_NOT_READY: return "backend not ready";
         default: return "unknown error";
