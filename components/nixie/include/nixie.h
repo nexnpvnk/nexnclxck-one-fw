@@ -65,7 +65,7 @@ typedef struct {
 } nixie_board_t;
 
 typedef struct {
-    uint16_t refresh_hz; /* A complete scan, including every reserved group slot. */
+    uint16_t refresh_rate_hz; /* A complete scan, including every reserved group slot. */
     /* Anodes stay off for this interval before cathodes are changed. */
     uint16_t blanking_time_us;
 } nixie_timing_t;

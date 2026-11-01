@@ -74,8 +74,8 @@ static nixie_status_t publish_configuration(const app_display_profile_t* profile
         last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX, UINT8_MAX};
         return last_issue.status;
     }
-    if (profile->timing.refresh_hz < APP_DISPLAY_REFRESH_MIN_HZ
-        || profile->timing.refresh_hz > APP_DISPLAY_REFRESH_MAX_HZ) {
+    if (profile->timing.refresh_rate_hz < APP_DISPLAY_REFRESH_RATE_MIN_HZ
+        || profile->timing.refresh_rate_hz > APP_DISPLAY_REFRESH_RATE_MAX_HZ) {
         last_issue = (nixie_issue_t){NIXIE_INVALID_TIMING, UINT8_MAX, UINT8_MAX};
         return last_issue.status;
     }
@@ -150,13 +150,13 @@ nixie_status_t app_display_configure(const app_display_profile_t* profile) {
     return publish_configuration(profile, true);
 }
 
-nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_hz, uint16_t blanking_time_us) {
+nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_rate_hz, uint16_t blanking_time_us) {
     if (!initialized) {
         return NIXIE_NOT_READY;
     }
     app_display_profile_t candidate = selected;
     candidate.brightness_pm = brightness_pm;
-    candidate.timing.refresh_hz = refresh_hz;
+    candidate.timing.refresh_rate_hz = refresh_rate_hz;
     candidate.timing.blanking_time_us = blanking_time_us;
     return publish_configuration(&candidate, false);
 }
@@ -171,7 +171,7 @@ bool app_display_get_status(app_display_status_t* status) {
     }
     *status = (app_display_status_t){
         .brightness_pm = selected.brightness_pm,
-        .refresh_hz = selected.timing.refresh_hz,
+        .refresh_rate_hz = selected.timing.refresh_rate_hz,
         .blanking_time_us = selected.timing.blanking_time_us,
         .running = hardware.running,
     };
@@ -182,7 +182,7 @@ nixie_status_t app_display_set_brightness(uint16_t brightness_pm) {
     if (!initialized) {
         return NIXIE_NOT_READY;
     }
-    return app_display_set_parameters(brightness_pm, selected.timing.refresh_hz, selected.timing.blanking_time_us);
+    return app_display_set_parameters(brightness_pm, selected.timing.refresh_rate_hz, selected.timing.blanking_time_us);
 }
 
 nixie_status_t app_display_set_timing(const nixie_timing_t* timing) {

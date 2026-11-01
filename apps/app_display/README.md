@@ -90,10 +90,10 @@
 ```text
 display
 display set -b 50
-display set -f 150
-display set --brightness 50 --frequency 150
+display set -r 150
+display set --brightness 50 --refresh-rate 150
 display set -t 500
-display set --blanking-time 1000 --frequency 30
+display set --blanking-time 1000 --refresh-rate 30
 display set -b 0
 display set --help
 ```
@@ -102,7 +102,8 @@ display set --help
 индивидуальные коэффициенты ламп и точек сохраняются. 0 гасит все элементы,
 сохраняя сканирование и настройки. Внутренний API продолжает использовать 0..1000.
 
-`-f` / `--frequency` задаёт число **полных проходов в секунду**. Числовой диапазон
+`-r` / `--refresh-rate` задаёт **refresh rate** — частоту полного обновления дисплея,
+то есть число **полных проходов в секунду**. Числовой диапазон
 аргумента — **1..400 Гц**. Период слота должен помещаться в таймер, а
 `blanking_time_us` должен быть строго меньше периода слота.
 Параметр `demo_step_ms` задаётся профилем и этой командой не изменяется.
@@ -145,7 +146,7 @@ TIM1 — ручное дополнение BSP; его настройки пок
 Для плана с N слотами:
 
 ```text
-Tslot       = round(1 000 000 / (refresh_hz * N))
+Tslot       = round(1 000 000 / (refresh_rate_hz * N))
 Ton_budget  = Tslot - blanking_time_us
 Ton         = round(Ton_budget * effective_brightness / 1000)
 ```

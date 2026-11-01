@@ -315,7 +315,7 @@ bool bsp_nixie_get_status(bsp_nixie_status_t* status) {
     *status = (bsp_nixie_status_t){
         .frames = frame_count, .missed_slots = missed_slots, .running = running, .shutdown = shutdown_latched};
     __set_PRIMASK(key);
-    status->refresh_millihz = period != 0U ? 1000000000UL / period : 0U;
+    status->refresh_rate_millihz = period != 0U ? 1000000000UL / period : 0U;
     return initialized;
 }
 

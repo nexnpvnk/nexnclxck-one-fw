@@ -6,7 +6,7 @@
 typedef struct {
     uint32_t frames;
     uint32_t missed_slots;
-    uint32_t refresh_millihz;
+    uint32_t refresh_rate_millihz;
     bool running;
     bool shutdown;
 } bsp_nixie_status_t;
