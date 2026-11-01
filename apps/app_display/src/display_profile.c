@@ -107,7 +107,7 @@ const app_display_profile_t display_default_profile = {
     /* Wait for the TLP127 anode switch to turn off before changing cathodes. */
     .timing =
         {
-            .refresh_rate_hz = 100,
+            .refresh_rate_hz = 240U,
             .blanking_time_us = 500U,
         },
     .brightness_pm = 1000U, /* Global 0..1000, multiplied by the anode factor. */
