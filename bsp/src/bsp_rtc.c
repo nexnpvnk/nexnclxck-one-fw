@@ -1,6 +1,72 @@
 #include "bsp_rtc.h"
+#include "bsp_time.h"
+#include "bsp_hw.h"
 #include <stddef.h>
-#include "rtc.h"
+
+static bool ready;
+
+static bool wait_flag(uint32_t flag) {
+    uint32_t start = bsp_time_ms();
+    while ((RTC->ISR & flag) == 0U) {
+        if ((uint32_t)(bsp_time_ms() - start) >= 1000U) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* WPR must be unlocked. Writing ones preserves unrelated write-zero flags. */
+static bool sync_shadow(void) {
+    RTC->CR &= ~RTC_CR_BYPSHAD;
+    RTC->ISR = ~(RTC_ISR_RSF | RTC_ISR_INIT);
+    return wait_flag(RTC_ISR_RSF);
+}
+
+static bool rtc_begin_update(void) {
+    if ((RCC->BDCR & (RCC_BDCR_RTCEN | RCC_BDCR_LSERDY)) != (RCC_BDCR_RTCEN | RCC_BDCR_LSERDY)) {
+        ready = false;
+        return false;
+    }
+    PWR->CR |= PWR_CR_DBP;
+    RTC->WPR = 0xCAU;
+    RTC->WPR = 0x53U;
+    /* ES0202 2.11.4: synchronize shadow registers before re-entering INIT. */
+    if ((RTC->ISR & RTC_ISR_INITS) != 0U && !sync_shadow()) {
+        RTC->WPR = 0xFFU;
+        ready = false;
+        return false;
+    }
+    RTC->ISR |= RTC_ISR_INIT;
+    if (!wait_flag(RTC_ISR_INITF)) {
+        RTC->ISR &= ~RTC_ISR_INIT;
+        RTC->WPR = 0xFFU;
+        ready = false;
+        return false;
+    }
+    return true;
+}
+
+static bool rtc_end_update(void) {
+    RTC->ISR &= ~RTC_ISR_INIT;
+    ready = sync_shadow();
+    RTC->WPR = 0xFFU;
+    return ready;
+}
+
+static bool rtc_is_ready(void) { return ready; }
+
+void bsp_rtc_hw_init(void) {
+    if (!rtc_begin_update()) {
+        Error_Handler();
+    }
+    RTC->CR = (RTC->CR & ~(RTC_CR_FMT | RTC_CR_OSEL | RTC_CR_POL | RTC_CR_BYPSHAD)) | RTC_CR_COE | RTC_CR_COSEL;
+    RTC->PRER = 255U;
+    RTC->PRER |= RTC_PRER_PREDIV_A;
+    RTC->TAFCR &= ~RTC_TAFCR_ALARMOUTTYPE;
+    if (!rtc_end_update()) {
+        Error_Handler();
+    }
+}
 
 #define BSP_RTC_YEAR_BASE 2000U
 #define BSP_RTC_BKP_MAGIC 0x434C4B31U /* "CLK1" */

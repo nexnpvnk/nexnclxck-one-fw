@@ -16,17 +16,11 @@
   */
 
 #include "main.h"
-#include "adc.h"
 #include "app_main.h"
+#include "bsp_board.h"
 #include "bsp_hv.h"
 #include "bsp_time.h"
-#include "dma.h"
-#include "gpio.h"
-#include "i2c.h"
 #include "platform_config.h"
-#include "rtc.h"
-#include "tim.h"
-#include "usart.h"
 
 _Static_assert((PLATFORM_PLL_CONFIG & ~RCC_CFGR_PLLMUL) == 0U && PLATFORM_PLL_CONFIG <= RCC_CFGR_PLLMUL16,
                "STM32F051 PLL configuration must select multiplication between 2 and 16");
@@ -90,16 +84,7 @@ int main(void) {
     }
     NVIC_SetPriority(SysTick_IRQn, 3U);
     SystemClock_Config();
-    platform_gpio_init();
-    platform_dma_init();
-    platform_rtc_init();
-    platform_usart1_init();
-    platform_i2c1_init();
-    platform_tim16_init();
-    platform_tim2_init();
-    platform_adc_init();
-    platform_tim3_init();
-    platform_tim17_init();
+    bsp_board_init();
     app_main();
     Error_Handler();
 }

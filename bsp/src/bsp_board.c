@@ -1,22 +1,28 @@
-/**
-  ******************************************************************************
-  * @file    gpio.c
-  * @brief   This file provides code for the configuration
-  *          of all used GPIO pins.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+#include "bsp_board.h"
+#include "bsp_hw.h"
 
-#include "gpio.h"
+/* Check the calculations before narrowing their results to peripheral registers. */
+_Static_assert(1000000UL <= PLATFORM_HCLK_HZ, "The microsecond counter clock must be achievable");
+_Static_assert(BSP_TIM_US_PSC <= TIM_PSC_PSC && PLATFORM_HCLK_HZ % (BSP_TIM_US_PSC + 1U) == 0U
+                   && PLATFORM_HCLK_HZ / (BSP_TIM_US_PSC + 1U) == 1000000UL,
+               "The microsecond prescaler must fit 16 bits and produce the exact counter clock");
+_Static_assert(BSP_BOARD_BUZZER_INITIAL_RATE_HZ > 0U
+                   && PLATFORM_HCLK_HZ % ((BSP_TIM_US_PSC + 1U) * BSP_BOARD_BUZZER_INITIAL_RATE_HZ) == 0U
+                   && BSP_TIM16_ARR > 0U && BSP_TIM16_ARR <= UINT16_MAX,
+               "The initial TIM16 period must be exact and fit its 16-bit counter");
+_Static_assert(BSP_BOARD_HV_ADC_TARGET_RATE_HZ > 0U
+                   && PLATFORM_HCLK_HZ % ((BSP_TIM_US_PSC + 1U) * BSP_BOARD_HV_ADC_TARGET_RATE_HZ) == 0U
+                   && BSP_TIM3_ARR > 0U && BSP_TIM3_ARR <= UINT16_MAX
+                   && TIMER_CALC_RATE_HZ(PLATFORM_HCLK_HZ, BSP_TIM_US_PSC, BSP_TIM3_ARR)
+                          == BSP_BOARD_HV_ADC_TARGET_RATE_HZ,
+               "The TIM3 ADC trigger period must be exact and fit its 16-bit counter");
+_Static_assert(BSP_BOARD_HV_PWM_RATE_HZ > 0U && PLATFORM_HCLK_HZ % BSP_BOARD_HV_PWM_RATE_HZ == 0U
+                   && BSP_TIM17_ARR > 0U && BSP_TIM17_ARR <= UINT16_MAX,
+               "The TIM17 PWM period must be exact and fit its 16-bit counter");
+_Static_assert((BSP_BOARD_WS2812_BIT_RATE_HZ * BSP_BOARD_WS2812_SYMBOLS_PER_BIT) > 0U
+                   && PLATFORM_HCLK_HZ % (BSP_BOARD_WS2812_BIT_RATE_HZ * BSP_BOARD_WS2812_SYMBOLS_PER_BIT) == 0U
+                   && BSP_TIM2_ARR > 0U && BSP_TIM2_ARR <= TIM_ARR_ARR && (BSP_TIM2_ARR + 1U) % 2U == 0U,
+               "The TIM2 DMA slot must fit its 32-bit counter and have an exact midpoint");
 
 static void analog_pins(GPIO_TypeDef* gpio, uint32_t pins) {
     for (uint32_t pin = 0U; pin < 16U; ++pin) {
@@ -27,7 +33,7 @@ static void analog_pins(GPIO_TypeDef* gpio, uint32_t pins) {
     }
 }
 
-void platform_gpio_init(void) {
+static void gpio_init(void) {
     RCC->AHBENR |=
         RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOFEN;
     (void)RCC->AHBENR;
@@ -84,4 +90,27 @@ void platform_gpio_init(void) {
     NVIC_EnableIRQ(EXTI0_1_IRQn);
     NVIC_SetPriority(EXTI2_3_IRQn, 3U);
     NVIC_EnableIRQ(EXTI2_3_IRQn);
+}
+
+static void dma_init(void) {
+    RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+    (void)RCC->AHBENR;
+    NVIC_SetPriority(DMA1_Channel1_IRQn, 0U);
+    NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+    NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0U);
+    NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
+    NVIC_SetPriority(DMA1_Channel4_5_IRQn, 0U);
+    NVIC_EnableIRQ(DMA1_Channel4_5_IRQn);
+}
+
+void bsp_board_init(void) {
+    /* Preserve the original preparation order, before any runtime driver starts. */
+    gpio_init();
+    dma_init();
+    bsp_rtc_hw_init();
+    bsp_console_hw_init();
+    bsp_i2c_hw_init();
+    bsp_buzzer_hw_init();
+    bsp_ws2812_hw_init();
+    bsp_hv_hw_init();
 }

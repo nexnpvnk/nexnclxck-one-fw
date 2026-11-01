@@ -1,9 +1,8 @@
 
 #include "bsp_hv.h"
 
-#include "adc.h"
 #include "bsp_time.h"
-#include "tim.h"
+#include "bsp_hw.h"
 
 #include <stddef.h>
 
@@ -107,9 +106,9 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
     if ((RCC->APB2ENR & (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)) != (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)
         || (RCC->APB1ENR & RCC_APB1ENR_TIM3EN) == 0U || (RCC->CR2 & RCC_CR2_HSI14RDY) == 0U
         || SystemCoreClock != PLATFORM_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
-        || TIM3->PSC != PLATFORM_TIM_US_PSC || TIM3->ARR != PLATFORM_TIM3_ARR
+        || TIM3->PSC != BSP_TIM_US_PSC || TIM3->ARR != BSP_TIM3_ARR
         || (TIM3->CR2 & TIM_CR2_MMS) != TIM_CR2_MMS_1 || (TIM3->CR1 & TIM_CR1_CEN) != 0U
-        || TIM17->PSC != 0U || TIM17->ARR != PLATFORM_TIM17_ARR
+        || TIM17->PSC != 0U || TIM17->ARR != BSP_TIM17_ARR
         || (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U || ADC1->CHSELR != ADC_CHSELR_CHSEL2 || ADC1->SMPR != ADC_SMPR_SMP
         || ADC1->CFGR1 != (ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD)
         || ADC1->CR != 0U) {
@@ -365,4 +364,71 @@ void bsp_hv_adc_irq(void) {
     if (hv.callback != NULL) {
         hv.callback(voltage, hv.fault, valid, hv.callback_arg);
     }
+}
+
+static void adc_hw_init(void) {
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    (void)RCC->APB2ENR;
+    /* Configuration only. Calibration and conversion start belong to BSP HV. */
+    RCC->APB2RSTR |= RCC_APB2RSTR_ADC1RST;
+    RCC->APB2RSTR &= ~RCC_APB2RSTR_ADC1RST;
+    GPIOA->MODER |= GPIO_MODER_MODER2;
+    GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR2;
+    ADC1->IER = 0U;
+    /* 12-bit, right aligned, one channel, rising TIM3 TRGO, overwrite on OVR. */
+    ADC1->CFGR1 = ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD;
+    ADC1->CFGR2 = 0U;          /* Asynchronous HSI14 / 1. */
+    ADC1->SMPR = ADC_SMPR_SMP; /* 239.5 cycles, unchanged from the board setup. */
+    ADC1->CHSELR = ADC_CHSELR_CHSEL2;
+    ADC1->ISR = ADC_ISR_ADRDY | ADC_ISR_EOSMP | ADC_ISR_EOC | ADC_ISR_EOS | ADC_ISR_OVR | ADC_ISR_AWD;
+    NVIC_ClearPendingIRQ(ADC1_COMP_IRQn);
+    NVIC_SetPriority(ADC1_COMP_IRQn, 1U);
+    NVIC_EnableIRQ(ADC1_COMP_IRQn);
+}
+
+static void sample_timer_hw_init(void) {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+    (void)RCC->APB1ENR;
+    TIM3->CR1 = TIM_CR1_ARPE;
+    TIM3->CR2 = 0U; /* Do not emit a trigger when loading PSC/ARR below. */
+    TIM3->SMCR = 0U;
+    TIM3->DIER = 0U;
+    TIM3->PSC = (uint32_t)BSP_TIM_US_PSC;
+    TIM3->ARR = (uint32_t)BSP_TIM3_ARR;
+    TIM3->CNT = 0U;
+    TIM3->EGR = TIM_EGR_UG;
+    TIM3->SR = 0U;
+    TIM3->CR2 = TIM_CR2_MMS_1; /* Update event drives TRGO. */
+}
+
+static void pwm_hw_init(void) {
+    RCC->APB2ENR |= RCC_APB2ENR_TIM17EN;
+    (void)RCC->APB2ENR;
+    TIM17->CR1 = TIM_CR1_ARPE;
+    TIM17->CR2 = TIM_CR2_OIS1; /* HIGH idle keeps the MOSFET off. */
+    TIM17->DIER = 0U;
+    TIM17->PSC = 0U;
+    TIM17->ARR = (uint32_t)BSP_TIM17_ARR;
+    TIM17->RCR = 0U;
+    TIM17->CNT = 0U;
+    TIM17->CCR1 = 0U;
+    TIM17->CCMR1 = TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2;
+    TIM17->BDTR = TIM_BDTR_OSSI | TIM_BDTR_BKP; /* MOE and AOE stay clear. */
+    TIM17->CCER = TIM_CCER_CC1P | TIM_CCER_CC1E;
+    TIM17->EGR = TIM_EGR_UG;
+    TIM17->SR = 0U;
+    /* Connect AF only after the timer can hold the output in its HIGH idle state. */
+    GPIOA->BSRR = GPIO_BSRR_BS_7;
+    GPIOA->OTYPER &= ~GPIO_OTYPER_OT_7;
+    GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR7;
+    GPIOA->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR7;
+    GPIOA->AFR[0] = (GPIOA->AFR[0] & ~GPIO_AFRL_AFSEL7) | (5U << GPIO_AFRL_AFSEL7_Pos);
+    GPIOA->MODER = (GPIOA->MODER & ~GPIO_MODER_MODER7) | GPIO_MODER_MODER7_1;
+}
+
+void bsp_hv_hw_init(void) {
+    adc_hw_init();
+    sample_timer_hw_init();
+    pwm_hw_init();
 }

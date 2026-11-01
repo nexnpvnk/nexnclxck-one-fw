@@ -3,7 +3,7 @@
 
 #include "bsp_board_config.h"
 #include "bsp_time.h"
-#include "tim.h"
+#include "bsp_hw.h"
 
 #include <string.h>
 
@@ -172,8 +172,8 @@ bool bsp_ws2812_init(void) {
         DMA_CCR_EN | DMA_CCR_DIR | DMA_CCR_PINC | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE | DMA_CCR_MSIZE;
     const uint32_t dma_expected = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1;
     if (SystemCoreClock != PLATFORM_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
-        || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U || TIM2->PSC != 0U || TIM2->ARR != PLATFORM_TIM2_ARR
-        || TIM2->CCR3 != PLATFORM_TIM2_CCR3 || (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
+        || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U || TIM2->PSC != 0U || TIM2->ARR != BSP_TIM2_ARR
+        || TIM2->CCR3 != BSP_TIM2_CCR3 || (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
         return false;
     }
 
@@ -299,4 +299,21 @@ bool bsp_ws2812_get_stats(bsp_ws2812_stats_t* stats) {
     }
 
     return true;
+}
+
+void bsp_ws2812_hw_init(void) {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+    (void)RCC->APB1ENR;
+    TIM2->CR1 = 0U;
+    TIM2->CR2 = 0U;
+    TIM2->SMCR = 0U;
+    TIM2->DIER = 0U;
+    TIM2->PSC = 0U;
+    TIM2->ARR = (uint32_t)BSP_TIM2_ARR;
+    TIM2->CCR3 = (uint32_t)BSP_TIM2_CCR3;
+    TIM2->CCMR2 = 0U;
+    TIM2->CCER = 0U;
+    TIM2->EGR = TIM_EGR_UG;
+    TIM2->SR = 0U;
+    DMA1_Channel1->CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1 | DMA_CCR_PL;
 }

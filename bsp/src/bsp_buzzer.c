@@ -1,7 +1,7 @@
 #include "bsp_buzzer.h"
 
 #include <stddef.h>
-#include "tim.h"
+#include "bsp_hw.h"
 
 #define BSP_BUZZER_TIMER_MAX_PERIOD ((uint32_t)UINT16_MAX + 1U)
 
@@ -53,7 +53,7 @@ static bool configure_frequency(uint32_t requested_hz) {
         return false;
     }
 
-    /* ARR and CCR1 are preloaded by platform_tim16_init.
+    /* ARR and CCR1 are preloaded by bsp_buzzer_hw_init.
      * Prevent an update event between the writes
      * so the next PWM cycle uses a matching pair. */
     TIM_TypeDef* timer = TIM16;
@@ -147,4 +147,24 @@ bool bsp_buzzer_get_status(bsp_buzzer_status_t* status) {
     status->enabled = enabled;
 
     return true;
+}
+
+void bsp_buzzer_hw_init(void) {
+    RCC->APB2ENR |= RCC_APB2ENR_TIM16EN;
+    (void)RCC->APB2ENR;
+    TIM16->CR1 = TIM_CR1_ARPE;
+    TIM16->PSC = (uint32_t)BSP_TIM_US_PSC;
+    TIM16->ARR = (uint32_t)BSP_TIM16_ARR;
+    TIM16->RCR = 0U;
+    TIM16->CCR1 = 0U;
+    TIM16->CCMR1 = TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2;
+    TIM16->CCER = 0U;
+    TIM16->BDTR = 0U;
+    TIM16->EGR = TIM_EGR_UG;
+    TIM16->SR = 0U;
+    GPIOA->MODER = (GPIOA->MODER & ~GPIO_MODER_MODER6) | GPIO_MODER_MODER6_1;
+    GPIOA->OTYPER &= ~GPIO_OTYPER_OT_6;
+    GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR6;
+    GPIOA->OSPEEDR &= ~GPIO_OSPEEDR_OSPEEDR6;
+    GPIOA->AFR[0] = (GPIOA->AFR[0] & ~GPIO_AFRL_AFSEL6) | (5U << GPIO_AFRL_AFSEL6_Pos);
 }
