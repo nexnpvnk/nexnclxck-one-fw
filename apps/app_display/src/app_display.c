@@ -132,13 +132,14 @@ nixie_status_t app_display_configure(const app_display_profile_t* profile) {
     return publish_configuration(profile, true);
 }
 
-nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_hz) {
+nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_hz, uint16_t dead_time_us) {
     if (!initialized) {
         return NIXIE_NOT_READY;
     }
     app_display_profile_t candidate = selected;
     candidate.brightness_pm = brightness_pm;
     candidate.timing.refresh_hz = refresh_hz;
+    candidate.timing.dead_time_us = dead_time_us;
     return publish_configuration(&candidate, false);
 }
 
@@ -153,6 +154,7 @@ bool app_display_get_status(app_display_status_t* status) {
     *status = (app_display_status_t){
         .brightness_pm = selected.brightness_pm,
         .refresh_hz = selected.timing.refresh_hz,
+        .dead_time_us = selected.timing.dead_time_us,
         .running = hardware.running,
     };
     return true;
@@ -162,7 +164,7 @@ nixie_status_t app_display_set_brightness(uint16_t brightness_pm) {
     if (!initialized) {
         return NIXIE_NOT_READY;
     }
-    return app_display_set_parameters(brightness_pm, selected.timing.refresh_hz);
+    return app_display_set_parameters(brightness_pm, selected.timing.refresh_hz, selected.timing.dead_time_us);
 }
 
 nixie_status_t app_display_set_timing(const nixie_timing_t* timing) {

@@ -20,6 +20,7 @@ typedef struct {
 typedef struct {
     uint16_t brightness_pm;
     uint16_t refresh_hz; /* Accepted target; publication occurs at a frame boundary. */
+    uint16_t dead_time_us;
     bool running;
 } app_display_status_t;
 
@@ -33,9 +34,9 @@ void app_display_process(bool power_ready);
  * Descriptor arrays/strings, including demo_point_order, must
  * remain valid and immutable while selected. Invalid/BUSY leaves config unchanged. */
 nixie_status_t app_display_configure(const app_display_profile_t* profile);
-/* Foreground-only. Update both values in one validated publication, preserving
- * individual brightness, dead time and the current demo position. */
-nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_hz);
+/* Foreground-only. Update parameters in one validated publication, preserving
+ * individual brightness and the current demo position. */
+nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_hz, uint16_t dead_time_us);
 bool app_display_get_status(app_display_status_t* status);
 nixie_status_t app_display_set_brightness(uint16_t brightness_pm);
 nixie_status_t app_display_set_cell_brightness(uint8_t element, uint8_t group, uint16_t brightness_pm);
