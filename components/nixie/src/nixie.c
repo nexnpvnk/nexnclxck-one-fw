@@ -106,10 +106,10 @@ nixie_status_t nixie_validate_plan(const nixie_plan_t* plan, const nixie_caps_t*
         return NIXIE_INVALID_ARGUMENT;
     }
     if (plan->timing.refresh_hz == 0U || plan->slot_us > caps->max_slot_us
-        || plan->slot_us <= plan->timing.dead_time_us) {
+        || plan->slot_us <= plan->timing.blanking_time_us) {
         return NIXIE_INVALID_TIMING;
     }
-    uint32_t max_on = plan->slot_us - plan->timing.dead_time_us;
+    uint32_t max_on = plan->slot_us - plan->timing.blanking_time_us;
     for (uint8_t s = 0U; s < plan->slot_count; ++s) {
         const nixie_slot_t* slot = &plan->slots[s];
         if (slot->anode >= caps->anode_count || ((uint32_t)slot->cathodes >> caps->cathode_count) != 0U
@@ -149,7 +149,7 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
     if (result != NIXIE_OK) {
         return report(issue, result, UINT8_MAX, UINT8_MAX);
     }
-    uint32_t budget = slot_us - timing->dead_time_us;
+    uint32_t budget = slot_us - timing->blanking_time_us;
     uint8_t slot_index = 0U;
     for (uint8_t e = 0U; e < board->element_count; ++e) {
         const nixie_element_t* element = &board->elements[e];
@@ -198,7 +198,7 @@ const char* nixie_status_name(nixie_status_t status) {
         case NIXIE_INVALID_TUBE: return "invalid tube description";
         case NIXIE_INVALID_WIRING: return "invalid/unassigned wiring";
         case NIXIE_INVALID_SYMBOL: return "unsupported symbol/group";
-        case NIXIE_INVALID_TIMING: return "invalid refresh period/dead time";
+        case NIXIE_INVALID_TIMING: return "invalid refresh period/blanking time";
         case NIXIE_BUSY: return "pending frame busy";
         case NIXIE_NOT_READY: return "backend not ready";
         default: return "unknown error";

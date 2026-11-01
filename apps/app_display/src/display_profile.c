@@ -17,7 +17,7 @@ static const nixie_symbol_t in12_symbols[] = {
     {7U, 0U, 1U << 7U},
     {8U, 0U, 1U << 8U},
     {9U, 0U, 1U << 9U},
-    {NIXIE_SYMBOL_DOT, 1U, 1U << 10U},
+    {NIXIE_SYMBOL_DOT, 0U, 1U << 10U},
 };
 
 /* Optional package-pin metadata. Fill from your lamp documentation if desired.
@@ -39,7 +39,7 @@ const nixie_tube_t display_tube_in12b = {
     .anode_pin = 0U,
     .cathode_pins = in12_package_cathodes,
     .cathode_count = 11U,
-    .group_count = 2U, /* Separate fixed slots for the digit and comma. */
+    .group_count = 1U, /* Digits and comma are alternatives in the same slot. */
     .symbols = in12_symbols,
     .symbol_count = 11U,
 };
@@ -108,14 +108,14 @@ const app_display_profile_t display_default_profile = {
             .elements = upper_board,
             .element_count = sizeof(upper_board) / sizeof(upper_board[0]),
         },
-    /* Wait for the TLP627 anode switch to turn off before changing cathodes. */
+    /* Wait for the TLP127 anode switch to turn off before changing cathodes. */
     .timing =
         {
             .refresh_hz = 100,
-            .dead_time_us = 100U,
+            .blanking_time_us = 500U,
         },
     .brightness_pm = 1000U, /* Global 0..1000; each cell also has its own factor. */
-    /* Per element/group, 0..1000. IN-12B: group 0=digit, group 1=comma.
+    /* Per element/group, 0..1000. IN-12A/B: group 0=selected digit or comma.
      * Points: [6][0]/[7][0]=left pair, [8][0]/[9][0]=right pair.
      * Unused group entries have no effect. */
     .cell_brightness_pm =
@@ -131,7 +131,7 @@ const app_display_profile_t display_default_profile = {
             {1000U, 1000U, 1000U},
             {1000U, 1000U, 1000U},
         },
-    .demo_step_ms = 200U,
+    .demo_step_ms = 1000U,
     .demo_point_order = demo_point_order,
     .demo_point_count = sizeof(demo_point_order) / sizeof(demo_point_order[0]),
 };

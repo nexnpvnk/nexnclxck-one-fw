@@ -67,7 +67,7 @@ typedef struct {
 typedef struct {
     uint16_t refresh_hz; /* A complete scan, including every reserved group slot. */
     /* Anodes stay off for this interval before cathodes are changed. */
-    uint16_t dead_time_us;
+    uint16_t blanking_time_us;
 } nixie_timing_t;
 
 typedef struct {

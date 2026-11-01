@@ -33,7 +33,7 @@ typedef struct {
     hw_slot_t slots[NIXIE_MAX_SLOTS];
 } hw_plan_t;
 
-typedef enum { SLOT_SKIPPED, SLOT_DEAD, SLOT_ON, SLOT_HOLD, SLOT_DONE } slot_state_t;
+typedef enum { SLOT_SKIPPED, SLOT_BLANKING, SLOT_ON, SLOT_HOLD, SLOT_DONE } slot_state_t;
 
 /* Only IRQ reads the active plan. Foreground writes the other one exclusively,
  * then publishes its index in a short interrupt-masked section. */
@@ -82,7 +82,7 @@ static void skip_slot(void) {
     TIM1->SR = ~(TIM_SR_CC1IF | TIM_SR_CC2IF);
 }
 
-/* Dead time has elapsed. Change cathodes only now, after the TLP627 turn-off
+/* Blanking time has elapsed. Change cathodes only now, after the TLP127 turn-off
  * interval. Arm PWM from the actual anode-on write without fixed IRQ margins. */
 static void illuminate_slot(void) {
     const hw_plan_t* plan = &plans[active];
@@ -135,13 +135,13 @@ static void arm_slot(void) {
     }
     /* Start the wait after the actual GPIO-off writes, so IRQ latency can only
      * lengthen the optocoupler's turn-off interval. */
-    uint32_t start = TIM1->CNT + plan->timing.dead_time_us;
-    slot_state = SLOT_DEAD;
+    uint32_t start = TIM1->CNT + plan->timing.blanking_time_us;
+    slot_state = SLOT_BLANKING;
     if (start >= plan->slot_us || (TIM1->SR & TIM_SR_UIF) != 0U) {
         skip_slot();
         return;
     }
-    if (plan->timing.dead_time_us == 0U) {
+    if (plan->timing.blanking_time_us == 0U) {
         illuminate_slot();
         return;
     }
@@ -149,7 +149,7 @@ static void arm_slot(void) {
     TIM1->SR = ~TIM_SR_CC1IF;
     TIM1->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE;
     /* Handle a compare already reached during register programming, without
-     * waiting or dropping a slot just because dead time is short. */
+     * waiting or dropping a slot just because blanking time is short. */
     if (TIM1->CNT >= start || (TIM1->SR & TIM_SR_UIF) != 0U) {
         illuminate_slot();
     }
@@ -332,7 +332,7 @@ void bsp_nixie_timer_irq(void) {
     if ((flags & TIM_SR_UIF) != 0U) {
         anodes_off();
         TIM1->DIER = TIM_DIER_UIE;
-        if (slot_state == SLOT_DEAD || slot_state == SLOT_ON) {
+        if (slot_state == SLOT_BLANKING || slot_state == SLOT_ON) {
             ++missed_slots;
         }
         TIM1->SR = ~TIMER_FLAGS;
@@ -371,7 +371,7 @@ void bsp_nixie_timer_irq(void) {
     } else if ((flags & TIM_SR_CC1IF) != 0U) {
         TIM1->DIER = TIM_DIER_UIE;
         TIM1->SR = ~TIM_SR_CC1IF;
-        if (slot_state == SLOT_DEAD) {
+        if (slot_state == SLOT_BLANKING) {
             illuminate_slot();
         }
     }
