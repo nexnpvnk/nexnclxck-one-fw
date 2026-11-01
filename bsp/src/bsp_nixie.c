@@ -124,8 +124,9 @@ static void illuminate_slot(void) {
     __set_PRIMASK(key);
 }
 
-/* Called after all anodes are off, with any old compare flags cleared. */
-static void arm_slot(void) {
+/* off_time is captured just after the GPIO-off writes in this counter period.
+ * After a counter restart, pass 0: the anodes were already off before restart. */
+static void arm_slot(uint32_t off_time) {
     const hw_plan_t* plan = &plans[active];
     const hw_slot_t* slot = &plan->slots[slot_index];
     TIM1->DIER = TIM_DIER_UIE;
@@ -133,9 +134,9 @@ static void arm_slot(void) {
         slot_state = SLOT_DONE;
         return;
     }
-    /* Start the wait after the actual GPIO-off writes, so IRQ latency can only
-     * lengthen the optocoupler's turn-off interval. */
-    uint32_t start = TIM1->CNT + plan->timing.blanking_time_us;
+    /* Slot/frame bookkeeping consumes part of the blanking interval instead of
+     * postponing its start and taking more time from the illumination window. */
+    uint32_t start = off_time + plan->timing.blanking_time_us;
     slot_state = SLOT_BLANKING;
     if (start >= plan->slot_us || (TIM1->SR & TIM_SR_UIF) != 0U) {
         skip_slot();
@@ -167,7 +168,7 @@ static void timer_start(void) {
     slot_index = 0U;
     running = true;
     TIM1->CR1 |= TIM_CR1_CEN;
-    arm_slot();
+    arm_slot(0U);
 }
 
 void bsp_nixie_hw_init(void) {
@@ -330,12 +331,18 @@ void bsp_nixie_timer_irq(void) {
         return;
     }
     if ((flags & TIM_SR_UIF) != 0U) {
+        uint32_t key = __get_PRIMASK();
+        __disable_irq();
         anodes_off();
+        uint32_t off_time = TIM1->CNT;
         TIM1->DIER = TIM_DIER_UIE;
+        /* Acknowledge this update before allowing preemption. A later update
+         * must stay pending throughout slot/frame bookkeeping. */
+        TIM1->SR = ~TIMER_FLAGS;
+        __set_PRIMASK(key);
         if (slot_state == SLOT_BLANKING || slot_state == SLOT_ON) {
             ++missed_slots;
         }
-        TIM1->SR = ~TIMER_FLAGS;
         ++slot_index;
         const hw_plan_t* previous = &plans[active];
         if (slot_index == previous->slot_count) {
@@ -354,12 +361,12 @@ void bsp_nixie_timer_irq(void) {
                     TIM1->EGR = TIM_EGR_UG;
                     TIM1->SR = 0U;
                     TIM1->CR1 |= TIM_CR1_CEN;
-                    arm_slot();
+                    arm_slot(0U);
                     return;
                 }
             }
         }
-        arm_slot();
+        arm_slot(off_time);
         return;
     }
 

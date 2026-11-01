@@ -5,7 +5,7 @@
 
 typedef struct {
     uint32_t frames;
-    uint32_t missed_slots;
+    uint32_t missed_slots; /* Cumulative skipped slots and PWM completions late at update. */
     uint32_t refresh_rate_millihz;
     bool running;
     bool shutdown;

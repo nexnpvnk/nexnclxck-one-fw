@@ -125,7 +125,7 @@ const app_display_profile_t display_default_profile = {
             [6] = 1000U,
             [7] = 1000U,
         },
-    .demo_step_ms = 1000U,
+    .demo_step_ms = 500U,
     .demo_point_order = demo_point_order,
     .demo_point_count = sizeof(demo_point_order) / sizeof(demo_point_order[0]),
 };

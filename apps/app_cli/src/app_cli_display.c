@@ -9,8 +9,7 @@
 enum { OPT_DEFAULT, OPT_HELP, OPT_BRIGHTNESS, OPT_REFRESH_RATE, OPT_BLANKING_TIME, OPT_END };
 
 static const WshShellOption_t read_opts[] = {
-    {OPT_DEFAULT,
-     WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show display brightness, refresh rate and blanking time")},
+    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show display status, parameters and missed slots")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
@@ -36,10 +35,11 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
     WSH_SHELL_PRINT_SYS("Scan state   : %s\n"
                         "Brightness   : %u.%u %%\n"
                         "Refresh rate : %u Hz (full scan target)\n"
-                        "Blanking     : %u us\n",
+                        "Blanking     : %u us\n"
+                        "Missed slots : %lu\n",
                         status.running ? "running" : "stopped", (unsigned)(status.brightness_pm / 10U),
                         (unsigned)(status.brightness_pm % 10U), (unsigned)status.refresh_rate_hz,
-                        (unsigned)status.blanking_time_us);
+                        (unsigned)status.blanking_time_us, (unsigned long)status.missed_slots);
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 

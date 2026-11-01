@@ -21,6 +21,7 @@ typedef struct {
     uint16_t brightness_pm;
     uint16_t refresh_rate_hz; /* Accepted target; publication occurs at a frame boundary. */
     uint16_t blanking_time_us;
+    uint32_t missed_slots; /* Cumulative BSP counter, including late PWM completion. */
     bool running;
 } app_display_status_t;
 
