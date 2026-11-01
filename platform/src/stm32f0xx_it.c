@@ -20,6 +20,7 @@
 #include "bsp_console.h"
 #include "bsp_hv.h"
 #include "bsp_i2c.h"
+#include "bsp_nixie.h"
 #include "bsp_time.h"
 #include "bsp_ws2812.h"
 #include "main.h"
@@ -49,3 +50,7 @@ void ADC1_COMP_IRQHandler(void) { bsp_hv_adc_irq(); }
 void I2C1_IRQHandler(void) { bsp_i2c_irq(); }
 
 void USART1_IRQHandler(void) { bsp_console_uart_irq(); }
+
+void TIM1_BRK_UP_TRG_COM_IRQHandler(void) { bsp_nixie_timer_irq(); }
+
+void TIM1_CC_IRQHandler(void) { bsp_nixie_timer_irq(); }

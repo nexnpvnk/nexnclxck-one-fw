@@ -3,6 +3,7 @@
 #include "app_bme280.h"
 #include "app_cli.h"
 #include "app_clock.h"
+#include "app_display.h"
 #include "app_hv.h"
 #include "app_input.h"
 #include "app_light.h"
@@ -92,6 +93,12 @@ void app_main(void) {
         ulog_t(ULOG_SYSLOG_ERR, TAG, "HV initialization failed; continuing");
     }
 
+    if (!app_display_init()) {
+        nixie_issue_t issue = app_display_last_issue();
+        printf("Display disabled: %s, element=%u group=%u; edit app_display/src/display_profile.c\n",
+               nixie_status_name(issue.status), (unsigned)issue.element, (unsigned)issue.group);
+    }
+
     if (!app_cli_init()) {
         while (1) {}
     }
@@ -102,12 +109,21 @@ void app_main(void) {
 
     (void)app_sound_beep(2800U, 10U, 100U);
 
+    bool display_power_ready = false;
     while (1) {
         app_input_process();
         app_light_process();
         app_sound_process();
         app_bme280_process();
         app_hv_process();
+        app_hv_status_t hv_status;
+        /* Qualify initial HV startup once. Keep the display load connected
+         * during ordinary regulation transients; OFF/FAULT revoke permission. */
+        display_power_ready = app_hv_get_status(&hv_status) && hv_status.requested_enabled
+                              && hv_status.fault == APP_HV_FAULT_NONE
+                              && (hv_status.state == APP_HV_RUNNING
+                                  || (display_power_ready && hv_status.state == APP_HV_STARTING));
+        app_display_process(display_power_ready);
         bsp_i2c_process();
         shell_process();
         /* Handle cancellation and commands before the next periodic CLI output. */

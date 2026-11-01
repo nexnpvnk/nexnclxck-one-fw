@@ -23,5 +23,6 @@ void bsp_i2c_hw_init(void);
 void bsp_buzzer_hw_init(void);
 void bsp_ws2812_hw_init(void);
 void bsp_hv_hw_init(void);
+void bsp_nixie_hw_init(void);
 
 #endif /* BSP_HW_H */

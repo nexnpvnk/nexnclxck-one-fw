@@ -25,6 +25,7 @@ Target `platform` передаёт device headers и определения MCU,
 5. `bsp_buzzer_hw_init()`: TIM16 и PA6 в `bsp_buzzer.c`.
 6. `bsp_ws2812_hw_init()`: TIM2 и исходная конфигурация DMA1 CH1 в `bsp_ws2812.c`.
 7. `bsp_hv_hw_init()`: ADC, TIM3 и TIM17/PA7 в `bsp_hv.c`, в этом порядке.
+8. `bsp_nixie_hw_init()`: TIM1, остановленный до публикации корректного плана.
 
 После подготовки приложение запускает рабочие BSP-драйверы на прежних местах.
 TIM3 остаётся остановленным до готовности ADC; TIM17 получает HIGH idle,
@@ -94,6 +95,7 @@ PSC к ближайшему целому, усечение периода ARR и
 | HV ADC | PA2 / IN2, HSI14 14 МГц, 12 бит, sampling 239.5 cycles, TIM3 TRGO 2 кГц |
 | RTC | LSE, prescaler 127/255, 24 часа, калибровочный выход PC13 1 Гц |
 | Кнопки | PC0..PC3 pull-up, EXTI по обоим фронтам |
+| Индикация ГРИ | TIM1 1 МГц, update + CC1/CC2/CC3 IRQ priority 2, GPIO BSRR; без DMA |
 | Аноды | ANODE_0..7: PB11, PB10, PB2, PB1, PB0, PC5, PC4, PA5 |
 | Катоды | CATHODE_0..15: PB9, PB8, PB5, PB4, PB3, PC12, PC11, PC10, PC8, PC9, PC7, PC6, PB15, PB14, PB13, PB12 |
 
@@ -107,7 +109,11 @@ SWD PA13/PA14, RTC PC13 и LSE PC14/PC15 общая настройка GPIO не
 RTC/LSE подготавливаются своими регистрами, AF периферии — в соответствующих `*_hw_init()`.
 PA7 устанавливается в HIGH до подключения альтернативной функции TIM17.
 
-NVIC: UART, I2C и DMA — priority 0, ADC — 1, EXTI и SysTick — 3.
+Названия выводов по `.ioc` централизованы в частном `bsp/src/bsp_pins.h`.
+Настройка GPIO и backend индикации используют одну привязку анодов/катодов.
+Профиль верхней платы и запуск демо описаны в [app_display](../apps/app_display/README.md).
+
+NVIC: UART, I2C и DMA — priority 0, ADC — 1, индикация TIM1 — 2, EXTI и SysTick — 3.
 UART и его DMA имеют одинаковый приоритет, поэтому их обработчики не прерывают
 друг друга при работе с общим состоянием консоли. Каналы DMA закреплены за
 периферией; совместное использование канала другими модулями не поддерживается.

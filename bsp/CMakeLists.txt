@@ -16,6 +16,7 @@ target_sources(bsp
         src/bsp_buttons.c
         src/bsp_ws2812.c
         src/bsp_hv.c
+        src/bsp_nixie.c
         src/bsp_board.c
 )
 
@@ -31,5 +32,5 @@ target_link_libraries(bsp
         ui2c_stm32f0
 )
 
-# Public board APIs expose the portable I2C bus handle.
-target_link_libraries(bsp PUBLIC ui2c)
+# Public board APIs expose portable I2C and nixie types.
+target_link_libraries(bsp PUBLIC ui2c nixie)

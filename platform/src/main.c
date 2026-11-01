@@ -19,6 +19,7 @@
 #include "app_main.h"
 #include "bsp_board.h"
 #include "bsp_hv.h"
+#include "bsp_nixie.h"
 #include "bsp_time.h"
 #include "platform_config.h"
 
@@ -93,6 +94,7 @@ void Error_Handler(void) {
     __disable_irq();
     /* Also callable before peripheral initialization and from fault context. */
     bsp_hv_shutdown();
+    bsp_nixie_shutdown();
     __DSB();
     for (;;) {}
 }

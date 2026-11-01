@@ -21,5 +21,6 @@ target_link_libraries(app_main
         app_sound
         app_clock
         app_light
+        app_display
         app_input
 )

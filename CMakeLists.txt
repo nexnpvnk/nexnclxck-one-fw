@@ -105,6 +105,7 @@ set(LWBTN_OPTS_FILE
 
 add_subdirectory(components/lwbtn/lwbtn)
 add_subdirectory(components/ledfx)
+add_subdirectory(components/nixie)
 
 #
 # Board support

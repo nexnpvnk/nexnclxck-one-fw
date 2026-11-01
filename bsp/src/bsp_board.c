@@ -1,5 +1,6 @@
 #include "bsp_board.h"
 #include "bsp_hw.h"
+#include "bsp_pins.h"
 
 /* Check the calculations before narrowing their results to peripheral registers. */
 _Static_assert(1000000UL <= PLATFORM_HCLK_HZ, "The microsecond counter clock must be achievable");
@@ -33,6 +34,22 @@ static void analog_pins(GPIO_TypeDef* gpio, uint32_t pins) {
     }
 }
 
+static void output_pins(GPIO_TypeDef* gpio, uint32_t pins) {
+    /* MODER/PUPDR/OSPEEDR use the same two-bit field positions on STM32F051. */
+    uint32_t fields = 0U;
+    uint32_t modes = 0U;
+    for (uint32_t pin = 0U; pin < 16U; ++pin) {
+        if ((pins & (1U << pin)) != 0U) {
+            fields |= GPIO_MODER_MODER0 << (pin * GPIO_MODER_MODER1_Pos);
+            modes |= GPIO_MODER_MODER0_0 << (pin * GPIO_MODER_MODER1_Pos);
+        }
+    }
+    gpio->OTYPER &= ~pins;
+    gpio->PUPDR &= ~fields;
+    gpio->OSPEEDR |= fields;
+    gpio->MODER = (gpio->MODER & ~fields) | modes;
+}
+
 static void gpio_init(void) {
     RCC->AHBENR |=
         RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOFEN;
@@ -43,55 +60,15 @@ static void gpio_init(void) {
 
     /* The .ioc starts all eight anodes and sixteen cathodes LOW.
      * Preload every latch, then configure the electrical fields before MODER. */
-    GPIOA->BSRR = GPIO_BSRR_BR_5;
-    GPIOB->BSRR = GPIO_BSRR_BR_0 | GPIO_BSRR_BR_1 | GPIO_BSRR_BR_2 | GPIO_BSRR_BR_3 | GPIO_BSRR_BR_4 | GPIO_BSRR_BR_5
-                 | GPIO_BSRR_BR_8 | GPIO_BSRR_BR_9 | GPIO_BSRR_BR_10 | GPIO_BSRR_BR_11 | GPIO_BSRR_BR_12
-                 | GPIO_BSRR_BR_13 | GPIO_BSRR_BR_14 | GPIO_BSRR_BR_15;
-    GPIOC->BSRR = GPIO_BSRR_BR_4 | GPIO_BSRR_BR_5 | GPIO_BSRR_BR_6 | GPIO_BSRR_BR_7 | GPIO_BSRR_BR_8 | GPIO_BSRR_BR_9
-                 | GPIO_BSRR_BR_10 | GPIO_BSRR_BR_11 | GPIO_BSRR_BR_12;
-
-    /* PA5: ANODE_7. */
-    GPIOA->OTYPER &= ~GPIO_OTYPER_OT_5;
-    GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR5;
-    GPIOA->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR5;
-    GPIOA->MODER = (GPIOA->MODER & ~GPIO_MODER_MODER5) | GPIO_MODER_MODER5_0;
-
-    /* PB0/PB1/PB2/PB10/PB11: ANODE_4/3/2/1/0.
-     * PB3/PB4/PB5/PB8/PB9/PB12/PB13/PB14/PB15: CATHODE_4/3/2/1/0/15/14/13/12. */
-    GPIOB->OTYPER &= ~(GPIO_OTYPER_OT_0 | GPIO_OTYPER_OT_1 | GPIO_OTYPER_OT_2 | GPIO_OTYPER_OT_3 | GPIO_OTYPER_OT_4
-                       | GPIO_OTYPER_OT_5 | GPIO_OTYPER_OT_8 | GPIO_OTYPER_OT_9 | GPIO_OTYPER_OT_10 | GPIO_OTYPER_OT_11
-                       | GPIO_OTYPER_OT_12 | GPIO_OTYPER_OT_13 | GPIO_OTYPER_OT_14 | GPIO_OTYPER_OT_15);
-    GPIOB->PUPDR &=
-        ~(GPIO_PUPDR_PUPDR0 | GPIO_PUPDR_PUPDR1 | GPIO_PUPDR_PUPDR2 | GPIO_PUPDR_PUPDR3 | GPIO_PUPDR_PUPDR4
-          | GPIO_PUPDR_PUPDR5 | GPIO_PUPDR_PUPDR8 | GPIO_PUPDR_PUPDR9 | GPIO_PUPDR_PUPDR10 | GPIO_PUPDR_PUPDR11
-          | GPIO_PUPDR_PUPDR12 | GPIO_PUPDR_PUPDR13 | GPIO_PUPDR_PUPDR14 | GPIO_PUPDR_PUPDR15);
-    GPIOB->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR0 | GPIO_OSPEEDR_OSPEEDR1 | GPIO_OSPEEDR_OSPEEDR2 | GPIO_OSPEEDR_OSPEEDR3
-                      | GPIO_OSPEEDR_OSPEEDR4 | GPIO_OSPEEDR_OSPEEDR5 | GPIO_OSPEEDR_OSPEEDR8 | GPIO_OSPEEDR_OSPEEDR9
-                      | GPIO_OSPEEDR_OSPEEDR10 | GPIO_OSPEEDR_OSPEEDR11 | GPIO_OSPEEDR_OSPEEDR12 | GPIO_OSPEEDR_OSPEEDR13
-                      | GPIO_OSPEEDR_OSPEEDR14 | GPIO_OSPEEDR_OSPEEDR15;
-    GPIOB->MODER =
-        (GPIOB->MODER
-         & ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER1 | GPIO_MODER_MODER2 | GPIO_MODER_MODER3 | GPIO_MODER_MODER4
-             | GPIO_MODER_MODER5 | GPIO_MODER_MODER8 | GPIO_MODER_MODER9 | GPIO_MODER_MODER10 | GPIO_MODER_MODER11
-             | GPIO_MODER_MODER12 | GPIO_MODER_MODER13 | GPIO_MODER_MODER14 | GPIO_MODER_MODER15))
-        | GPIO_MODER_MODER0_0 | GPIO_MODER_MODER1_0 | GPIO_MODER_MODER2_0 | GPIO_MODER_MODER3_0 | GPIO_MODER_MODER4_0
-        | GPIO_MODER_MODER5_0 | GPIO_MODER_MODER8_0 | GPIO_MODER_MODER9_0 | GPIO_MODER_MODER10_0 | GPIO_MODER_MODER11_0
-        | GPIO_MODER_MODER12_0 | GPIO_MODER_MODER13_0 | GPIO_MODER_MODER14_0 | GPIO_MODER_MODER15_0;
-
-    /* PC4/PC5: ANODE_6/5. PC6/PC7/PC8/PC9/PC10/PC11/PC12: CATHODE_11/10/8/9/7/6/5. */
-    GPIOC->OTYPER &= ~(GPIO_OTYPER_OT_4 | GPIO_OTYPER_OT_5 | GPIO_OTYPER_OT_6 | GPIO_OTYPER_OT_7 | GPIO_OTYPER_OT_8
-                       | GPIO_OTYPER_OT_9 | GPIO_OTYPER_OT_10 | GPIO_OTYPER_OT_11 | GPIO_OTYPER_OT_12);
-    GPIOC->PUPDR &= ~(GPIO_PUPDR_PUPDR4 | GPIO_PUPDR_PUPDR5 | GPIO_PUPDR_PUPDR6 | GPIO_PUPDR_PUPDR7 | GPIO_PUPDR_PUPDR8
-                      | GPIO_PUPDR_PUPDR9 | GPIO_PUPDR_PUPDR10 | GPIO_PUPDR_PUPDR11 | GPIO_PUPDR_PUPDR12);
-    GPIOC->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR4 | GPIO_OSPEEDR_OSPEEDR5 | GPIO_OSPEEDR_OSPEEDR6 | GPIO_OSPEEDR_OSPEEDR7
-                      | GPIO_OSPEEDR_OSPEEDR8 | GPIO_OSPEEDR_OSPEEDR9 | GPIO_OSPEEDR_OSPEEDR10 | GPIO_OSPEEDR_OSPEEDR11
-                      | GPIO_OSPEEDR_OSPEEDR12;
-    GPIOC->MODER =
-        (GPIOC->MODER
-         & ~(GPIO_MODER_MODER4 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7 | GPIO_MODER_MODER8
-             | GPIO_MODER_MODER9 | GPIO_MODER_MODER10 | GPIO_MODER_MODER11 | GPIO_MODER_MODER12))
-        | GPIO_MODER_MODER4_0 | GPIO_MODER_MODER5_0 | GPIO_MODER_MODER6_0 | GPIO_MODER_MODER7_0 | GPIO_MODER_MODER8_0
-        | GPIO_MODER_MODER9_0 | GPIO_MODER_MODER10_0 | GPIO_MODER_MODER11_0 | GPIO_MODER_MODER12_0;
+    uint32_t outputs_a = BSP_NIXIE_ANODE_A_MASK | BSP_NIXIE_CATHODE_A_MASK;
+    uint32_t outputs_b = BSP_NIXIE_ANODE_B_MASK | BSP_NIXIE_CATHODE_B_MASK;
+    uint32_t outputs_c = BSP_NIXIE_ANODE_C_MASK | BSP_NIXIE_CATHODE_C_MASK;
+    GPIOA->BSRR = outputs_a << 16U;
+    GPIOB->BSRR = outputs_b << 16U;
+    GPIOC->BSRR = outputs_c << 16U;
+    output_pins(GPIOA, outputs_a);
+    output_pins(GPIOB, outputs_b);
+    output_pins(GPIOC, outputs_c);
 
     /* HIGH keeps the inverting HV gate driver off before TIM17 takes over. */
     GPIOA->BSRR = GPIO_BSRR_BS_7;
@@ -144,4 +121,5 @@ void bsp_board_init(void) {
     bsp_buzzer_hw_init();
     bsp_ws2812_hw_init();
     bsp_hv_hw_init();
+    bsp_nixie_hw_init();
 }
