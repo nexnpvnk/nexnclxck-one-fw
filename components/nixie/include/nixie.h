@@ -16,7 +16,6 @@
 #define NIXIE_CHANNEL_FIXED      (UINT8_MAX - 1U)
 #define NIXIE_SYMBOL_BLANK       UINT8_MAX
 #define NIXIE_SYMBOL_DOT         10U
-#define NIXIE_SYMBOL_DOT_RIGHT   11U
 #define NIXIE_SYMBOL_ON          12U
 
 typedef enum {
@@ -100,7 +99,6 @@ typedef struct {
 
 /* All functions are foreground-only, have no hardware side effects and allocate
  * no memory. Descriptors are borrowed only for the duration of each call. */
-void nixie_frame_clear(nixie_frame_t* frame);
 nixie_status_t nixie_validate_board(const nixie_board_t* board, const nixie_caps_t* caps, nixie_issue_t* issue);
 /* A failed compilation may modify plan; never publish it unless NIXIE_OK. */
 nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* timing, const nixie_frame_t* frame,

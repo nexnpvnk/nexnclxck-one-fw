@@ -14,19 +14,6 @@ static bool valid_caps(const nixie_caps_t* caps) {
            && caps->cathode_count <= NIXIE_MAX_CATHODES && caps->max_slot_us > 0U;
 }
 
-void nixie_frame_clear(nixie_frame_t* frame) {
-    if (frame == NULL) {
-        return;
-    }
-    frame->brightness_pm = NIXIE_BRIGHTNESS_MAX;
-    for (uint8_t a = 0U; a < NIXIE_MAX_ANODES; ++a) {
-        frame->anode_brightness_pm[a] = NIXIE_BRIGHTNESS_MAX;
-    }
-    for (uint8_t e = 0U; e < NIXIE_MAX_ELEMENTS; ++e) {
-        frame->symbols[e] = NIXIE_SYMBOL_BLANK;
-    }
-}
-
 nixie_status_t nixie_validate_board(const nixie_board_t* board, const nixie_caps_t* caps, nixie_issue_t* issue) {
     if (!valid_caps(caps) || board == NULL || board->elements == NULL || board->element_count == 0U
         || board->element_count > NIXIE_MAX_ELEMENTS) {
@@ -118,18 +105,44 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
     if (result != NIXIE_OK) {
         return result;
     }
-    *plan = (nixie_plan_t){.timing = *timing};
-    /* Reserve each wired anode once, in board order, including dark elements. */
+    plan->timing = *timing;
+    plan->slot_count = 0U;
+    uint8_t anode_slots[NIXIE_MAX_ANODES] = {0U};
     uint16_t anodes = 0U;
+    uint16_t lit_anodes = 0U;
+    /* Reserve anodes and combine their selected cathodes in one board pass.
+     * Dark elements still reserve the slot, preserving the scan period. */
     for (uint8_t e = 0U; e < board->element_count; ++e) {
-        uint8_t anode = board->elements[e].anode_channel;
-        if (frame->anode_brightness_pm[anode] > NIXIE_BRIGHTNESS_MAX) {
-            return report(issue, NIXIE_INVALID_ARGUMENT, e);
+        const nixie_element_t* element = &board->elements[e];
+        uint8_t anode = element->anode_channel;
+        uint16_t bit = (uint16_t)(1U << anode);
+        if ((anodes & bit) == 0U) {
+            if (frame->anode_brightness_pm[anode] > NIXIE_BRIGHTNESS_MAX) {
+                return report(issue, NIXIE_INVALID_ARGUMENT, e);
+            }
+            anode_slots[anode] = plan->slot_count;
+            plan->slots[plan->slot_count++] = (nixie_slot_t){.anode = anode};
+            anodes |= bit;
         }
-        if ((anodes & (1U << anode)) == 0U) {
-            plan->slots[plan->slot_count++].anode = anode;
-            anodes |= (uint16_t)(1U << anode);
+        if (frame->symbols[e] == NIXIE_SYMBOL_BLANK) {
+            continue;
         }
+        const nixie_tube_t* tube = element->tube;
+        const nixie_symbol_t* selected = NULL;
+        for (uint8_t s = 0U; s < tube->symbol_count; ++s) {
+            if (tube->symbols[s].id == frame->symbols[e]) {
+                selected = &tube->symbols[s];
+                break;
+            }
+        }
+        if (selected == NULL) {
+            return report(issue, NIXIE_INVALID_SYMBOL, e);
+        }
+        uint8_t channel = element->cathode_channels[selected->cathode];
+        if (channel != NIXIE_CHANNEL_FIXED) {
+            plan->slots[anode_slots[anode]].cathodes |= (uint16_t)(1U << channel);
+        }
+        lit_anodes |= bit;
     }
     uint32_t rate = (uint32_t)timing->refresh_rate_hz * plan->slot_count;
     if (rate == 0U) {
@@ -143,30 +156,7 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
     uint32_t budget = slot_us - timing->blanking_time_us;
     for (uint8_t s = 0U; s < plan->slot_count; ++s) {
         nixie_slot_t* slot = &plan->slots[s];
-        bool lit = false;
-        for (uint8_t e = 0U; e < board->element_count; ++e) {
-            const nixie_element_t* element = &board->elements[e];
-            if (element->anode_channel != slot->anode || frame->symbols[e] == NIXIE_SYMBOL_BLANK) {
-                continue;
-            }
-            const nixie_tube_t* tube = element->tube;
-            const nixie_symbol_t* selected = NULL;
-            for (uint8_t symbol = 0U; symbol < tube->symbol_count; ++symbol) {
-                if (tube->symbols[symbol].id == frame->symbols[e]) {
-                    selected = &tube->symbols[symbol];
-                    break;
-                }
-            }
-            if (selected == NULL) {
-                return report(issue, NIXIE_INVALID_SYMBOL, e);
-            }
-            uint8_t channel = element->cathode_channels[selected->cathode];
-            if (channel != NIXIE_CHANNEL_FIXED) {
-                slot->cathodes |= (uint16_t)(1U << channel);
-            }
-            lit = true;
-        }
-        if (lit) {
+        if ((lit_anodes & (1U << slot->anode)) != 0U) {
             uint32_t brightness =
                 ((uint32_t)frame->brightness_pm * frame->anode_brightness_pm[slot->anode] + 500U) / 1000U;
             /* All selected cathodes share the anode PWM. A pulse quantized to
@@ -174,7 +164,7 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
             slot->on_us = (uint16_t)((budget * brightness + 500U) / 1000U);
         }
     }
-    return report(issue, nixie_validate_plan(plan, caps), UINT8_MAX);
+    return report(issue, NIXIE_OK, UINT8_MAX);
 }
 
 const char* nixie_status_name(nixie_status_t status) {

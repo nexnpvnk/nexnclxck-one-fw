@@ -12,28 +12,37 @@ typedef struct {
 
 static const pin_t anodes[] = {BSP_NIXIE_ANODE_BINDINGS};
 static const pin_t cathodes[] = {BSP_NIXIE_CATHODE_BINDINGS};
-static const nixie_caps_t caps = {.anode_count = 8U, .cathode_count = 16U, .max_slot_us = UINT16_MAX};
 
-_Static_assert(sizeof(anodes) / sizeof(anodes[0]) == 8U, "Carrier has eight anodes");
-_Static_assert(sizeof(cathodes) / sizeof(cathodes[0]) == 16U, "Carrier has sixteen cathodes");
+enum {
+    ANODE_COUNT = sizeof(anodes) / sizeof(anodes[0]),
+    CATHODE_COUNT = sizeof(cathodes) / sizeof(cathodes[0]),
+};
+
+static const nixie_caps_t caps = {
+    .anode_count = ANODE_COUNT, .cathode_count = CATHODE_COUNT, .max_slot_us = UINT16_MAX};
+
+_Static_assert(ANODE_COUNT == 8U, "Carrier has eight anodes");
+_Static_assert(CATHODE_COUNT == 16U, "Carrier has sixteen cathodes");
 
 #define TIMER_FLAGS (TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF)
 
 typedef struct {
     uint32_t cathode_b;
     uint32_t cathode_c;
+    GPIO_TypeDef* anode_port;
+    uint16_t anode_pin;
     uint16_t on_us;
-    uint8_t anode;
 } hw_slot_t;
 
 typedef struct {
     nixie_timing_t timing;
     uint16_t slot_us;
     uint8_t slot_count;
-    hw_slot_t slots[NIXIE_MAX_ANODES];
+    hw_slot_t slots[ANODE_COUNT];
 } hw_plan_t;
 
-typedef enum { SLOT_SKIPPED, SLOT_BLANKING, SLOT_ON, SLOT_HOLD, SLOT_DONE } slot_state_t;
+/* WAIT_UPDATE covers both completed PWM and full brightness held until update. */
+typedef enum { SLOT_SKIPPED, SLOT_BLANKING, SLOT_ON, SLOT_WAIT_UPDATE } slot_state_t;
 
 /* Only IRQ reads the active plan. Foreground writes the other one exclusively,
  * then publishes its index in a short interrupt-masked section. */
@@ -71,13 +80,22 @@ static void timer_stop(void) {
     NVIC_ClearPendingIRQ(TIM1_CC_IRQn);
 }
 
+static void timer_restart(uint16_t slot_us) {
+    TIM1->CR1 &= ~TIM_CR1_CEN;
+    TIM1->ARR = (uint32_t)slot_us - 1U;
+    TIM1->CNT = 0U;
+    TIM1->EGR = TIM_EGR_UG;
+    TIM1->SR = 0U;
+    TIM1->CR1 |= TIM_CR1_CEN;
+}
+
+/* Compare IRQs are already disabled by arm_slot/illuminate_slot. */
 static void skip_slot(void) {
     anodes_off();
     if (slot_state != SLOT_SKIPPED) {
         ++missed_slots;
     }
     slot_state = SLOT_SKIPPED;
-    TIM1->DIER = TIM_DIER_UIE;
     /* Preserve an update which may have arrived during this handler. */
     TIM1->SR = ~(TIM_SR_CC1IF | TIM_SR_CC2IF);
 }
@@ -99,14 +117,14 @@ static void illuminate_slot(void) {
     GPIOB->BSRR = slot->cathode_b;
     GPIOC->BSRR = slot->cathode_c;
     __DSB();
-    anodes[slot->anode].port->BSRR = anodes[slot->anode].pin;
+    slot->anode_port->BSRR = slot->anode_pin;
     __DSB();
     uint32_t end = TIM1->CNT + slot->on_us;
     if ((TIM1->SR & TIM_SR_UIF) != 0U) {
         skip_slot();
     } else if (end >= plan->slot_us) {
         /* Full brightness (or a delayed start): the next update ends the pulse. */
-        slot_state = SLOT_HOLD;
+        slot_state = SLOT_WAIT_UPDATE;
     } else {
         TIM1->CCR2 = end;
         TIM1->SR = ~TIM_SR_CC2IF;
@@ -118,20 +136,19 @@ static void illuminate_slot(void) {
             anodes_off();
             TIM1->DIER = TIM_DIER_UIE;
             TIM1->SR = ~TIM_SR_CC2IF;
-            slot_state = SLOT_DONE;
+            slot_state = SLOT_WAIT_UPDATE;
         }
     }
     __set_PRIMASK(key);
 }
 
-/* off_time is captured just after the GPIO-off writes in this counter period.
+/* Only update IRQ is enabled on entry. off_time follows the GPIO-off writes.
  * After a counter restart, pass 0: the anodes were already off before restart. */
 static void arm_slot(uint32_t off_time) {
     const hw_plan_t* plan = &plans[active];
     const hw_slot_t* slot = &plan->slots[slot_index];
-    TIM1->DIER = TIM_DIER_UIE;
     if (slot->on_us == 0U) {
-        slot_state = SLOT_DONE;
+        slot_state = SLOT_WAIT_UPDATE;
         return;
     }
     /* Slot/frame bookkeeping consumes part of the blanking interval instead of
@@ -161,13 +178,10 @@ static void timer_start(void) {
     timer_stop();
     anodes_off();
     cathodes_off();
-    TIM1->ARR = (uint32_t)plan->slot_us - 1U;
-    TIM1->CNT = 0U;
-    TIM1->EGR = TIM_EGR_UG;
-    TIM1->SR = 0U;
     slot_index = 0U;
     running = true;
-    TIM1->CR1 |= TIM_CR1_CEN;
+    timer_restart(plan->slot_us);
+    TIM1->DIER = TIM_DIER_UIE;
     arm_slot(0U);
 }
 
@@ -244,8 +258,9 @@ nixie_status_t bsp_nixie_present(const nixie_plan_t* plan) {
         target->slots[s] = (hw_slot_t){
             .cathode_b = b | ((BSP_NIXIE_CATHODE_B_MASK & ~b) << 16U),
             .cathode_c = c | ((BSP_NIXIE_CATHODE_C_MASK & ~c) << 16U),
+            .anode_port = anodes[source->anode].port,
+            .anode_pin = (uint16_t)anodes[source->anode].pin,
             .on_us = source->on_us,
-            .anode = source->anode,
         };
     }
     key = __get_PRIMASK();
@@ -312,7 +327,8 @@ bool bsp_nixie_get_status(bsp_nixie_status_t* status) {
     }
     uint32_t key = __get_PRIMASK();
     __disable_irq();
-    uint32_t period = have_plan ? (uint32_t)plans[active].slot_us * plans[active].slot_count : 0U;
+    const hw_plan_t* plan = &plans[active];
+    uint32_t period = have_plan ? (uint32_t)plan->slot_us * plan->slot_count : 0U;
     *status = (bsp_nixie_status_t){
         .frames = frame_count, .missed_slots = missed_slots, .running = running, .shutdown = shutdown_latched};
     __set_PRIMASK(key);
@@ -355,12 +371,7 @@ void bsp_nixie_timer_irq(void) {
                 pending = false;
                 if (plans[active].slot_us != old_period) {
                     /* Change ARR only at a blank complete-frame boundary. */
-                    TIM1->CR1 &= ~TIM_CR1_CEN;
-                    TIM1->ARR = (uint32_t)plans[active].slot_us - 1U;
-                    TIM1->CNT = 0U;
-                    TIM1->EGR = TIM_EGR_UG;
-                    TIM1->SR = 0U;
-                    TIM1->CR1 |= TIM_CR1_CEN;
+                    timer_restart(plans[active].slot_us);
                     arm_slot(0U);
                     return;
                 }
@@ -374,12 +385,13 @@ void bsp_nixie_timer_irq(void) {
         anodes_off();
         TIM1->DIER = TIM_DIER_UIE;
         TIM1->SR = ~TIM_SR_CC2IF;
-        slot_state = SLOT_DONE;
+        slot_state = SLOT_WAIT_UPDATE;
     } else if ((flags & TIM_SR_CC1IF) != 0U) {
-        TIM1->DIER = TIM_DIER_UIE;
-        TIM1->SR = ~TIM_SR_CC1IF;
         if (slot_state == SLOT_BLANKING) {
             illuminate_slot();
+        } else {
+            TIM1->DIER = TIM_DIER_UIE;
+            TIM1->SR = ~TIM_SR_CC1IF;
         }
     }
 }

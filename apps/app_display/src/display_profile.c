@@ -20,14 +20,8 @@ static const nixie_symbol_t in12_symbols[] = {
     {NIXIE_SYMBOL_DOT, 10U},
 };
 
-/* Optional package-pin metadata. Fill from your lamp documentation if desired.
- * Zero entries are unspecified and are NOT used to infer carrier connections. */
-static const uint8_t in12_package_cathodes[] = {0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U};
-
 const nixie_tube_t display_tube_in12a = {
     .name = "IN-12A",
-    .anode_pin = 0U,
-    .cathode_pins = in12_package_cathodes,
     .cathode_count = 10U,
     .symbols = in12_symbols,
     .symbol_count = 10U,
@@ -35,8 +29,6 @@ const nixie_tube_t display_tube_in12a = {
 
 const nixie_tube_t display_tube_in12b = {
     .name = "IN-12B",
-    .anode_pin = 0U,
-    .cathode_pins = in12_package_cathodes,
     .cathode_count = 11U,
     .symbols = in12_symbols,
     .symbol_count = 11U,
@@ -91,12 +83,6 @@ static const nixie_element_t upper_board[] = {
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_right_channels[1]},
 };
 
-/* Clockwise, assuming each pair is listed upper point first:
- *   6 (left upper)    8 (right upper)
- *   7 (left lower)    9 (right lower)
- * Reorder these indices if the physical point arrangement differs. */
-static const uint8_t demo_point_order[] = {6U, 8U, 9U, 7U};
-
 const app_display_profile_t display_default_profile = {
     .board =
         {
@@ -125,7 +111,4 @@ const app_display_profile_t display_default_profile = {
             [6] = 1000U,
             [7] = 1000U,
         },
-    .demo_step_ms = 500U,
-    .demo_point_order = demo_point_order,
-    .demo_point_count = sizeof(demo_point_order) / sizeof(demo_point_order[0]),
 };
