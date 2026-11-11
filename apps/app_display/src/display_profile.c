@@ -71,17 +71,31 @@ static const uint8_t separator_right_channels[] = {7, 10};
  * anode_channel accordingly. Shared-anode elements must have disjoint cathodes.
  * Points wired to the same anode AND cathode form one controlled element. */
 static const nixie_element_t upper_board[] = {
-    {.tube = &display_tube_in12b, .anode_channel = 0, .cathode_channels = in12_cathode_channels}, /* digit, leftmost */
-    {.tube = &display_tube_in12b, .anode_channel = 1, .cathode_channels = in12_cathode_channels},
-    {.tube = &display_tube_in12b, .anode_channel = 3, .cathode_channels = in12_cathode_channels},
-    {.tube = &display_tube_in12b, .anode_channel = 4, .cathode_channels = in12_cathode_channels},
+    {.tube = &display_tube_in12b, .anode_channel = 6, .cathode_channels = in12_cathode_channels}, /* digit, leftmost */
     {.tube = &display_tube_in12b, .anode_channel = 5, .cathode_channels = in12_cathode_channels},
-    {.tube = &display_tube_in12b, .anode_channel = 6, .cathode_channels = in12_cathode_channels}, /* digit, rightmost */
+    {.tube = &display_tube_in12b, .anode_channel = 4, .cathode_channels = in12_cathode_channels},
+    {.tube = &display_tube_in12b, .anode_channel = 3, .cathode_channels = in12_cathode_channels},
+    {.tube = &display_tube_in12b, .anode_channel = 1, .cathode_channels = in12_cathode_channels},
+    {.tube = &display_tube_in12b, .anode_channel = 0, .cathode_channels = in12_cathode_channels}, /* digit, rightmost */
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_left_channels[0]},
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_left_channels[1]},
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_right_channels[0]},
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_right_channels[1]},
 };
+
+/* Clock presentation follows logical elements, independently of GPIO wiring.
+ * A four-digit board uses only HOUR/MINUTE roles. Omit absent elements; use
+ * UNUSED for elements which should stay blank. All separator points blink
+ * together: one RTC second on, one second off. */
+static const app_display_clock_role_t clock_roles[] = {
+    [0] = APP_DISPLAY_CLOCK_HOUR_TENS,    [1] = APP_DISPLAY_CLOCK_HOUR_UNITS,  [2] = APP_DISPLAY_CLOCK_MINUTE_TENS,
+    [3] = APP_DISPLAY_CLOCK_MINUTE_UNITS, [4] = APP_DISPLAY_CLOCK_SECOND_TENS, [5] = APP_DISPLAY_CLOCK_SECOND_UNITS,
+    [6] = APP_DISPLAY_CLOCK_SEPARATOR,    [7] = APP_DISPLAY_CLOCK_SEPARATOR,   [8] = APP_DISPLAY_CLOCK_SEPARATOR,
+    [9] = APP_DISPLAY_CLOCK_SEPARATOR,
+};
+
+_Static_assert(sizeof(clock_roles) / sizeof(clock_roles[0]) == sizeof(upper_board) / sizeof(upper_board[0]),
+               "Every display element must have a clock role");
 
 const app_display_profile_t display_default_profile = {
     .board =
@@ -90,6 +104,7 @@ const app_display_profile_t display_default_profile = {
             .elements = upper_board,
             .element_count = sizeof(upper_board) / sizeof(upper_board[0]),
         },
+    .clock_roles = clock_roles,
     /* Wait for the TLP127 anode switch to turn off before changing cathodes. */
     .timing =
         {

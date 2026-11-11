@@ -87,17 +87,17 @@ PSC к ближайшему целому, усечение периода ARR и
 | --- | --- |
 | CPU / AHB / APB | HSI / 2 × 12 = 48 МГц, делители шин 1, Flash 1 wait state |
 | Время | SysTick 1 мс, `bsp_time_ms()` с переполнением `uint32_t` |
-| USART1 | PA9/PA10 AF1, PCLK, 115200 8N1, TX DMA1 CH4, RX CH5 |
+| USART1 | PA9/PA10 AF1, PCLK, 1500000 8N1, oversampling ×16, TX DMA1 CH4, RX CH5 |
 | I2C1 | PB6/PB7 AF1 open-drain, HSI 8 МГц, TIMINGR 0x00201D2B, TX CH2, RX CH3 |
 | Buzzer | PA6 AF5, TIM16 PWM1, PSC=47, ARR/CCR1 с preload |
 | WS2812 | PD2 open-drain, TIM2 CC3 → DMA1 CH1 → GPIOD BSRR, PSC=0, ARR=19, CCR3=10 |
-| HV PWM | PA7 AF5, TIM17 PWM1, инвертированная полярность, PSC=0, ARR=2399 (20 кГц) |
+| HV PWM | PA7 AF5, TIM17 PWM1, инвертированная полярность, PSC=0, ARR=1599 (30 кГц по умолчанию) |
 | HV ADC | PA2 / IN2, HSI14 14 МГц, 12 бит, sampling 239.5 cycles, TIM3 TRGO 2 кГц |
 | RTC | LSE, prescaler 127/255, 24 часа, калибровочный выход PC13 1 Гц |
 | Кнопки | PC0..PC3 pull-up, EXTI по обоим фронтам |
 | Индикация ГРИ | TIM1 1 МГц, update + CC1/CC2 IRQ priority 2, GPIO BSRR; один слот и ШИМ на анод, маска катодов, blanking time для TLP127, без DMA |
 | Аноды | ANODE_0..7: PB11, PB10, PB2, PB1, PB0, PC5, PC4, PA5 |
-| Катоды | CATHODE_0..15: PB9, PB8, PB5, PB4, PB3, PC12, PC11, PC10, PC8, PC9, PC7, PC6, PB15, PB14, PB13, PB12 |
+| Катоды | CATHODE_0..15: PB9, PB8, PB5, PB4, PB3, PC12, PC11, PC10, PC9, PC8, PC7, PC6, PB15, PB14, PB13, PB12 |
 
 Все 8 анодов и 16 катодов настраиваются по `.ioc`: push-pull, HIGH speed,
 без подтяжек, начальный LOW. Защёлки всех этих выходов сбрасываются через BSRR
@@ -141,7 +141,7 @@ UART/DMA ошибка останавливает RX; перезапуск вып
 в том числе во время блокирующей записи. В интервале перезапуска данные
 теряются. При заполнении RX ring очередной блок отбрасывается. Более одного
 необслуженного оборота DMA восстановить невозможно; задержки IRQ должны
-оставаться меньше длительности оборота 16 байт при 115200 baud.
+оставаться меньше длительности оборота 16 байт: 160 мкс при 1000000 baud, 8N1.
 
 ## WS2812 и I2C
 
