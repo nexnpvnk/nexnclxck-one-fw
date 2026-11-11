@@ -86,7 +86,7 @@ static const nixie_element_t upper_board[] = {
 /* Clock presentation follows logical elements, independently of GPIO wiring.
  * A four-digit board uses only HOUR/MINUTE roles. Omit absent elements; use
  * UNUSED for elements which should stay blank. All separator points blink
- * together: one RTC second on, one second off. */
+ * together with the active-LOW PC13 RTC LED (1 Hz, about 500 ms per phase). */
 static const app_display_clock_role_t clock_roles[] = {
     [0] = APP_DISPLAY_CLOCK_HOUR_TENS,    [1] = APP_DISPLAY_CLOCK_HOUR_UNITS,  [2] = APP_DISPLAY_CLOCK_MINUTE_TENS,
     [3] = APP_DISPLAY_CLOCK_MINUTE_UNITS, [4] = APP_DISPLAY_CLOCK_SECOND_TENS, [5] = APP_DISPLAY_CLOCK_SECOND_UNITS,

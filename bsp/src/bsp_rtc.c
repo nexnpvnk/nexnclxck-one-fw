@@ -56,6 +56,10 @@ static bool rtc_end_update(void) {
 static bool rtc_is_ready(void) { return ready; }
 
 void bsp_rtc_hw_init(void) {
+    /* Keep the digital input enabled for PC13 readback. RTC_CALIB overrides
+     * the output driver independently of the GPIO mode. No pull on the LED. */
+    GPIOC->MODER &= ~GPIO_MODER_MODER13;
+    GPIOC->PUPDR &= ~GPIO_PUPDR_PUPDR13;
     if (!rtc_begin_update()) {
         Error_Handler();
     }

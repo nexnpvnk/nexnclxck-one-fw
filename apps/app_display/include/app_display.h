@@ -14,7 +14,7 @@ typedef enum {
     APP_DISPLAY_CLOCK_MINUTE_UNITS,
     APP_DISPLAY_CLOCK_SECOND_TENS,
     APP_DISPLAY_CLOCK_SECOND_UNITS,
-    APP_DISPLAY_CLOCK_SEPARATOR,
+    APP_DISPLAY_CLOCK_SEPARATOR, /* RTC LED phase is applied in the scan IRQ. */
 } app_display_clock_role_t;
 
 typedef struct {
@@ -45,7 +45,8 @@ void app_display_process(bool power_ready);
 nixie_status_t app_display_configure(const app_display_profile_t* profile);
 /* Copy one symbol ID per board element. Count must equal board.element_count.
  * Foreground-only; invalid/BUSY leaves the current frame intact. Automatic clock
- * presentation owns the frame while clock_roles is configured. */
+ * presentation owns the frame while clock_roles is configured; separator ON
+ * permits light only during the RTC LED on phase. NULL roles disable RTC gating. */
 nixie_status_t app_display_present(const uint8_t* symbols, uint8_t count);
 /* Foreground-only. Update parameters in one validated publication, preserving
  * anode brightness and the current symbols. */

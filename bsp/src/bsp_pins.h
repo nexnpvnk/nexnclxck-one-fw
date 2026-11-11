@@ -94,6 +94,9 @@
 #define BSP_BUTTON_LEFT_PIN         GPIO_ODR_2
 #define BSP_BUTTON_FN_PORT          GPIOC
 #define BSP_BUTTON_FN_PIN           GPIO_ODR_3
+/* LED anode is connected to +3.3 V; PC13 sinks current while LOW. */
+#define BSP_RTC_LED_PORT            GPIOC
+#define BSP_RTC_LED_PIN             GPIO_IDR_13
 #define BSP_HV_ADC_PORT             GPIOA
 #define BSP_HV_ADC_PIN              GPIO_ODR_2
 #define BSP_I2C_SCL_BME280_PORT     GPIOB

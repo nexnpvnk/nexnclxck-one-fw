@@ -69,7 +69,23 @@ static nixie_status_t publish_configuration(const app_display_profile_t* profile
     nixie_status_t result =
         nixie_compile(&profile->board, &profile->timing, &frame, bsp_nixie_caps(), &scratch_plan, &last_issue);
     if (result == NIXIE_OK) {
-        result = bsp_nixie_present(&scratch_plan);
+        bsp_nixie_rtc_gate_t rtc_gate = {0};
+        if (profile->clock_roles != NULL) {
+            for (uint8_t e = 0U; e < profile->board.element_count; ++e) {
+                if (profile->clock_roles[e] != APP_DISPLAY_CLOCK_SEPARATOR) {
+                    continue;
+                }
+                const nixie_element_t* element = &profile->board.elements[e];
+                rtc_gate.anodes |= (uint16_t)(1U << element->anode_channel);
+                for (uint8_t c = 0U; c < element->tube->cathode_count; ++c) {
+                    uint8_t channel = element->cathode_channels[c];
+                    if (channel != NIXIE_CHANNEL_FIXED) {
+                        rtc_gate.cathodes[element->anode_channel] |= (uint16_t)(1U << channel);
+                    }
+                }
+            }
+        }
+        result = bsp_nixie_present(&scratch_plan, profile->clock_roles != NULL ? &rtc_gate : NULL);
         last_issue.status = result;
     }
     if (result == NIXIE_OK) {
@@ -178,7 +194,8 @@ static void present_clock(void) {
                 [APP_DISPLAY_CLOCK_MINUTE_UNITS] = datetime.minute % 10U,
                 [APP_DISPLAY_CLOCK_SECOND_TENS] = datetime.second / 10U,
                 [APP_DISPLAY_CLOCK_SECOND_UNITS] = datetime.second % 10U,
-                [APP_DISPLAY_CLOCK_SEPARATOR] = (datetime.second & 1U) == 0U ? NIXIE_SYMBOL_ON : NIXIE_SYMBOL_BLANK,
+                /* RTC phase is applied by TIM1; the frame only permits light. */
+                [APP_DISPLAY_CLOCK_SEPARATOR] = NIXIE_SYMBOL_ON,
             };
             for (uint8_t e = 0U; e < selected.board.element_count; ++e) {
                 symbols[e] = values[selected.clock_roles[e]];

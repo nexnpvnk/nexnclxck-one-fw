@@ -27,11 +27,12 @@ _Static_assert(CATHODE_COUNT == 16U, "Carrier has sixteen cathodes");
 #define TIMER_FLAGS (TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF)
 
 typedef struct {
-    uint32_t cathode_b;
-    uint32_t cathode_c;
+    /* Ready GPIO operations and pulse widths for RTC off/on (indices 0/1). */
+    uint32_t cathode_b[2];
+    uint32_t cathode_c[2];
     GPIO_TypeDef* anode_port;
     uint16_t anode_pin;
-    uint16_t on_us;
+    uint16_t on_us[2];
 } hw_slot_t;
 
 typedef struct {
@@ -58,6 +59,30 @@ static volatile uint32_t frame_count;
 static volatile uint32_t missed_slots;
 static uint8_t slot_index;
 static slot_state_t slot_state;
+/* Only sampled at start or a complete-frame boundary; shared by every slot. */
+static bool rtc_phase_on;
+
+static void sample_rtc_phase(void) { rtc_phase_on = (BSP_RTC_LED_PORT->IDR & BSP_RTC_LED_PIN) == 0U; }
+
+static nixie_status_t validate_rtc_gate(const nixie_plan_t* plan, const bsp_nixie_rtc_gate_t* rtc_gate) {
+    if (rtc_gate == NULL) {
+        return NIXIE_OK;
+    }
+    uint16_t anodes = 0U;
+    for (uint8_t s = 0U; s < plan->slot_count; ++s) {
+        anodes |= (uint16_t)(1U << plan->slots[s].anode);
+    }
+    if ((rtc_gate->anodes & ~anodes) != 0U) {
+        return NIXIE_INVALID_WIRING;
+    }
+    for (uint8_t a = 0U; a < NIXIE_MAX_ANODES; ++a) {
+        if (((uint32_t)rtc_gate->cathodes[a] >> caps.cathode_count) != 0U
+            || (rtc_gate->cathodes[a] != 0U && (rtc_gate->anodes & (1U << a)) == 0U)) {
+            return NIXIE_INVALID_WIRING;
+        }
+    }
+    return NIXIE_OK;
+}
 
 static void anodes_off(void) {
     GPIOA->BSRR = BSP_NIXIE_ANODE_A_MASK << 16U;
@@ -105,6 +130,7 @@ static void skip_slot(void) {
 static void illuminate_slot(void) {
     const hw_plan_t* plan = &plans[active];
     const hw_slot_t* slot = &plan->slots[slot_index];
+    uint8_t phase = rtc_phase_on ? 1U : 0U;
     uint32_t key = __get_PRIMASK();
     __disable_irq();
     TIM1->DIER = TIM_DIER_UIE;
@@ -114,12 +140,12 @@ static void illuminate_slot(void) {
         __set_PRIMASK(key);
         return;
     }
-    GPIOB->BSRR = slot->cathode_b;
-    GPIOC->BSRR = slot->cathode_c;
+    GPIOB->BSRR = slot->cathode_b[phase];
+    GPIOC->BSRR = slot->cathode_c[phase];
     __DSB();
     slot->anode_port->BSRR = slot->anode_pin;
     __DSB();
-    uint32_t end = TIM1->CNT + slot->on_us;
+    uint32_t end = TIM1->CNT + slot->on_us[phase];
     if ((TIM1->SR & TIM_SR_UIF) != 0U) {
         skip_slot();
     } else if (end >= plan->slot_us) {
@@ -147,7 +173,7 @@ static void illuminate_slot(void) {
 static void arm_slot(uint32_t off_time) {
     const hw_plan_t* plan = &plans[active];
     const hw_slot_t* slot = &plan->slots[slot_index];
-    if (slot->on_us == 0U) {
+    if (slot->on_us[rtc_phase_on ? 1U : 0U] == 0U) {
         slot_state = SLOT_WAIT_UPDATE;
         return;
     }
@@ -179,6 +205,7 @@ static void timer_start(void) {
     anodes_off();
     cathodes_off();
     slot_index = 0U;
+    sample_rtc_phase();
     running = true;
     timer_restart(plan->slot_us);
     TIM1->DIER = TIM_DIER_UIE;
@@ -222,11 +249,14 @@ bool bsp_nixie_init(void) {
 
 const nixie_caps_t* bsp_nixie_caps(void) { return &caps; }
 
-nixie_status_t bsp_nixie_present(const nixie_plan_t* plan) {
+nixie_status_t bsp_nixie_present(const nixie_plan_t* plan, const bsp_nixie_rtc_gate_t* rtc_gate) {
     if (__get_IPSR() != 0U || __get_PRIMASK() != 0U || !initialized || shutdown_latched) {
         return NIXIE_NOT_READY;
     }
     nixie_status_t result = nixie_validate_plan(plan, &caps);
+    if (result == NIXIE_OK) {
+        result = validate_rtc_gate(plan, rtc_gate);
+    }
     if (result != NIXIE_OK) {
         return result;
     }
@@ -244,24 +274,34 @@ nixie_status_t bsp_nixie_present(const nixie_plan_t* plan) {
     target->slot_count = plan->slot_count;
     for (uint8_t s = 0U; s < plan->slot_count; ++s) {
         const nixie_slot_t* source = &plan->slots[s];
-        uint32_t b = 0U;
-        uint32_t c = 0U;
-        for (uint8_t channel = 0U; channel < caps.cathode_count; ++channel) {
-            if ((source->cathodes & (1U << channel)) != 0U) {
-                if (cathodes[channel].port == GPIOB) {
-                    b |= cathodes[channel].pin;
-                } else {
-                    c |= cathodes[channel].pin;
-                }
-            }
+        bool gated = rtc_gate != NULL && (rtc_gate->anodes & (1U << source->anode)) != 0U;
+        uint16_t off_cathodes = source->cathodes;
+        if (gated) {
+            off_cathodes &= (uint16_t)~rtc_gate->cathodes[source->anode];
         }
+        /* No anode pulse after removing the last gated cathode. A gated fixed
+         * return has no cathode bit, so its anode must be suppressed as well. */
         target->slots[s] = (hw_slot_t){
-            .cathode_b = b | ((BSP_NIXIE_CATHODE_B_MASK & ~b) << 16U),
-            .cathode_c = c | ((BSP_NIXIE_CATHODE_C_MASK & ~c) << 16U),
             .anode_port = anodes[source->anode].port,
             .anode_pin = (uint16_t)anodes[source->anode].pin,
-            .on_us = source->on_us,
+            .on_us = {gated && off_cathodes == 0U ? 0U : source->on_us, source->on_us},
         };
+        for (uint8_t phase = 0U; phase < 2U; ++phase) {
+            uint16_t mask = phase == 0U ? off_cathodes : source->cathodes;
+            uint32_t b = 0U;
+            uint32_t c = 0U;
+            for (uint8_t channel = 0U; channel < caps.cathode_count; ++channel) {
+                if ((mask & (1U << channel)) != 0U) {
+                    if (cathodes[channel].port == GPIOB) {
+                        b |= cathodes[channel].pin;
+                    } else {
+                        c |= cathodes[channel].pin;
+                    }
+                }
+            }
+            target->slots[s].cathode_b[phase] = b | ((BSP_NIXIE_CATHODE_B_MASK & ~b) << 16U);
+            target->slots[s].cathode_c[phase] = c | ((BSP_NIXIE_CATHODE_C_MASK & ~c) << 16U);
+        }
     }
     key = __get_PRIMASK();
     __disable_irq();
@@ -364,6 +404,7 @@ void bsp_nixie_timer_irq(void) {
         if (slot_index == previous->slot_count) {
             slot_index = 0U;
             ++frame_count;
+            sample_rtc_phase();
             if (pending) {
                 uint16_t old_period = previous->slot_us;
                 active ^= 1U;
