@@ -1,6 +1,6 @@
 #include "bsp_console.h"
-#include "bsp_hw.h"
 #include <limits.h>
+#include "bsp_hw.h"
 #include "bsp_time.h"
 #include "lwrb/lwrb.h"
 #include "stm32f0xx.h"
@@ -9,6 +9,7 @@
 #define BSP_CONSOLE_TX_TIMEOUT_MS      100U
 #define BSP_CONSOLE_RX_BUFFER_SIZE     64U
 #define BSP_CONSOLE_RX_DMA_BUFFER_SIZE 16U
+#define BSP_CONSOLE_BAUDRATE           1000000U
 #define TX_DMA_FLAGS                   (DMA_ISR_TCIF4 | DMA_ISR_HTIF4 | DMA_ISR_TEIF4)
 #define RX_DMA_FLAGS                   (DMA_ISR_TCIF5 | DMA_ISR_HTIF5 | DMA_ISR_TEIF5)
 #define UART_RX_ERRORS                 (USART_ISR_ORE | USART_ISR_NE | USART_ISR_FE | USART_ISR_PE)
@@ -114,7 +115,7 @@ static void rx_start(void) {
 }
 
 /* Shared cursor/flag accounting prevents IDLE and DMA IRQs committing a wrap twice.
- * Service latency must stay below one DMA-buffer lap (16 bytes at 115200 baud). */
+ * Service latency must stay below one DMA-buffer lap. */
 static void rx_service(void) {
     if (rx_restart_pending) {
         return;
@@ -300,7 +301,7 @@ void bsp_console_hw_init(void) {
     USART1->CR1 = 0U;
     USART1->CR2 = 0U;
     USART1->CR3 = 0U;
-    USART1->BRR = (SystemCoreClock + 115200U / 2U) / 115200U;
+    USART1->BRR = (SystemCoreClock + BSP_CONSOLE_BAUDRATE / 2U) / BSP_CONSOLE_BAUDRATE;
     USART1->ICR = USART_ICR_TCCF | USART_ICR_IDLECF | USART_ICR_ORECF | USART_ICR_NCF | USART_ICR_FECF | USART_ICR_PECF;
     USART1->CR1 = USART_CR1_UE | USART_CR1_TE | USART_CR1_RE;
     uint32_t start = bsp_time_ms();
