@@ -8,6 +8,7 @@ target_sources(app_cli
         src/app_cli_buzzer.c
         src/app_cli_hv.c
         src/app_cli_display.c
+        src/app_cli_light.c
 )
 
 target_include_directories(app_cli
@@ -22,6 +23,7 @@ target_link_libraries(app_cli
         app_sound
         app_hv
         app_display
+        app_light
         bsp
         wsh_shell_integration
 )

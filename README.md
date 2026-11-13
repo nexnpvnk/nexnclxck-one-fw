@@ -82,12 +82,27 @@ clock set -d 2026-11-14 -t 12:34:56
 | Manual buzzer enable / disable | `buzzer on` / `buzzer off` |
 | Display status | `display` |
 | Brightness 0..100%, refresh 1..400 Hz, blanking in µs | `display set -b 100 -r 120 -t 500` |
+| Lighting parameters | `light` |
+| Lighting effect | `light set --effect fade` |
+| Primary and secondary RGB colors | `light set --primary 0xFF5008 --secondary 0x0020FF` |
+| Lighting speed and brightness, 0..255 | `light set --speed 128 --brightness 32` |
+| Turn lighting off | `light set --brightness 0` |
 
 `set` options can be combined. Date and time must be supplied together;
 supported years are 2000..2099. Numeric options accept unsigned decimal values
-without suffixes. All arguments are validated before changes are applied.
-Unknown and repeated options are rejected. `-h` / `--help` shows help without
-performing an action.
+without suffixes; lighting colors use `0xRRGGBB`. All arguments are validated
+before changes are applied. Unknown and repeated options are rejected.
+`-h` / `--help` shows help without performing an action.
+
+`light` shows the requested lighting parameters and LED count. Effects are
+`static`, `breath`, `rainbow`, `fade`, `flicker` and `comet`. `rainbow` ignores
+both colors; `fade` uses both; the other effects use the primary color.
+Speed 0 is the slowest setting, 255 the fastest; `static` ignores speed.
+Brightness 0 turns lighting off, 255 gives full brightness. Options can be
+changed independently; omitted values are preserved. Short forms are `-e`
+for effect, `-s` for speed and `-b` for brightness. Changes are rendered from
+the main loop and sent asynchronously via DMA. Settings are held in RAM
+and return to startup defaults after reset.
 
 `clock` shows the RTC date and time whenever they can be read, with a `not set`
 warning if the time-set marker is absent. Log timestamps use RTC time when it

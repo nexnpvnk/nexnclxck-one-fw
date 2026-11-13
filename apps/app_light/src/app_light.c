@@ -112,6 +112,23 @@ bool app_light_set_brightness(uint8_t value) {
     return true;
 }
 
+bool app_light_get_status(app_light_status_t* status) {
+    if (!initialized || status == NULL) {
+        return false;
+    }
+
+    *status = (app_light_status_t){
+        .effect = config.effect,
+        .primary = config.primary,
+        .secondary = config.secondary,
+        .speed = config.speed,
+        .brightness = brightness,
+        .led_count = led_count,
+    };
+
+    return true;
+}
+
 void app_light_process(void) {
     if (!initialized) {
         return;
