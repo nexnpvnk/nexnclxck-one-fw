@@ -161,8 +161,6 @@ bool app_display_get_status(app_display_status_t* status) {
         .brightness_pm = selected.brightness_pm,
         .refresh_rate_hz = selected.timing.refresh_rate_hz,
         .blanking_time_us = selected.timing.blanking_time_us,
-        .missed_slots = hardware.missed_slots,
-        .max_irq_delay_us = hardware.max_irq_delay_us,
         .running = hardware.running,
         .separators_on = hardware.separators_on,
     };
@@ -172,6 +170,9 @@ bool app_display_get_status(app_display_status_t* status) {
 nixie_issue_t app_display_last_issue(void) { return last_issue; }
 
 static void present_clock(void) {
+    if (selected.clock_roles == NULL) {
+        return;
+    }
     uint32_t now = bsp_time_ms();
     if (now == last_clock_poll_ms) {
         return;
@@ -188,9 +189,6 @@ static void present_clock(void) {
             return; /* A transient snapshot failure keeps the accepted state. */
         }
         clock_valid = app_clock_datetime_is_valid(&datetime);
-    }
-    if (selected.clock_roles == NULL) {
-        return;
     }
     uint8_t symbols[NIXIE_MAX_ELEMENTS];
     memset(symbols, NIXIE_SYMBOL_BLANK, selected.board.element_count);

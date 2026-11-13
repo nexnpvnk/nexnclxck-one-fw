@@ -9,7 +9,7 @@
 enum { OPT_DEFAULT, OPT_HELP, OPT_BRIGHTNESS, OPT_REFRESH_RATE, OPT_BLANKING_TIME, OPT_END };
 
 static const WshShellOption_t read_opts[] = {
-    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show display status, parameters and missed slots")},
+    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show display status and parameters")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
@@ -29,20 +29,17 @@ static const WshShellOption_t set_opts[] = {
 static WSH_SHELL_RET_STATE_t print_status(void) {
     app_display_status_t status;
     if (!app_display_get_status(&status)) {
-        WSH_SHELL_PRINT_ERR("Display unavailable; check startup profile diagnostics\n");
+        WSH_SHELL_PRINT_ERR("Display unavailable; check startup profile\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
     WSH_SHELL_PRINT_SYS("Scan state   : %s\n"
                         "Brightness   : %u.%u %%\n"
                         "Refresh rate : %u Hz (full scan target)\n"
                         "Blanking     : %u us\n"
-                        "Missed slots : %lu\n"
-                        "Max IRQ late : %u us\n"
                         "Separators   : %s (multiplexed RTC gate)\n",
                         status.running ? "running" : "stopped", (unsigned)(status.brightness_pm / 10U),
                         (unsigned)(status.brightness_pm % 10U), (unsigned)status.refresh_rate_hz,
-                        (unsigned)status.blanking_time_us, (unsigned long)status.missed_slots,
-                        (unsigned)status.max_irq_delay_us, status.separators_on ? "on" : "off");
+                        (unsigned)status.blanking_time_us, status.separators_on ? "on" : "off");
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
@@ -149,7 +146,7 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
     }
     app_display_status_t current;
     if (!app_display_get_status(&current)) {
-        WSH_SHELL_PRINT_ERR("Display unavailable; check startup profile diagnostics\n");
+        WSH_SHELL_PRINT_ERR("Display unavailable; check startup profile\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
     uint16_t brightness_pm = brightness_text != NULL ? (uint16_t)(brightness * 10U) : current.brightness_pm;

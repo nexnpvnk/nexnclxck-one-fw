@@ -3,7 +3,6 @@
 
 #include "bsp_hv.h"
 #include "bsp_time.h"
-#include "bsp_hv_diag.h"
 
 #include <stddef.h>
 
@@ -19,16 +18,6 @@
 
 #define HV_KP_Q16              524288L
 #define HV_KI_Q16              (8192000L / (int32_t)HV_CONTROL_RATE_HZ)
-
-#ifdef HV_DIAGNOSTICS
-#define CONTROL_KP ((int32_t)bsp_hv_diag.kp_q16)
-#define CONTROL_KI ((int32_t)bsp_hv_diag.ki_q16)
-#define CONTROL_FILTER bsp_hv_diag.filter_shift
-#else
-#define CONTROL_KP HV_KP_Q16
-#define CONTROL_KI HV_KI_Q16
-#define CONTROL_FILTER HV_FILTER_SHIFT
-#endif
 
 #define HV_REGULATION_BAND_MV  3000U
 #define HV_SETTLE_STEPS        (HV_CONTROL_RATE_HZ / 20U) /* 50 ms within the band. */
@@ -112,15 +101,13 @@ static void control_step(void) {
      * slew limiter to discard one half of the proportional response.
      */
     int32_t error_mv = (int32_t)goal_mv - (int32_t)hv.filtered_mv;
-    int32_t kp_q16 = CONTROL_KP;
-    int32_t ki_q16 = CONTROL_KI;
     /* Split before multiplication to retain millivolts without overflowing
      * at large startup errors or needing 64-bit division in the ADC IRQ. */
-    int32_t proportional_q16 = (error_mv / 100L) * kp_q16
-                               + ((error_mv % 100L) * kp_q16) / 100L;
+    int32_t proportional_q16 = (error_mv / 100L) * HV_KP_Q16
+                               + ((error_mv % 100L) * HV_KP_Q16) / 100L;
     int32_t limit_q16 = (int32_t)hv.duty_limit_pm * 65536L;
-    int32_t integral_q16 = hv.integral_q16 + (error_mv / 100L) * ki_q16
-                           + ((error_mv % 100L) * ki_q16) / 100L;
+    int32_t integral_q16 = hv.integral_q16 + (error_mv / 100L) * HV_KI_Q16
+                           + ((error_mv % 100L) * HV_KI_Q16) / 100L;
 
     /* The steady-state duty is nonnegative and cannot exceed the BSP limit. */
     if (integral_q16 < 0) {
@@ -177,14 +164,10 @@ static void on_sample(uint32_t voltage_mv, bsp_hv_fault_t fault, bool valid, voi
             hv.have_sample = true;
         } else {
             int32_t delta = (int32_t)voltage_mv - (int32_t)hv.filtered_mv;
-            hv.filtered_mv = (uint32_t)((int32_t)hv.filtered_mv + delta / (1L << CONTROL_FILTER));
+            hv.filtered_mv = (uint32_t)((int32_t)hv.filtered_mv + delta / (1L << HV_FILTER_SHIFT));
         }
     }
 
-#ifdef HV_DIAGNOSTICS
-    bsp_hv_diag.filtered_mv = hv.filtered_mv;
-    bsp_hv_diag.target_v = hv.target_v;
-#endif
     if (hv.state != APP_HV_STARTING && hv.state != APP_HV_RUNNING) {
         return;
     }
@@ -246,11 +229,6 @@ bool app_hv_init(void) {
     hv.state = APP_HV_OFF;
     hv.fault = APP_HV_FAULT_NONE;
     hv.target_v = APP_HV_DEFAULT_VOLTAGE_V;
-#ifdef HV_DIAGNOSTICS
-    bsp_hv_diag.kp_q16 = HV_KP_Q16;
-    bsp_hv_diag.ki_q16 = HV_KI_Q16;
-    bsp_hv_diag.filter_shift = HV_FILTER_SHIFT;
-#endif
 
     if (!bsp_hv_init(on_sample, NULL)) {
         hv.state = APP_HV_FAULT;

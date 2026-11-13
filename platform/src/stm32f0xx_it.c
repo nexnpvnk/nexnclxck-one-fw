@@ -53,6 +53,4 @@ void I2C1_IRQHandler(void) { bsp_i2c_irq(); }
 
 void USART1_IRQHandler(void) { bsp_console_uart_irq(); }
 
-void TIM1_BRK_UP_TRG_COM_IRQHandler(void) { bsp_nixie_timer_irq(); }
-
 void TIM1_CC_IRQHandler(void) { bsp_nixie_timer_irq(); }

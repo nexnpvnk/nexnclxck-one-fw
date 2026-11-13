@@ -4,13 +4,8 @@
 #include "nixie.h"
 
 typedef struct {
-    uint32_t frames;
-    uint32_t missed_slots;         /* Phase IRQs delayed by at least one nominal scan slot. */
-    uint32_t refresh_rate_millihz; /* Nominal plan rate; IRQ overhead extends the frame. */
-    uint16_t max_irq_delay_us;     /* Cumulative maximum compare-IRQ lateness, modulo 65536 us. */
     bool running;
     bool separators_on; /* RTC gate for lit separator slots; not instantaneous GPIO. */
-    bool shutdown;
 } bsp_nixie_status_t;
 
 /* Call after bsp_board_init(). Public operations are serialized in foreground.

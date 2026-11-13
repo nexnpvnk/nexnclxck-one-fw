@@ -3,10 +3,6 @@
 
 #include "bsp_time.h"
 #include "bsp_hw.h"
-#include "bsp_hv_diag.h"
-#ifdef HV_DIAGNOSTICS
-#include "bsp_pins.h"
-#endif
 
 #include <stddef.h>
 
@@ -68,59 +64,6 @@ static struct {
     bsp_hv_sample_cb_t callback;
     void* callback_arg;
 } hv;
-
-#ifdef HV_DIAGNOSTICS
-_Static_assert(sizeof(bsp_hv_trace_t) == 16U && offsetof(bsp_hv_diag_t, records) == 72U,
-               "The SWD capture layout must match debug/hv_capture.py");
-volatile bsp_hv_diag_t bsp_hv_diag = {.capture = 1U, .decimation = 40U};
-
-static void trace_sample(uint16_t raw, uint32_t flags, bool valid, uint16_t phase, uint16_t started) {
-    if (bsp_hv_diag.capture == 1U) {
-        bsp_hv_diag.count = 0U;
-        bsp_hv_diag.samples = 0U;
-        bsp_hv_diag.rejected = 0U;
-        bsp_hv_diag.ovp_holds = 0U;
-        bsp_hv_diag.overruns = 0U;
-        bsp_hv_diag.divider = 0U;
-        bsp_hv_diag.interval_flags = 0U;
-        bsp_hv_diag.irq_max_us = 0U;
-        bsp_hv_diag.raw_min = UINT16_MAX;
-        bsp_hv_diag.raw_max = 0U;
-        bsp_hv_diag.capture = 2U;
-    }
-    if (bsp_hv_diag.capture != 2U) return;
-    ++bsp_hv_diag.samples;
-    if (!valid) ++bsp_hv_diag.rejected;
-    if (hv.ovp_suspended) ++bsp_hv_diag.ovp_holds;
-    if ((flags & ADC_ISR_OVR) != 0U) ++bsp_hv_diag.overruns;
-    if (raw < bsp_hv_diag.raw_min) bsp_hv_diag.raw_min = raw;
-    if (raw > bsp_hv_diag.raw_max) bsp_hv_diag.raw_max = raw;
-    bsp_hv_diag.interval_flags |= flags & 0xFFU;
-    uint16_t irq_us = (uint16_t)((uint16_t)TIM1->CNT - started);
-    if (irq_us > bsp_hv_diag.irq_max_us) bsp_hv_diag.irq_max_us = irq_us;
-    if (++bsp_hv_diag.divider < bsp_hv_diag.decimation) return;
-    bsp_hv_diag.divider = 0U;
-    uint32_t i = bsp_hv_diag.count;
-    bsp_hv_diag.records[i] = (bsp_hv_trace_t){
-        .filtered_mv = bsp_hv_diag.filtered_mv,
-        .raw_min = (uint16_t)bsp_hv_diag.raw_min,
-        .raw_max = (uint16_t)bsp_hv_diag.raw_max,
-        .compare = (uint16_t)TIM17->CCR1,
-        .pwm_phase = phase,
-        .flags = (uint16_t)(bsp_hv_diag.interval_flags | (valid ? 1U << 8U : 0U)
-                           | (hv.ovp_suspended ? 1U << 9U : 0U)
-                           | (((bsp_hv_diag.target_v - 100U) / 10U) << 11U)
-                           | (hv.enabled ? 1U << 15U : 0U)
-                           | ((BSP_SEPARATOR_ANODE_PORT->ODR & BSP_SEPARATOR_ANODE_PIN) != 0U ? 1U << 10U : 0U)),
-        .irq_us = irq_us,
-    };
-    bsp_hv_diag.raw_min = UINT16_MAX;
-    bsp_hv_diag.raw_max = 0U;
-    bsp_hv_diag.interval_flags = 0U;
-    bsp_hv_diag.count = i + 1U;
-    if (i + 1U == BSP_HV_TRACE_COUNT) bsp_hv_diag.capture = 3U;
-}
-#endif
 
 static uint32_t adc_to_voltage(uint16_t raw) {
     return ((uint32_t)raw * BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO + BSP_HV_ADC_MAX / 2U) / BSP_HV_ADC_MAX;
@@ -406,10 +349,6 @@ bsp_hv_fault_t bsp_hv_process(void) {
 }
 
 void bsp_hv_adc_irq(void) {
-#ifdef HV_DIAGNOSTICS
-    uint16_t started = (uint16_t)TIM1->CNT;
-    uint16_t phase = (uint16_t)TIM17->CNT;
-#endif
     uint32_t flags = ADC1->ISR;
     uint32_t pending = flags & ADC1->IER;
     bool have_sample = (pending & ADC_ISR_EOC) != 0U;
@@ -467,9 +406,6 @@ void bsp_hv_adc_irq(void) {
     if (hv.callback != NULL) {
         hv.callback(voltage, hv.fault, valid, hv.callback_arg);
     }
-#ifdef HV_DIAGNOSTICS
-    trace_sample(raw, flags, valid, phase, started);
-#endif
 }
 
 static void adc_hw_init(void) {

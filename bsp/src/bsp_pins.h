@@ -86,10 +86,6 @@
     (BSP_CATHODE_5_PIN | BSP_CATHODE_6_PIN | BSP_CATHODE_7_PIN | BSP_CATHODE_8_PIN | BSP_CATHODE_9_PIN                 \
      | BSP_CATHODE_10_PIN | BSP_CATHODE_11_PIN)
 
-/* Physical separator anode, also observed by optional HV diagnostics. */
-#define BSP_SEPARATOR_ANODE_PORT       BSP_ANODE_2_PORT
-#define BSP_SEPARATOR_ANODE_PIN        BSP_ANODE_2_PIN
-
 #define BSP_BUTTON_RIGHT_PORT       GPIOC
 #define BSP_BUTTON_RIGHT_PIN        GPIO_ODR_0
 #define BSP_BUTTON_OK_PORT          GPIOC

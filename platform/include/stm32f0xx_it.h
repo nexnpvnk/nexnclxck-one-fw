@@ -36,7 +36,6 @@ void ADC1_COMP_IRQHandler(void);
 void TIM17_IRQHandler(void);
 void I2C1_IRQHandler(void);
 void USART1_IRQHandler(void);
-void TIM1_BRK_UP_TRG_COM_IRQHandler(void);
 void TIM1_CC_IRQHandler(void);
 
 #ifdef __cplusplus

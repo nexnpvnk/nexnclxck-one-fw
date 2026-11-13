@@ -31,8 +31,6 @@ typedef struct {
     uint16_t brightness_pm;
     uint16_t refresh_rate_hz; /* Accepted target; publication occurs at a frame boundary. */
     uint16_t blanking_time_us;
-    uint32_t missed_slots; /* Phase IRQs delayed by at least one nominal scan slot. */
-    uint16_t max_irq_delay_us;
     bool running;
     bool separators_on; /* RTC gate of lit separator slots in the active frame. */
 } app_display_status_t;

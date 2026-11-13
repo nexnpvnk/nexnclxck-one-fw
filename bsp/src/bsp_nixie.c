@@ -33,14 +33,11 @@ typedef struct {
 } hw_slot_t;
 
 typedef struct {
-    nixie_timing_t timing;
     uint16_t slot_us;
     uint8_t slot_count;
     uint8_t rtc_slots; /* Lit slots gated by PC13; dark slots keep their time. */
     hw_slot_t slots[ANODE_COUNT];
 } hw_plan_t;
-
-typedef enum { SLOT_BLANKING, SLOT_ON, SLOT_DARK } slot_state_t;
 
 /* Only IRQ reads the active plan. Foreground writes the other one exclusively,
  * then publishes its index in a short interrupt-masked section. */
@@ -53,12 +50,9 @@ static volatile bool initialized;
 static volatile bool running;
 static volatile bool rtc_phase_on;
 static volatile bool shutdown_latched;
-static volatile uint32_t frame_count;
-static volatile uint32_t missed_slots;
-static volatile uint16_t max_irq_delay_us;
 static uint8_t slot_index;
-static slot_state_t slot_state;
-static uint16_t phase_deadline;
+/* The next compare either starts a pulse or advances past an on/dark slot. */
+static bool waiting_for_on;
 
 static void scan_anodes_off(void) {
     GPIOA->BSRR = BSP_NIXIE_ANODE_A_MASK << 16U;
@@ -75,13 +69,8 @@ static void scan_cathodes_off(void) {
 
 /* Called with IRQs masked: common HV disable and latched fault stop. */
 static void all_outputs_off(void) {
-    GPIOA->BSRR = BSP_NIXIE_ANODE_A_MASK << 16U;
-    GPIOB->BSRR = BSP_NIXIE_ANODE_B_MASK << 16U;
-    GPIOC->BSRR = BSP_NIXIE_ANODE_C_MASK << 16U;
-    __DSB();
-    GPIOB->BSRR = BSP_NIXIE_CATHODE_B_MASK << 16U;
-    GPIOC->BSRR = BSP_NIXIE_CATHODE_C_MASK << 16U;
-    __DSB();
+    scan_anodes_off();
+    scan_cathodes_off();
 }
 
 /* One RTC phase per complete frame; no foreground blink timer or EXTI needed. */
@@ -91,7 +80,6 @@ static void timer_stop(void) {
     TIM1->DIER = 0U;
     TIM1->CR1 &= ~TIM_CR1_CEN;
     TIM1->SR = 0U;
-    NVIC_ClearPendingIRQ(TIM1_BRK_UP_TRG_COM_IRQn);
     NVIC_ClearPendingIRQ(TIM1_CC_IRQn);
 }
 
@@ -100,8 +88,7 @@ static void timer_stop(void) {
  * never an old slot boundary. A late start cannot truncate the on pulse. */
 static void arm_phase(uint16_t duration_us) {
     uint16_t start = (uint16_t)TIM1->CNT;
-    phase_deadline = (uint16_t)(start + duration_us);
-    TIM1->CCR1 = phase_deadline;
+    TIM1->CCR1 = (uint16_t)(start + duration_us);
     TIM1->SR = ~TIM_SR_CC1IF;
     TIM1->DIER = TIM_DIER_CC1IE;
     /* Preserve arbitrarily short nonzero pulses: if programming consumed the
@@ -118,7 +105,7 @@ static void illuminate_slot(void) {
     __DSB();
     slot->anode_port->BSRR = slot->anode_pin;
     __DSB();
-    slot_state = SLOT_ON;
+    waiting_for_on = false;
     arm_phase(slot->on_us);
 }
 
@@ -128,14 +115,14 @@ static void begin_slot(void) {
     const hw_plan_t* plan = &plans[active];
     const hw_slot_t* slot = &plan->slots[slot_index];
     if (slot->on_us == 0U || ((plan->rtc_slots & (1U << slot_index)) != 0U && !rtc_phase_on)) {
-        slot_state = SLOT_DARK;
+        waiting_for_on = false;
         arm_phase(plan->slot_us);
     } else {
         uint16_t off_us = plan->slot_us - slot->on_us;
         if (off_us == 0U) {
             illuminate_slot();
         } else {
-            slot_state = SLOT_BLANKING;
+            waiting_for_on = true;
             arm_phase(off_us);
         }
     }
@@ -143,8 +130,7 @@ static void begin_slot(void) {
 
 static void timer_start(void) {
     timer_stop();
-    scan_anodes_off();
-    scan_cathodes_off();
+    all_outputs_off();
     slot_index = 0U;
     sample_rtc_phase();
     running = true;
@@ -172,7 +158,6 @@ void bsp_nixie_hw_init(void) {
     TIM1->BDTR = 0U;
     TIM1->EGR = TIM_EGR_UG;
     TIM1->SR = 0U;
-    NVIC_ClearPendingIRQ(TIM1_BRK_UP_TRG_COM_IRQn);
     NVIC_ClearPendingIRQ(TIM1_CC_IRQn);
     NVIC_SetPriority(TIM1_CC_IRQn, BSP_IRQ_PRIORITY_REALTIME);
     NVIC_EnableIRQ(TIM1_CC_IRQn);
@@ -214,7 +199,6 @@ nixie_status_t bsp_nixie_present(const nixie_plan_t* plan, uint16_t rtc_anodes) 
         return NIXIE_BUSY;
     }
     hw_plan_t* target = &plans[next];
-    target->timing = plan->timing;
     target->slot_us = plan->slot_us;
     target->slot_count = plan->slot_count;
     target->rtc_slots = 0U;
@@ -301,24 +285,18 @@ void bsp_nixie_shutdown(void) {
 }
 
 bool bsp_nixie_get_status(bsp_nixie_status_t* status) {
-    if (status == NULL) {
+    if (status == NULL || !initialized) {
         return false;
     }
     uint32_t key = __get_PRIMASK();
     __disable_irq();
     const hw_plan_t* plan = &plans[active];
-    uint32_t period = have_plan ? (uint32_t)plan->slot_us * plan->slot_count : 0U;
     *status = (bsp_nixie_status_t){
-        .frames = frame_count,
-        .missed_slots = missed_slots,
-        .max_irq_delay_us = max_irq_delay_us,
         .running = running,
         .separators_on = running && rtc_phase_on && plan->rtc_slots != 0U,
-        .shutdown = shutdown_latched,
     };
     __set_PRIMASK(key);
-    status->refresh_rate_millihz = period != 0U ? 1000000000UL / period : 0U;
-    return initialized;
+    return true;
 }
 
 void bsp_nixie_timer_irq(void) {
@@ -334,24 +312,14 @@ void bsp_nixie_timer_irq(void) {
         __set_PRIMASK(key);
         return;
     }
-    /* End the pulse before statistics and frame bookkeeping. */
-    if (slot_state != SLOT_BLANKING) {
-        scan_anodes_off();
-    }
-    uint16_t delay_us = (uint16_t)((uint16_t)TIM1->CNT - phase_deadline);
-    if (delay_us > max_irq_delay_us) {
-        max_irq_delay_us = delay_us;
-    }
-    if (delay_us >= plans[active].slot_us) {
-        ++missed_slots;
-    }
-    if (slot_state == SLOT_BLANKING) {
+    if (waiting_for_on) {
         illuminate_slot();
     } else {
+        /* End the pulse before frame bookkeeping. */
+        scan_anodes_off();
         ++slot_index;
         if (slot_index == plans[active].slot_count) {
             slot_index = 0U;
-            ++frame_count;
             if (pending) {
                 active ^= 1U;
                 __DMB();
