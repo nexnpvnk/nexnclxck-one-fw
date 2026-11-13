@@ -5,8 +5,9 @@
 
 typedef struct {
     uint32_t frames;
-    uint32_t missed_slots; /* Cumulative skipped slots and PWM completions late at update. */
-    uint32_t refresh_rate_millihz;
+    uint32_t missed_slots;         /* Phase IRQs delayed by at least one nominal scan slot. */
+    uint32_t refresh_rate_millihz; /* Nominal plan rate; IRQ overhead extends the frame. */
+    uint16_t max_irq_delay_us;     /* Cumulative maximum compare-IRQ lateness, modulo 65536 us. */
     bool running;
     bool separators_on; /* Commanded static outputs; not a discharge measurement. */
     bool shutdown;
@@ -33,7 +34,7 @@ bool bsp_nixie_get_status(bsp_nixie_status_t* status);
 /* Latched emergency stop, valid before board init and from fault context.
  * Synchronously stops TIM1 and drives every anode/cathode LOW. */
 void bsp_nixie_shutdown(void);
-/* Both TIM1 vectors dispatch here with the same NVIC priority. */
+/* TIM1 CC vector dispatch. Only CC1 is enabled; update does not end pulses. */
 void bsp_nixie_timer_irq(void);
 /* EXTI4_15 dispatch; handles only the PC13 RTC phase line. */
 void bsp_nixie_separator_irq(void);

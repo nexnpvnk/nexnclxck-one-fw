@@ -142,6 +142,7 @@ bool app_display_get_status(app_display_status_t* status) {
         .refresh_rate_hz = selected.timing.refresh_rate_hz,
         .blanking_time_us = selected.timing.blanking_time_us,
         .missed_slots = hardware.missed_slots,
+        .max_irq_delay_us = hardware.max_irq_delay_us,
         .running = hardware.running,
         .separators_on = hardware.separators_on,
     };

@@ -3,37 +3,47 @@
 
 #include "bsp_hv.h"
 #include "bsp_time.h"
+#include "bsp_hv_diag.h"
 
 #include <stddef.h>
 
 /*
- * ADC rate comes from BSP; control runs every HV_CONTROL_DIVIDER samples.
+ * Control runs on every valid, PWM-aligned ADC sample (nominally 1 kHz).
  *
- * Duty uses Q16 permille; error uses 0.1 V units.
- * Kp = 2.5 permille/V; Ki ~= 4.88 permille/(V*s) at 1 kHz.
- * These gains require validation on the board, including no-load startup.
+ * Duty uses Q16 permille; gains refer to 0.1 V, calculations retain millivolts.
+ * Constant PI: Kp = 80 permille/V, Ki = 1250 permille/(V*s).
+ * Gains were measured on the board; there is no gain scheduling or slew limit.
  */
-#define HV_ADC_RATE_HZ         BSP_HV_SAMPLE_RATE_HZ
-#define HV_CONTROL_DIVIDER     2U
-#define HV_CONTROL_RATE_HZ     (HV_ADC_RATE_HZ / HV_CONTROL_DIVIDER)
-#define HV_FILTER_SHIFT        2U
+#define HV_CONTROL_RATE_HZ     BSP_HV_SAMPLE_RATE_HZ
+#define HV_FILTER_SHIFT        1U
 
-#define HV_KP_Q16              16384L
-#define HV_KI_Q16              (32000L / (int32_t)HV_CONTROL_RATE_HZ)
+#define HV_KP_Q16              524288L
+#define HV_KI_Q16              (8192000L / (int32_t)HV_CONTROL_RATE_HZ)
+
+#ifdef HV_DIAGNOSTICS
+#define CONTROL_KP ((int32_t)bsp_hv_diag.kp_q16)
+#define CONTROL_KI ((int32_t)bsp_hv_diag.ki_q16)
+#define CONTROL_FILTER bsp_hv_diag.filter_shift
+#else
+#define CONTROL_KP HV_KP_Q16
+#define CONTROL_KI HV_KI_Q16
+#define CONTROL_FILTER HV_FILTER_SHIFT
+#endif
 
 #define HV_REGULATION_BAND_MV  3000U
 #define HV_SETTLE_STEPS        (HV_CONTROL_RATE_HZ / 20U) /* 50 ms within the band. */
 #define HV_START_TIMEOUT_STEPS (20U * HV_CONTROL_RATE_HZ)
 #define HV_RETRY_DELAY_MS      1000U
 
-_Static_assert(HV_CONTROL_DIVIDER > 0U && HV_CONTROL_DIVIDER <= UINT8_MAX,
-               "The control divider must fit its 8-bit counter");
-_Static_assert(HV_ADC_RATE_HZ > 0U && HV_ADC_RATE_HZ % HV_CONTROL_DIVIDER == 0U,
-               "ADC samples must divide exactly into control steps");
+_Static_assert(HV_CONTROL_RATE_HZ > 0U, "Control requires a nonzero ADC rate");
 _Static_assert(HV_CONTROL_RATE_HZ % 20U == 0U && HV_SETTLE_STEPS > 0U && HV_SETTLE_STEPS <= UINT16_MAX,
                "The 50 ms settling interval must be exact and fit its 16-bit counter");
 _Static_assert(HV_START_TIMEOUT_STEPS <= UINT16_MAX, "The startup timeout must fit its 16-bit counter");
 _Static_assert(HV_KI_Q16 > 0L, "The selected control rate must retain a nonzero integral gain");
+_Static_assert(((uint64_t)APP_HV_MAX_VOLTAGE_V * 10U + 1U) * HV_KP_Q16 + 1000U * 65536U <= INT32_MAX,
+               "Proportional output plus the integral limit must fit 32 bits");
+_Static_assert(((uint64_t)APP_HV_MAX_VOLTAGE_V * 10U + 1U) * HV_KI_Q16 + 1000U * 65536U <= INT32_MAX,
+               "Integral update plus the integral limit must fit 32 bits");
 
 static struct {
     volatile app_hv_state_t state;
@@ -49,8 +59,6 @@ static struct {
     uint16_t duty_limit_pm;
     uint16_t start_steps;
     uint16_t settle_steps;
-
-    uint8_t control_divider;
 
     volatile uint32_t last_attempt_ms;
     bool requested_enabled;
@@ -103,10 +111,16 @@ static void control_step(void) {
      * Keep the integral separate from the applied duty. There is no duty
      * slew limiter to discard one half of the proportional response.
      */
-    int32_t error_dv = ((int32_t)goal_mv - (int32_t)hv.filtered_mv) / 100;
-    int32_t proportional_q16 = error_dv * HV_KP_Q16;
+    int32_t error_mv = (int32_t)goal_mv - (int32_t)hv.filtered_mv;
+    int32_t kp_q16 = CONTROL_KP;
+    int32_t ki_q16 = CONTROL_KI;
+    /* Split before multiplication to retain millivolts without overflowing
+     * at large startup errors or needing 64-bit division in the ADC IRQ. */
+    int32_t proportional_q16 = (error_mv / 100L) * kp_q16
+                               + ((error_mv % 100L) * kp_q16) / 100L;
     int32_t limit_q16 = (int32_t)hv.duty_limit_pm * 65536L;
-    int32_t integral_q16 = hv.integral_q16 + error_dv * HV_KI_Q16;
+    int32_t integral_q16 = hv.integral_q16 + (error_mv / 100L) * ki_q16
+                           + ((error_mv % 100L) * ki_q16) / 100L;
 
     /* The steady-state duty is nonnegative and cannot exceed the BSP limit. */
     if (integral_q16 < 0) {
@@ -119,7 +133,7 @@ static void control_step(void) {
 
     /* Freeze integration only when the error drives the output further
      * into saturation. Integration in the recovery direction is allowed. */
-    if ((duty_q16 > limit_q16 && error_dv > 0) || (duty_q16 < 0 && error_dv < 0)) {
+    if ((duty_q16 > limit_q16 && error_mv > 0) || (duty_q16 < 0 && error_mv < 0)) {
         duty_q16 = proportional_q16 + hv.integral_q16;
     } else {
         hv.integral_q16 = integral_q16;
@@ -131,9 +145,8 @@ static void control_step(void) {
         duty_q16 = limit_q16;
     }
 
-    uint16_t duty_pm = (uint16_t)((duty_q16 + 32768L) / 65536L);
-
-    if (!bsp_hv_set_duty(duty_pm)) {
+    /* Q16 permille -> Q16 fraction; BSP rounds directly to the PWM timer tick. */
+    if (!bsp_hv_set_duty_q16(((uint32_t)duty_q16 + 500U) / 1000U)) {
         trip(APP_HV_FAULT_BSP);
         return;
     }
@@ -164,10 +177,14 @@ static void on_sample(uint32_t voltage_mv, bsp_hv_fault_t fault, bool valid, voi
             hv.have_sample = true;
         } else {
             int32_t delta = (int32_t)voltage_mv - (int32_t)hv.filtered_mv;
-            hv.filtered_mv = (uint32_t)((int32_t)hv.filtered_mv + delta / (1L << HV_FILTER_SHIFT));
+            hv.filtered_mv = (uint32_t)((int32_t)hv.filtered_mv + delta / (1L << CONTROL_FILTER));
         }
     }
 
+#ifdef HV_DIAGNOSTICS
+    bsp_hv_diag.filtered_mv = hv.filtered_mv;
+    bsp_hv_diag.target_v = hv.target_v;
+#endif
     if (hv.state != APP_HV_STARTING && hv.state != APP_HV_RUNNING) {
         return;
     }
@@ -178,16 +195,9 @@ static void on_sample(uint32_t voltage_mv, bsp_hv_fault_t fault, bool valid, voi
     }
 
     if (!valid) {
-        hv.control_divider = 0U;
         hv.settle_steps = 0U;
         return;
     }
-
-    if (++hv.control_divider < HV_CONTROL_DIVIDER) {
-        return;
-    }
-
-    hv.control_divider = 0U;
 
     control_step();
 }
@@ -217,7 +227,6 @@ static bool start(void) {
     }
 
     hv.integral_q16 = 0;
-    hv.control_divider = 0U;
     hv.start_steps = 0U;
     hv.settle_steps = 0U;
 
@@ -237,6 +246,11 @@ bool app_hv_init(void) {
     hv.state = APP_HV_OFF;
     hv.fault = APP_HV_FAULT_NONE;
     hv.target_v = APP_HV_DEFAULT_VOLTAGE_V;
+#ifdef HV_DIAGNOSTICS
+    bsp_hv_diag.kp_q16 = HV_KP_Q16;
+    bsp_hv_diag.ki_q16 = HV_KI_Q16;
+    bsp_hv_diag.filter_shift = HV_FILTER_SHIFT;
+#endif
 
     if (!bsp_hv_init(on_sample, NULL)) {
         hv.state = APP_HV_FAULT;
@@ -314,7 +328,6 @@ bool app_hv_set_enabled(bool enabled) {
         (void)bsp_hv_set_enabled(false);
 
         hv.integral_q16 = 0;
-        hv.control_divider = 0U;
         hv.settle_steps = 0U;
 
         return true;

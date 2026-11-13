@@ -37,11 +37,12 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
                         "Refresh rate : %u Hz (full scan target)\n"
                         "Blanking     : %u us\n"
                         "Missed slots : %lu\n"
+                        "Max IRQ late : %u us\n"
                         "Separators   : %s (static RTC phase)\n",
                         status.running ? "running" : "stopped", (unsigned)(status.brightness_pm / 10U),
                         (unsigned)(status.brightness_pm % 10U), (unsigned)status.refresh_rate_hz,
                         (unsigned)status.blanking_time_us, (unsigned long)status.missed_slots,
-                        status.separators_on ? "on" : "off");
+                        (unsigned)status.max_irq_delay_us, status.separators_on ? "on" : "off");
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 

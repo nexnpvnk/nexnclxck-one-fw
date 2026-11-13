@@ -73,6 +73,6 @@ void bsp_i2c_hw_init(void) {
     DMA1_Channel3->CCR = DMA_CCR_MINC | DMA_CCR_PL_1;
     /* Analog filter enabled, digital filter off, clock stretching enabled. */
     I2C1->CR1 = I2C_CR1_PE;
-    NVIC_SetPriority(I2C1_IRQn, 0U);
+    NVIC_SetPriority(I2C1_IRQn, BSP_IRQ_PRIORITY_IO);
     NVIC_EnableIRQ(I2C1_IRQn);
 }

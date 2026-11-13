@@ -12,9 +12,9 @@ _Static_assert(BSP_BOARD_BUZZER_INITIAL_RATE_HZ > 0U
                    && BSP_TIM16_ARR > 0U && BSP_TIM16_ARR <= UINT16_MAX,
                "The initial TIM16 period must be exact and fit its 16-bit counter");
 _Static_assert(BSP_BOARD_HV_ADC_TARGET_RATE_HZ > 0U
-                   && PLATFORM_HCLK_HZ % ((BSP_TIM_US_PSC + 1U) * BSP_BOARD_HV_ADC_TARGET_RATE_HZ) == 0U
+                   && PLATFORM_HCLK_HZ % BSP_BOARD_HV_ADC_TARGET_RATE_HZ == 0U
                    && BSP_TIM3_ARR > 0U && BSP_TIM3_ARR <= UINT16_MAX
-                   && TIMER_CALC_RATE_HZ(PLATFORM_HCLK_HZ, BSP_TIM_US_PSC, BSP_TIM3_ARR)
+                   && TIMER_CALC_RATE_HZ(PLATFORM_HCLK_HZ, 0U, BSP_TIM3_ARR)
                           == BSP_BOARD_HV_ADC_TARGET_RATE_HZ,
                "The TIM3 ADC trigger period must be exact and fit its 16-bit counter");
 _Static_assert(BSP_BOARD_HV_PWM_RATE_HZ > 0U && PLATFORM_HCLK_HZ % BSP_BOARD_HV_PWM_RATE_HZ == 0U
@@ -94,20 +94,20 @@ static void gpio_init(void) {
     GPIOD->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR2;
     GPIOD->PUPDR &= ~GPIO_PUPDR_PUPDR2;
     GPIOD->MODER = (GPIOD->MODER & ~GPIO_MODER_MODER2) | GPIO_MODER_MODER2_0;
-    NVIC_SetPriority(EXTI0_1_IRQn, 3U);
+    NVIC_SetPriority(EXTI0_1_IRQn, BSP_IRQ_PRIORITY_BACKGROUND);
     NVIC_EnableIRQ(EXTI0_1_IRQn);
-    NVIC_SetPriority(EXTI2_3_IRQn, 3U);
+    NVIC_SetPriority(EXTI2_3_IRQn, BSP_IRQ_PRIORITY_BACKGROUND);
     NVIC_EnableIRQ(EXTI2_3_IRQn);
 }
 
 static void dma_init(void) {
     RCC->AHBENR |= RCC_AHBENR_DMA1EN;
     (void)RCC->AHBENR;
-    NVIC_SetPriority(DMA1_Channel1_IRQn, 0U);
+    NVIC_SetPriority(DMA1_Channel1_IRQn, BSP_IRQ_PRIORITY_WS2812);
     NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-    NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0U);
+    NVIC_SetPriority(DMA1_Channel2_3_IRQn, BSP_IRQ_PRIORITY_IO);
     NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
-    NVIC_SetPriority(DMA1_Channel4_5_IRQn, 0U);
+    NVIC_SetPriority(DMA1_Channel4_5_IRQn, BSP_IRQ_PRIORITY_IO);
     NVIC_EnableIRQ(DMA1_Channel4_5_IRQn);
 }
 

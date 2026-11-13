@@ -5,6 +5,11 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
+option(HV_DIAGNOSTICS "Enable SWD HV capture and tuning (no UART in IRQ)" OFF)
+if(HV_DIAGNOSTICS)
+    add_compile_definitions(HV_DIAGNOSTICS)
+endif()
+
 
 # Define the build type
 if(NOT CMAKE_BUILD_TYPE)

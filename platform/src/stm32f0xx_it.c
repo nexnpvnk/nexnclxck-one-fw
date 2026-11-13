@@ -49,6 +49,8 @@ void DMA1_Channel4_5_IRQHandler(void) { bsp_console_dma_irq(); }
 
 void ADC1_COMP_IRQHandler(void) { bsp_hv_adc_irq(); }
 
+void TIM17_IRQHandler(void) { bsp_hv_pwm_irq(); }
+
 void I2C1_IRQHandler(void) { bsp_i2c_irq(); }
 
 void USART1_IRQHandler(void) { bsp_console_uart_irq(); }

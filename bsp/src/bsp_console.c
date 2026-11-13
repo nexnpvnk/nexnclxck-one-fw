@@ -310,6 +310,6 @@ void bsp_console_hw_init(void) {
             Error_Handler();
         }
     }
-    NVIC_SetPriority(USART1_IRQn, 0U);
+    NVIC_SetPriority(USART1_IRQn, BSP_IRQ_PRIORITY_IO);
     NVIC_EnableIRQ(USART1_IRQn);
 }
