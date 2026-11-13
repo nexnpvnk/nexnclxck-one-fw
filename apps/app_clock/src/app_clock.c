@@ -85,7 +85,7 @@ static app_clock_weekday_t weekday_calc(uint16_t year, uint8_t month, uint8_t da
     return (app_clock_weekday_t)weekday;
 }
 
-static bool app_clock_read(app_clock_datetime_t* datetime) {
+bool app_clock_get(app_clock_datetime_t* datetime) {
     bsp_rtc_datetime_t bsp_rtc_datetime;
 
     if (datetime == NULL) {
@@ -109,14 +109,6 @@ static bool app_clock_read(app_clock_datetime_t* datetime) {
 }
 
 bool app_clock_is_valid(void) { return bsp_rtc_is_valid(); }
-
-bool app_clock_get(app_clock_datetime_t* datetime) {
-    if (!app_clock_is_valid()) {
-        return false;
-    }
-
-    return app_clock_read(datetime);
-}
 
 bool app_clock_set(const app_clock_datetime_t* datetime) {
     bsp_rtc_datetime_t bsp_rtc_datetime;

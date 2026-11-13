@@ -182,17 +182,17 @@ static void present_clock(void) {
     if (!app_clock_get_status(&status)) {
         return;
     }
-    bool clock_valid = status.rtc_ready && status.source_ready && status.datetime_valid;
+    bool time_valid = status.rtc_ready && status.source_ready;
     app_clock_datetime_t datetime;
-    if (clock_valid) {
+    if (time_valid) {
         if (!app_clock_get(&datetime)) {
             return; /* A transient snapshot failure keeps the accepted state. */
         }
-        clock_valid = app_clock_datetime_is_valid(&datetime);
+        time_valid = datetime.hour <= 23U && datetime.minute <= 59U && datetime.second <= 59U;
     }
     uint8_t symbols[NIXIE_MAX_ELEMENTS];
     memset(symbols, NIXIE_SYMBOL_BLANK, selected.board.element_count);
-    if (clock_valid) {
+    if (time_valid) {
         const uint8_t values[] = {
             [APP_DISPLAY_CLOCK_UNUSED] = NIXIE_SYMBOL_BLANK,
             [APP_DISPLAY_CLOCK_HOUR_TENS] = datetime.hour / 10U,

@@ -39,8 +39,9 @@ typedef struct {
 bool app_display_init(void);
 /* Foreground-only. Authorize illumination when HV is ready and update the clock
  * frame when clock_roles is configured. Separator slots follow RTC via TIM1.
- * Invalid time/unready RTC blanks clock digits and separators; a failed snapshot
- * retains the accepted state for retry. */
+ * Unready RTC or out-of-range HH:MM:SS blanks clock digits and separators;
+ * the time-set marker does not gate display. A failed snapshot retains the
+ * accepted state for retry. */
 void app_display_process(bool power_ready);
 /* Select a profile and blank all elements. Descriptor arrays/strings must remain
  * valid and immutable while selected. Invalid/BUSY leaves the current state intact. */

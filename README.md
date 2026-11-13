@@ -18,8 +18,9 @@ Drivers access registers through CMSIS. Flash: 64 KiB. RAM: 8 KiB.
 | Lighting | 12 WS2812 LEDs, rainbow, brightness 32/255, 33 ms effect interval |
 | BME280 | Forced mode, 500 ms measurement interval |
 
-The display is blank until time is valid and HV is ready. Device settings live
-in RAM; the RTC calendar and validity marker live in the backup domain.
+The display shows the RTC counters once RTC and HV are ready, even when the
+time has not been set. Device settings live in RAM; the RTC calendar and
+time-set marker live in the backup domain.
 
 ## Structure
 
@@ -70,7 +71,7 @@ clock set -d 2026-11-14 -t 12:34:56
 | --- | --- |
 | RTC status and calendar | `clock` |
 | Set date and time | `clock set -d 2026-11-14 -t 12:34:56` |
-| Invalidate the calendar (admin) | `clock invalidate` |
+| Clear the time-set marker (admin) | `clock invalidate` |
 | Latest BME280 result / monitor | `bme280` / `bme280 -w` |
 | HV status / monitor | `hv` / `hv -w` |
 | HV target, 100..250 V | `hv set -v 180` |
@@ -87,6 +88,11 @@ supported years are 2000..2099. Numeric options accept unsigned decimal values
 without suffixes. All arguments are validated before changes are applied.
 Unknown and repeated options are rejected. `-h` / `--help` shows help without
 performing an action.
+
+`clock` shows the RTC date and time whenever they can be read, with a `not set`
+warning if the time-set marker is absent. Log timestamps use RTC time when it
+can be read and uptime otherwise. `clock invalidate` clears the marker while
+the RTC counters and display continue running.
 
 One monitor can run at a time. It prints an initial snapshot and updates once
 per second without replaying missed intervals. Ctrl+C stops output. Devices

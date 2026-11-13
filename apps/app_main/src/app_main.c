@@ -22,23 +22,15 @@
 
 static void logger_prefix(ulog_event* event, char* buffer, size_t size) {
     static uint32_t message_id;
-    app_clock_datetime_t datetime;
-
     (void)event;
 
-    uint32_t id = message_id++;
-
-    if (app_clock_get(&datetime)) {
-        (void)snprintf(buffer, size, "%02u:%02u:%02u | %03lu | ", (unsigned)datetime.hour,
-                       (unsigned)datetime.minute, (unsigned)datetime.second, (unsigned long)id);
-    } else {
-        (void)snprintf(buffer, size, "+%lums | %03lu | ", (unsigned long)bsp_time_ms(), (unsigned long)id);
-    }
+    (void)snprintf(buffer, size, "+%lums | %03lu | ", (unsigned long)bsp_time_ms(), (unsigned long)message_id++);
 }
 
 static bool logger_init(void) {
     static const char* const topics[] = {
-        "main", "input",
+        "main",
+        "input",
     };
 
     if (ulog_syslog_enable() != ULOG_STATUS_OK) {
@@ -119,10 +111,9 @@ void app_main(void) {
         app_hv_status_t hv_status;
         /* Qualify initial HV startup once. Keep the display load connected
          * during ordinary regulation transients; OFF/FAULT revoke permission. */
-        display_power_ready = app_hv_get_status(&hv_status) && hv_status.requested_enabled
-                              && hv_status.fault == APP_HV_FAULT_NONE
-                              && (hv_status.state == APP_HV_RUNNING
-                                  || (display_power_ready && hv_status.state == APP_HV_STARTING));
+        display_power_ready =
+            app_hv_get_status(&hv_status) && hv_status.requested_enabled && hv_status.fault == APP_HV_FAULT_NONE
+            && (hv_status.state == APP_HV_RUNNING || (display_power_ready && hv_status.state == APP_HV_STARTING));
         app_display_process(display_power_ready);
         bsp_i2c_process();
         shell_process();

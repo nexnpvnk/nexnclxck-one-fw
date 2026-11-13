@@ -150,7 +150,6 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
     if (!status.datetime_valid) {
         WSH_SHELL_PRINT_WARN("Clock is not set\n");
         WSH_SHELL_PRINT_SYS("Use: clock set -d YYYY-MM-DD -t HH:MM:SS (years 2000..2099)\n");
-        return WSH_SHELL_RET_STATE_SUCCESS;
     }
 
     if (!app_clock_get(&datetime)) {

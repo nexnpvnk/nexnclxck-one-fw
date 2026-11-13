@@ -35,11 +35,13 @@ typedef struct {
     bool datetime_valid;
 } app_clock_status_t;
 
+/* Read the running RTC, including when the time-set marker is absent. */
 bool app_clock_get(app_clock_datetime_t* datetime);
 bool app_clock_set(const app_clock_datetime_t* datetime);
 /* Pure calendar validation (2000..2099); does not access the RTC. */
 bool app_clock_datetime_is_valid(const app_clock_datetime_t* datetime);
 
+/* User-set marker; independent of RTC readiness and calendar field validation. */
 bool app_clock_is_valid(void);
 bool app_clock_invalidate(void);
 
