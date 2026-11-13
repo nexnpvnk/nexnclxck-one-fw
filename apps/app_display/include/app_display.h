@@ -14,12 +14,12 @@ typedef enum {
     APP_DISPLAY_CLOCK_MINUTE_UNITS,
     APP_DISPLAY_CLOCK_SECOND_TENS,
     APP_DISPLAY_CLOCK_SECOND_UNITS,
-    APP_DISPLAY_CLOCK_SEPARATOR, /* RTC LED phase is applied in the scan IRQ. */
 } app_display_clock_role_t;
 
 typedef struct {
     nixie_board_t board;
-    /* One role per board element; NULL keeps explicit frame control only. */
+    /* One role per scanned element; NULL keeps explicit digit frame control.
+     * Static RTC separators operate independently of this table. */
     const app_display_clock_role_t* clock_roles;
     nixie_timing_t timing;
     uint16_t brightness_pm;
@@ -32,24 +32,27 @@ typedef struct {
     uint16_t blanking_time_us;
     uint32_t missed_slots; /* Cumulative BSP counter, including late PWM completion. */
     bool running;
+    bool separators_on; /* Commanded static outputs in the current RTC phase. */
 } app_display_status_t;
 
 /* Default profile is in src/display_profile.c. Starts with every element blank. */
 bool app_display_init(void);
 /* Foreground-only. Authorize illumination when HV is ready and update the clock
- * frame when clock_roles is configured. Invalid time/unready RTC is blanked;
- * a failed snapshot retains the previous frame for retry. */
+ * frame when clock_roles is configured. Static separators follow RTC independently.
+ * Invalid time/unready RTC blanks clock digits and separators; a failed snapshot
+ * retains the accepted state for retry. */
 void app_display_process(bool power_ready);
 /* Select a profile and blank all elements. Descriptor arrays/strings must remain
  * valid and immutable while selected. Invalid/BUSY leaves the current state intact. */
 nixie_status_t app_display_configure(const app_display_profile_t* profile);
 /* Copy one symbol ID per board element. Count must equal board.element_count.
  * Foreground-only; invalid/BUSY leaves the current frame intact. Automatic clock
- * presentation owns the frame while clock_roles is configured; separator ON
- * permits light only during the RTC LED on phase. NULL roles disable RTC gating. */
+ * presentation owns the frame while clock_roles is configured. These symbols
+ * never control the static separators. */
 nixie_status_t app_display_present(const uint8_t* symbols, uint8_t count);
 /* Foreground-only. Update parameters in one validated publication, preserving
- * anode brightness and the current symbols. */
+ * anode brightness and the current symbols. Brightness applies only to the
+ * scanned tubes; static separators have no PWM. */
 nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_rate_hz, uint16_t blanking_time_us);
 bool app_display_get_status(app_display_status_t* status);
 nixie_issue_t app_display_last_issue(void);

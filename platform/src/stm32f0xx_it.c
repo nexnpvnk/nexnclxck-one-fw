@@ -39,6 +39,8 @@ void EXTI0_1_IRQHandler(void) { bsp_buttons_irq(EXTI_PR_PR0 | EXTI_PR_PR1); }
 
 void EXTI2_3_IRQHandler(void) { bsp_buttons_irq(EXTI_PR_PR2 | EXTI_PR_PR3); }
 
+void EXTI4_15_IRQHandler(void) { bsp_nixie_separator_irq(); }
+
 void DMA1_Channel1_IRQHandler(void) { bsp_ws2812_dma_irq(); }
 
 void DMA1_Channel2_3_IRQHandler(void) { bsp_i2c_dma_irq(); }

@@ -14,6 +14,7 @@ static nixie_plan_t scratch_plan;
 static nixie_issue_t last_issue = {NIXIE_NOT_READY, UINT8_MAX};
 static bool initialized;
 static bool enabled;
+static bool separators_requested;
 static uint32_t last_clock_poll_ms;
 
 static nixie_status_t validate_clock_roles(const app_display_profile_t* profile) {
@@ -21,18 +22,17 @@ static nixie_status_t validate_clock_roles(const app_display_profile_t* profile)
         return NIXIE_OK;
     }
     static const uint16_t required_symbols[] = {
-        [APP_DISPLAY_CLOCK_UNUSED] = 0U,                       /* Always blank. */
-        [APP_DISPLAY_CLOCK_HOUR_TENS] = 0x007U,                /* Digits 0..2. */
-        [APP_DISPLAY_CLOCK_HOUR_UNITS] = 0x3FFU,               /* Digits 0..9. */
-        [APP_DISPLAY_CLOCK_MINUTE_TENS] = 0x03FU,              /* Digits 0..5. */
-        [APP_DISPLAY_CLOCK_MINUTE_UNITS] = 0x3FFU,             /* Digits 0..9. */
-        [APP_DISPLAY_CLOCK_SECOND_TENS] = 0x03FU,              /* Digits 0..5. */
-        [APP_DISPLAY_CLOCK_SECOND_UNITS] = 0x3FFU,             /* Digits 0..9. */
-        [APP_DISPLAY_CLOCK_SEPARATOR] = 1U << NIXIE_SYMBOL_ON, /* Point on/off. */
+        [APP_DISPLAY_CLOCK_UNUSED] = 0U,           /* Always blank. */
+        [APP_DISPLAY_CLOCK_HOUR_TENS] = 0x007U,    /* Digits 0..2. */
+        [APP_DISPLAY_CLOCK_HOUR_UNITS] = 0x3FFU,   /* Digits 0..9. */
+        [APP_DISPLAY_CLOCK_MINUTE_TENS] = 0x03FU,  /* Digits 0..5. */
+        [APP_DISPLAY_CLOCK_MINUTE_UNITS] = 0x3FFU, /* Digits 0..9. */
+        [APP_DISPLAY_CLOCK_SECOND_TENS] = 0x03FU,  /* Digits 0..5. */
+        [APP_DISPLAY_CLOCK_SECOND_UNITS] = 0x3FFU, /* Digits 0..9. */
     };
     for (uint8_t e = 0U; e < profile->board.element_count; ++e) {
         app_display_clock_role_t role = profile->clock_roles[e];
-        if ((unsigned)role > APP_DISPLAY_CLOCK_SEPARATOR) {
+        if ((unsigned)role > APP_DISPLAY_CLOCK_SECOND_UNITS) {
             last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, e};
             return last_issue.status;
         }
@@ -69,23 +69,7 @@ static nixie_status_t publish_configuration(const app_display_profile_t* profile
     nixie_status_t result =
         nixie_compile(&profile->board, &profile->timing, &frame, bsp_nixie_caps(), &scratch_plan, &last_issue);
     if (result == NIXIE_OK) {
-        bsp_nixie_rtc_gate_t rtc_gate = {0};
-        if (profile->clock_roles != NULL) {
-            for (uint8_t e = 0U; e < profile->board.element_count; ++e) {
-                if (profile->clock_roles[e] != APP_DISPLAY_CLOCK_SEPARATOR) {
-                    continue;
-                }
-                const nixie_element_t* element = &profile->board.elements[e];
-                rtc_gate.anodes |= (uint16_t)(1U << element->anode_channel);
-                for (uint8_t c = 0U; c < element->tube->cathode_count; ++c) {
-                    uint8_t channel = element->cathode_channels[c];
-                    if (channel != NIXIE_CHANNEL_FIXED) {
-                        rtc_gate.cathodes[element->anode_channel] |= (uint16_t)(1U << channel);
-                    }
-                }
-            }
-        }
-        result = bsp_nixie_present(&scratch_plan, profile->clock_roles != NULL ? &rtc_gate : NULL);
+        result = bsp_nixie_present(&scratch_plan);
         last_issue.status = result;
     }
     if (result == NIXIE_OK) {
@@ -114,7 +98,7 @@ nixie_status_t app_display_configure(const app_display_profile_t* profile) {
     }
     /* Validate the borrowed layout and its complete symbol set once, before
      * selecting it. Ordinary frame updates retain the validated profile. */
-    nixie_status_t result = nixie_validate_board(&profile->board, bsp_nixie_caps(), &last_issue);
+    nixie_status_t result = bsp_nixie_validate_board(&profile->board, &last_issue);
     if (result != NIXIE_OK || (result = validate_clock_roles(profile)) != NIXIE_OK) {
         return result;
     }
@@ -159,6 +143,7 @@ bool app_display_get_status(app_display_status_t* status) {
         .blanking_time_us = selected.timing.blanking_time_us,
         .missed_slots = hardware.missed_slots,
         .running = hardware.running,
+        .separators_on = hardware.separators_on,
     };
     return true;
 }
@@ -166,9 +151,6 @@ bool app_display_get_status(app_display_status_t* status) {
 nixie_issue_t app_display_last_issue(void) { return last_issue; }
 
 static void present_clock(void) {
-    if (selected.clock_roles == NULL) {
-        return;
-    }
     uint32_t now = bsp_time_ms();
     if (now == last_clock_poll_ms) {
         return;
@@ -178,28 +160,36 @@ static void present_clock(void) {
     if (!app_clock_get_status(&status)) {
         return;
     }
+    bool clock_valid = status.rtc_ready && status.source_ready && status.datetime_valid;
+    app_clock_datetime_t datetime;
+    if (clock_valid) {
+        if (!app_clock_get(&datetime)) {
+            return; /* A transient snapshot failure keeps the accepted state. */
+        }
+        clock_valid = app_clock_datetime_is_valid(&datetime);
+    }
+    /* Permission changes only with clock validity; EXTI13 handles every phase
+     * edge independently of frame publication, BUSY and foreground delays. */
+    if (clock_valid != separators_requested && bsp_nixie_set_separators(clock_valid)) {
+        separators_requested = clock_valid;
+    }
+    if (selected.clock_roles == NULL) {
+        return;
+    }
     uint8_t symbols[NIXIE_MAX_ELEMENTS];
     memset(symbols, NIXIE_SYMBOL_BLANK, selected.board.element_count);
-    if (status.rtc_ready && status.source_ready && status.datetime_valid) {
-        app_clock_datetime_t datetime;
-        if (!app_clock_get(&datetime)) {
-            return; /* A transient snapshot failure keeps the accepted frame. */
-        }
-        if (app_clock_datetime_is_valid(&datetime)) {
-            const uint8_t values[] = {
-                [APP_DISPLAY_CLOCK_UNUSED] = NIXIE_SYMBOL_BLANK,
-                [APP_DISPLAY_CLOCK_HOUR_TENS] = datetime.hour / 10U,
-                [APP_DISPLAY_CLOCK_HOUR_UNITS] = datetime.hour % 10U,
-                [APP_DISPLAY_CLOCK_MINUTE_TENS] = datetime.minute / 10U,
-                [APP_DISPLAY_CLOCK_MINUTE_UNITS] = datetime.minute % 10U,
-                [APP_DISPLAY_CLOCK_SECOND_TENS] = datetime.second / 10U,
-                [APP_DISPLAY_CLOCK_SECOND_UNITS] = datetime.second % 10U,
-                /* RTC phase is applied by TIM1; the frame only permits light. */
-                [APP_DISPLAY_CLOCK_SEPARATOR] = NIXIE_SYMBOL_ON,
-            };
-            for (uint8_t e = 0U; e < selected.board.element_count; ++e) {
-                symbols[e] = values[selected.clock_roles[e]];
-            }
+    if (clock_valid) {
+        const uint8_t values[] = {
+            [APP_DISPLAY_CLOCK_UNUSED] = NIXIE_SYMBOL_BLANK,
+            [APP_DISPLAY_CLOCK_HOUR_TENS] = datetime.hour / 10U,
+            [APP_DISPLAY_CLOCK_HOUR_UNITS] = datetime.hour % 10U,
+            [APP_DISPLAY_CLOCK_MINUTE_TENS] = datetime.minute / 10U,
+            [APP_DISPLAY_CLOCK_MINUTE_UNITS] = datetime.minute % 10U,
+            [APP_DISPLAY_CLOCK_SECOND_TENS] = datetime.second / 10U,
+            [APP_DISPLAY_CLOCK_SECOND_UNITS] = datetime.second % 10U,
+        };
+        for (uint8_t e = 0U; e < selected.board.element_count; ++e) {
+            symbols[e] = values[selected.clock_roles[e]];
         }
     }
     /* Accepted symbols are the only cache. BUSY leaves them unchanged, so the
