@@ -87,6 +87,7 @@ clock set -d 2026-11-14 -t 12:34:56
 | Primary and secondary RGB colors | `light set --primary 0xFF5008 --secondary 0x0020FF` |
 | Lighting speed and brightness, 0..255 | `light set --speed 128 --brightness 32` |
 | Turn lighting off | `light set --brightness 0` |
+| Restore startup lighting parameters | `light reset` |
 
 `set` options can be combined. Date and time must be supplied together;
 supported years are 2000..2099. Numeric options accept unsigned decimal values
@@ -103,6 +104,8 @@ changed independently; omitted values are preserved. Short forms are `-e`
 for effect, `-s` for speed and `-b` for brightness. Changes are rendered from
 the main loop and sent asynchronously via DMA. Settings are held in RAM
 and return to startup defaults after reset.
+`light reset` restores `rainbow`, colors `0xFF5008` / `0x0020FF`, speed 128
+and brightness 32, and restarts the effect phase while preserving the LED count.
 
 `clock` shows the RTC date and time whenever they can be read, with a `not set`
 warning if the time-set marker is absent. Log timestamps use RTC time when it

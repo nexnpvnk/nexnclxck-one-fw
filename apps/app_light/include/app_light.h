@@ -23,6 +23,10 @@ typedef struct {
 /* Initialize the lighting application for the active LED count. */
 bool app_light_init(uint8_t led_count);
 
+/* Foreground-only. Restore startup parameters and restart the effect phase.
+ * Preserve LED count and transport state. Returns false if not initialized. */
+bool app_light_reset(void);
+
 /* Call regularly from the foreground superloop. */
 void app_light_process(void);
 

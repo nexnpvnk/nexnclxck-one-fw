@@ -39,6 +39,18 @@ bool app_light_init(uint8_t count) {
 
     led_count = count;
 
+    pending = false;
+    have_sent = false;
+    initialized = true;
+
+    return app_light_reset();
+}
+
+bool app_light_reset(void) {
+    if (!initialized) {
+        return false;
+    }
+
     config = (ledfx_config_t){
         .effect = LEDFX_EFFECT_RAINBOW,
         .primary = {255U, 80U, 8U},
@@ -53,9 +65,6 @@ bool app_light_init(uint8_t count) {
     last_render_ms = effect_started_ms;
 
     dirty = true;
-    pending = false;
-    have_sent = false;
-    initialized = true;
 
     return true;
 }

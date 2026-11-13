@@ -15,6 +15,12 @@ static const WshShellOption_t read_opts[] = {
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
+static const WshShellOption_t reset_opts[] = {
+    {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Restore startup lighting parameters")},
+    {OPT_HELP, WSH_SHELL_OPT_HELP()},
+    {OPT_END, WSH_SHELL_OPT_END()},
+};
+
 static const WshShellOption_t set_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set one or more lighting parameters")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
@@ -97,6 +103,40 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
         WshShellCmd_PrintOptionsOverview(cmd);
         return WSH_SHELL_RET_STATE_SUCCESS;
     }
+    return print_status();
+}
+
+static WSH_SHELL_RET_STATE_t reset_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
+                                           const WshShell_Char_t* argv[], void* ctx) {
+    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    WshShell_t* shell = ctx;
+    if (!WshShell_IsAuth(shell)) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    WshShell_Size_t pos = 0U;
+    bool help = false;
+    while (pos < argc) {
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
+        if (opt.Option == NULL || opt.ParseError) {
+            return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
+        switch (opt.Option->ID) {
+            case OPT_DEFAULT: break;
+            case OPT_HELP: help = true; break;
+            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
+    }
+    if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
+        return WSH_SHELL_RET_STATE_SUCCESS;
+    }
+    if (!app_light_reset()) {
+        WSH_SHELL_PRINT_ERR("Lighting unavailable\n");
+        return WSH_SHELL_RET_STATE_ERROR;
+    }
+    WSH_SHELL_PRINT_INFO("Startup lighting parameters restored\n");
     return print_status();
 }
 
@@ -202,7 +242,16 @@ static const WshShellCmd_t set_cmd = {
     .Handler = set_handler,
 };
 
-static const WshShellCmd_t* const subcommands[] = {&set_cmd};
+static const WshShellCmd_t reset_cmd = {
+    .Groups = WSH_SHELL_CMD_GROUP_USER,
+    .Name = "reset",
+    .Descr = "Restore startup lighting parameters and restart the effect",
+    .Options = reset_opts,
+    .OptNum = WSH_SHELL_ARR_LEN(reset_opts),
+    .Handler = reset_handler,
+};
+
+static const WshShellCmd_t* const subcommands[] = {&set_cmd, &reset_cmd};
 
 const WshShellCmd_t app_cli_light_cmd = {
     .Groups = WSH_SHELL_CMD_GROUP_USER,
