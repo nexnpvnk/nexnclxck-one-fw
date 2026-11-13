@@ -18,7 +18,7 @@ static const WshShellOption_t set_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set one or more display parameters")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_BRIGHTNESS, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-b", "--brightness",
-                                       "Tube brightness (0..100%; separators independent)")},
+                                       "Display brightness (0..100%; digits and separators)")},
     {OPT_REFRESH_RATE, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-r", "--refresh-rate",
                                          "Full scan refresh rate in Hz (1..400; blanking time must fit the slot)")},
     {OPT_BLANKING_TIME, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-t", "--blanking-time",
@@ -38,7 +38,7 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
                         "Blanking     : %u us\n"
                         "Missed slots : %lu\n"
                         "Max IRQ late : %u us\n"
-                        "Separators   : %s (static RTC phase)\n",
+                        "Separators   : %s (multiplexed RTC gate)\n",
                         status.running ? "running" : "stopped", (unsigned)(status.brightness_pm / 10U),
                         (unsigned)(status.brightness_pm % 10U), (unsigned)status.refresh_rate_hz,
                         (unsigned)status.blanking_time_us, (unsigned long)status.missed_slots,

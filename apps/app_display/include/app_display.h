@@ -14,12 +14,13 @@ typedef enum {
     APP_DISPLAY_CLOCK_MINUTE_UNITS,
     APP_DISPLAY_CLOCK_SECOND_TENS,
     APP_DISPLAY_CLOCK_SECOND_UNITS,
+    APP_DISPLAY_CLOCK_SEPARATOR,
 } app_display_clock_role_t;
 
 typedef struct {
     nixie_board_t board;
-    /* One role per scanned element; NULL keeps explicit digit frame control.
-     * Static RTC separators operate independently of this table. */
+    /* One role per element; separator roles require an anode separate from
+     * digits. NULL keeps explicit frame control without automatic RTC gating. */
     const app_display_clock_role_t* clock_roles;
     nixie_timing_t timing;
     uint16_t brightness_pm;
@@ -33,13 +34,13 @@ typedef struct {
     uint32_t missed_slots; /* Phase IRQs delayed by at least one nominal scan slot. */
     uint16_t max_irq_delay_us;
     bool running;
-    bool separators_on; /* Commanded static outputs in the current RTC phase. */
+    bool separators_on; /* RTC gate of lit separator slots in the active frame. */
 } app_display_status_t;
 
 /* Default profile is in src/display_profile.c. Starts with every element blank. */
 bool app_display_init(void);
 /* Foreground-only. Authorize illumination when HV is ready and update the clock
- * frame when clock_roles is configured. Static separators follow RTC independently.
+ * frame when clock_roles is configured. Separator slots follow RTC via TIM1.
  * Invalid time/unready RTC blanks clock digits and separators; a failed snapshot
  * retains the accepted state for retry. */
 void app_display_process(bool power_ready);
@@ -48,12 +49,10 @@ void app_display_process(bool power_ready);
 nixie_status_t app_display_configure(const app_display_profile_t* profile);
 /* Copy one symbol ID per board element. Count must equal board.element_count.
  * Foreground-only; invalid/BUSY leaves the current frame intact. Automatic clock
- * presentation owns the frame while clock_roles is configured. These symbols
- * never control the static separators. */
+ * presentation owns the frame while clock_roles is configured. */
 nixie_status_t app_display_present(const uint8_t* symbols, uint8_t count);
 /* Foreground-only. Update parameters in one validated publication, preserving
- * anode brightness and the current symbols. Brightness applies only to the
- * scanned tubes; static separators have no PWM. */
+ * anode brightness and the current symbols. Brightness applies to all slots. */
 nixie_status_t app_display_set_parameters(uint16_t brightness_pm, uint16_t refresh_rate_hz, uint16_t blanking_time_us);
 bool app_display_get_status(app_display_status_t* status);
 nixie_issue_t app_display_last_issue(void);

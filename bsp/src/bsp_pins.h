@@ -86,17 +86,9 @@
     (BSP_CATHODE_5_PIN | BSP_CATHODE_6_PIN | BSP_CATHODE_7_PIN | BSP_CATHODE_8_PIN | BSP_CATHODE_9_PIN                 \
      | BSP_CATHODE_10_PIN | BSP_CATHODE_11_PIN)
 
-/* INS-1 separators are static outputs, never part of the multiplexed frame.
- * These channels are reserved even when the separators are off. */
-#define BSP_SEPARATOR_ANODE_CHANNEL    2U
-#define BSP_SEPARATOR_CATHODE_CHANNELS ((1U << 3U) | (1U << 7U) | (1U << 10U) | (1U << 13U))
+/* Physical separator anode, also observed by optional HV diagnostics. */
 #define BSP_SEPARATOR_ANODE_PORT       BSP_ANODE_2_PORT
 #define BSP_SEPARATOR_ANODE_PIN        BSP_ANODE_2_PIN
-#define BSP_SEPARATOR_CATHODE_B_MASK   (BSP_CATHODE_3_PIN | BSP_CATHODE_13_PIN)
-#define BSP_SEPARATOR_CATHODE_C_MASK   (BSP_CATHODE_7_PIN | BSP_CATHODE_10_PIN)
-#define BSP_NIXIE_SCAN_ANODE_B_MASK    (BSP_NIXIE_ANODE_B_MASK & ~BSP_SEPARATOR_ANODE_PIN)
-#define BSP_NIXIE_SCAN_CATHODE_B_MASK  (BSP_NIXIE_CATHODE_B_MASK & ~BSP_SEPARATOR_CATHODE_B_MASK)
-#define BSP_NIXIE_SCAN_CATHODE_C_MASK  (BSP_NIXIE_CATHODE_C_MASK & ~BSP_SEPARATOR_CATHODE_C_MASK)
 
 #define BSP_BUTTON_RIGHT_PORT       GPIOC
 #define BSP_BUTTON_RIGHT_PIN        GPIO_ODR_0

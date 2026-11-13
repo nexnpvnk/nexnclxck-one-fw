@@ -36,6 +36,7 @@ typedef struct {
     nixie_timing_t timing;
     uint16_t slot_us;
     uint8_t slot_count;
+    uint8_t rtc_slots; /* Lit slots gated by PC13; dark slots keep their time. */
     hw_slot_t slots[ANODE_COUNT];
 } hw_plan_t;
 
@@ -50,9 +51,7 @@ static volatile bool have_plan;
 static volatile bool prepared;
 static volatile bool initialized;
 static volatile bool running;
-static volatile bool outputs_enabled;
-static volatile bool separators_enabled;
-static volatile bool separators_on;
+static volatile bool rtc_phase_on;
 static volatile bool shutdown_latched;
 static volatile uint32_t frame_count;
 static volatile uint32_t missed_slots;
@@ -61,17 +60,16 @@ static uint8_t slot_index;
 static slot_state_t slot_state;
 static uint16_t phase_deadline;
 
-/* Scan operations must never touch the static separator outputs. */
 static void scan_anodes_off(void) {
     GPIOA->BSRR = BSP_NIXIE_ANODE_A_MASK << 16U;
-    GPIOB->BSRR = BSP_NIXIE_SCAN_ANODE_B_MASK << 16U;
+    GPIOB->BSRR = BSP_NIXIE_ANODE_B_MASK << 16U;
     GPIOC->BSRR = BSP_NIXIE_ANODE_C_MASK << 16U;
     __DSB();
 }
 
 static void scan_cathodes_off(void) {
-    GPIOB->BSRR = BSP_NIXIE_SCAN_CATHODE_B_MASK << 16U;
-    GPIOC->BSRR = BSP_NIXIE_SCAN_CATHODE_C_MASK << 16U;
+    GPIOB->BSRR = BSP_NIXIE_CATHODE_B_MASK << 16U;
+    GPIOC->BSRR = BSP_NIXIE_CATHODE_C_MASK << 16U;
     __DSB();
 }
 
@@ -84,31 +82,10 @@ static void all_outputs_off(void) {
     GPIOB->BSRR = BSP_NIXIE_CATHODE_B_MASK << 16U;
     GPIOC->BSRR = BSP_NIXIE_CATHODE_C_MASK << 16U;
     __DSB();
-    separators_on = false;
 }
 
-/* Called with IRQs masked. RTC owns the phase; no software blink timer or PWM.
- * Only reserved GPIO bits are written, preserving the current digit slot. */
-static void apply_separators(void) {
-    bool on =
-        outputs_enabled && separators_enabled && !shutdown_latched && (BSP_RTC_LED_PORT->IDR & BSP_RTC_LED_PIN) == 0U;
-    if (on == separators_on) {
-        return;
-    }
-    if (on) {
-        GPIOB->BSRR = BSP_SEPARATOR_CATHODE_B_MASK;
-        GPIOC->BSRR = BSP_SEPARATOR_CATHODE_C_MASK;
-        __DSB();
-        BSP_SEPARATOR_ANODE_PORT->BSRR = BSP_SEPARATOR_ANODE_PIN;
-    } else {
-        BSP_SEPARATOR_ANODE_PORT->BSRR = BSP_SEPARATOR_ANODE_PIN << 16U;
-        __DSB();
-        GPIOB->BSRR = BSP_SEPARATOR_CATHODE_B_MASK << 16U;
-        GPIOC->BSRR = BSP_SEPARATOR_CATHODE_C_MASK << 16U;
-    }
-    __DSB();
-    separators_on = on;
-}
+/* One RTC phase per complete frame; no foreground blink timer or EXTI needed. */
+static void sample_rtc_phase(void) { rtc_phase_on = (BSP_RTC_LED_PORT->IDR & BSP_RTC_LED_PIN) == 0U; }
 
 static void timer_stop(void) {
     TIM1->DIER = 0U;
@@ -150,7 +127,7 @@ static void illuminate_slot(void) {
 static void begin_slot(void) {
     const hw_plan_t* plan = &plans[active];
     const hw_slot_t* slot = &plan->slots[slot_index];
-    if (slot->on_us == 0U) {
+    if (slot->on_us == 0U || ((plan->rtc_slots & (1U << slot_index)) != 0U && !rtc_phase_on)) {
         slot_state = SLOT_DARK;
         arm_phase(plan->slot_us);
     } else {
@@ -169,6 +146,7 @@ static void timer_start(void) {
     scan_anodes_off();
     scan_cathodes_off();
     slot_index = 0U;
+    sample_rtc_phase();
     running = true;
     TIM1->CNT = 0U;
     TIM1->SR = 0U;
@@ -177,7 +155,7 @@ static void timer_start(void) {
 }
 
 void bsp_nixie_hw_init(void) {
-    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN | RCC_APB2ENR_SYSCFGCOMPEN;
+    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
     (void)RCC->APB2ENR;
     RCC->APB2RSTR |= RCC_APB2RSTR_TIM1RST;
     RCC->APB2RSTR &= ~RCC_APB2RSTR_TIM1RST;
@@ -198,17 +176,6 @@ void bsp_nixie_hw_init(void) {
     NVIC_ClearPendingIRQ(TIM1_CC_IRQn);
     NVIC_SetPriority(TIM1_CC_IRQn, BSP_IRQ_PRIORITY_REALTIME);
     NVIC_EnableIRQ(TIM1_CC_IRQn);
-    /* Observe the existing RTC_CALIB output on PC13, on both phase edges.
-     * Only EXTI13 is owned here; buttons keep EXTI0..3. */
-    EXTI->IMR &= ~EXTI_IMR_MR13;
-    SYSCFG->EXTICR[3] = (SYSCFG->EXTICR[3] & ~SYSCFG_EXTICR4_EXTI13) | SYSCFG_EXTICR4_EXTI13_PC;
-    EXTI->RTSR |= EXTI_RTSR_TR13;
-    EXTI->FTSR |= EXTI_FTSR_TR13;
-    EXTI->PR = EXTI_PR_PR13;
-    NVIC_ClearPendingIRQ(EXTI4_15_IRQn);
-    NVIC_SetPriority(EXTI4_15_IRQn, BSP_IRQ_PRIORITY_BACKGROUND);
-    EXTI->IMR |= EXTI_IMR_MR13;
-    NVIC_EnableIRQ(EXTI4_15_IRQn);
     prepared = true;
 }
 
@@ -223,31 +190,7 @@ bool bsp_nixie_init(void) {
 
 const nixie_caps_t* bsp_nixie_caps(void) { return &caps; }
 
-nixie_status_t bsp_nixie_validate_board(const nixie_board_t* board, nixie_issue_t* issue) {
-    nixie_status_t result = nixie_validate_board(board, &caps, issue);
-    if (result != NIXIE_OK) {
-        return result;
-    }
-    for (uint8_t e = 0U; e < board->element_count; ++e) {
-        const nixie_element_t* element = &board->elements[e];
-        bool reserved = element->anode_channel == BSP_SEPARATOR_ANODE_CHANNEL;
-        for (uint8_t c = 0U; c < element->tube->cathode_count; ++c) {
-            uint8_t channel = element->cathode_channels[c];
-            if (channel != NIXIE_CHANNEL_FIXED && (BSP_SEPARATOR_CATHODE_CHANNELS & (1U << channel)) != 0U) {
-                reserved = true;
-            }
-        }
-        if (reserved) {
-            if (issue != NULL) {
-                *issue = (nixie_issue_t){NIXIE_INVALID_WIRING, e};
-            }
-            return NIXIE_INVALID_WIRING;
-        }
-    }
-    return NIXIE_OK;
-}
-
-nixie_status_t bsp_nixie_present(const nixie_plan_t* plan) {
+nixie_status_t bsp_nixie_present(const nixie_plan_t* plan, uint16_t rtc_anodes) {
     if (__get_IPSR() != 0U || __get_PRIMASK() != 0U || !initialized || shutdown_latched) {
         return NIXIE_NOT_READY;
     }
@@ -255,11 +198,12 @@ nixie_status_t bsp_nixie_present(const nixie_plan_t* plan) {
     if (result != NIXIE_OK) {
         return result;
     }
+    uint16_t anode_mask = 0U;
     for (uint8_t s = 0U; s < plan->slot_count; ++s) {
-        if (plan->slots[s].anode == BSP_SEPARATOR_ANODE_CHANNEL
-            || (plan->slots[s].cathodes & BSP_SEPARATOR_CATHODE_CHANNELS) != 0U) {
-            return NIXIE_INVALID_WIRING;
-        }
+        anode_mask |= (uint16_t)(1U << plan->slots[s].anode);
+    }
+    if ((rtc_anodes & ~anode_mask) != 0U) {
+        return NIXIE_INVALID_WIRING;
     }
     uint32_t key = __get_PRIMASK();
     __disable_irq();
@@ -273,8 +217,12 @@ nixie_status_t bsp_nixie_present(const nixie_plan_t* plan) {
     target->timing = plan->timing;
     target->slot_us = plan->slot_us;
     target->slot_count = plan->slot_count;
+    target->rtc_slots = 0U;
     for (uint8_t s = 0U; s < plan->slot_count; ++s) {
         const nixie_slot_t* source = &plan->slots[s];
+        if (source->on_us != 0U && (rtc_anodes & (1U << source->anode)) != 0U) {
+            target->rtc_slots |= (uint8_t)(1U << s);
+        }
         target->slots[s] = (hw_slot_t){
             .anode_port = anodes[source->anode].port,
             .anode_pin = (uint16_t)anodes[source->anode].pin,
@@ -291,8 +239,8 @@ nixie_status_t bsp_nixie_present(const nixie_plan_t* plan) {
                 }
             }
         }
-        target->slots[s].cathode_b = b | ((BSP_NIXIE_SCAN_CATHODE_B_MASK & ~b) << 16U);
-        target->slots[s].cathode_c = c | ((BSP_NIXIE_SCAN_CATHODE_C_MASK & ~c) << 16U);
+        target->slots[s].cathode_b = b | ((BSP_NIXIE_CATHODE_B_MASK & ~b) << 16U);
+        target->slots[s].cathode_c = c | ((BSP_NIXIE_CATHODE_C_MASK & ~c) << 16U);
     }
     key = __get_PRIMASK();
     __disable_irq();
@@ -315,7 +263,6 @@ bool bsp_nixie_set_enabled(bool enabled) {
     uint32_t key = __get_PRIMASK();
     __disable_irq();
     if (!enabled) {
-        outputs_enabled = false;
         if (prepared) {
             timer_stop();
             all_outputs_off();
@@ -330,25 +277,10 @@ bool bsp_nixie_set_enabled(bool enabled) {
         __set_PRIMASK(key);
         return false;
     } else {
-        outputs_enabled = true;
         if (!running) {
             timer_start();
         }
-        apply_separators();
     }
-    __set_PRIMASK(key);
-    return true;
-}
-
-bool bsp_nixie_set_separators(bool enabled) {
-    uint32_t key = __get_PRIMASK();
-    __disable_irq();
-    if (!initialized || shutdown_latched) {
-        __set_PRIMASK(key);
-        return false;
-    }
-    separators_enabled = enabled;
-    apply_separators();
     __set_PRIMASK(key);
     return true;
 }
@@ -357,7 +289,6 @@ void bsp_nixie_shutdown(void) {
     uint32_t key = __get_PRIMASK();
     __disable_irq();
     shutdown_latched = true;
-    outputs_enabled = false;
     running = false;
     pending = false;
     if ((RCC->APB2ENR & RCC_APB2ENR_TIM1EN) != 0U) {
@@ -382,7 +313,7 @@ bool bsp_nixie_get_status(bsp_nixie_status_t* status) {
         .missed_slots = missed_slots,
         .max_irq_delay_us = max_irq_delay_us,
         .running = running,
-        .separators_on = separators_on,
+        .separators_on = running && rtc_phase_on && plan->rtc_slots != 0U,
         .shutdown = shutdown_latched,
     };
     __set_PRIMASK(key);
@@ -426,19 +357,9 @@ void bsp_nixie_timer_irq(void) {
                 __DMB();
                 pending = false;
             }
+            sample_rtc_phase();
         }
         begin_slot();
     }
-    __set_PRIMASK(key);
-}
-
-void bsp_nixie_separator_irq(void) {
-    if ((EXTI->PR & EXTI_PR_PR13) == 0U) {
-        return;
-    }
-    EXTI->PR = EXTI_PR_PR13;
-    uint32_t key = __get_PRIMASK();
-    __disable_irq();
-    apply_separators();
     __set_PRIMASK(key);
 }
