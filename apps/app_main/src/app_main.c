@@ -29,10 +29,10 @@ static void logger_prefix(ulog_event* event, char* buffer, size_t size) {
     uint32_t id = message_id++;
 
     if (app_clock_get(&datetime)) {
-        (void)snprintf(buffer, size, "%02u:%02u:%02u | MsgID:%03lu | ", (unsigned)datetime.hour,
+        (void)snprintf(buffer, size, "%02u:%02u:%02u | %03lu | ", (unsigned)datetime.hour,
                        (unsigned)datetime.minute, (unsigned)datetime.second, (unsigned long)id);
     } else {
-        (void)snprintf(buffer, size, "+%lums | MsgID:%03lu | ", (unsigned long)bsp_time_ms(), (unsigned long)id);
+        (void)snprintf(buffer, size, "+%lums | %03lu | ", (unsigned long)bsp_time_ms(), (unsigned long)id);
     }
 }
 
