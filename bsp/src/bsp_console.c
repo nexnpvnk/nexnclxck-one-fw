@@ -26,7 +26,6 @@ static volatile bool tx_wait_tc;
 static volatile bool tx_retry_pending;
 static uint16_t rx_dma_pos;
 static volatile bool rx_restart_pending;
-static volatile uint32_t rx_dropped;
 static bool initialized;
 
 static uint32_t lock(void) {
@@ -83,8 +82,8 @@ static void tx_finish(void) {
 
 static void rx_write(const uint8_t* data, uint16_t len) {
     lwrb_sz_t written;
-    if (len != 0U && !lwrb_write_ex(&rx_rb, data, len, &written, LWRB_FLAG_WRITE_ALL)) {
-        rx_dropped += len;
+    if (len != 0U) {
+        (void)lwrb_write_ex(&rx_rb, data, len, &written, LWRB_FLAG_WRITE_ALL);
     }
 }
 
@@ -164,7 +163,6 @@ bool bsp_console_init(void) {
     tx_dma_active = false;
     tx_wait_tc = false;
     tx_retry_pending = false;
-    rx_dropped = 0U;
     initialized = true;
     rx_start();
     unlock(primask);

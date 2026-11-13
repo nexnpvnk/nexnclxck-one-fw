@@ -86,24 +86,8 @@
     (BSP_CATHODE_5_PIN | BSP_CATHODE_6_PIN | BSP_CATHODE_7_PIN | BSP_CATHODE_8_PIN | BSP_CATHODE_9_PIN                 \
      | BSP_CATHODE_10_PIN | BSP_CATHODE_11_PIN)
 
-#define BSP_BUTTON_RIGHT_PORT       GPIOC
-#define BSP_BUTTON_RIGHT_PIN        GPIO_ODR_0
-#define BSP_BUTTON_OK_PORT          GPIOC
-#define BSP_BUTTON_OK_PIN           GPIO_ODR_1
-#define BSP_BUTTON_LEFT_PORT        GPIOC
-#define BSP_BUTTON_LEFT_PIN         GPIO_ODR_2
-#define BSP_BUTTON_FN_PORT          GPIOC
-#define BSP_BUTTON_FN_PIN           GPIO_ODR_3
 /* LED anode is connected to +3.3 V; PC13 sinks current while LOW. */
 #define BSP_RTC_LED_PORT            GPIOC
 #define BSP_RTC_LED_PIN             GPIO_IDR_13
-#define BSP_HV_ADC_PORT             GPIOA
-#define BSP_HV_ADC_PIN              GPIO_ODR_2
-#define BSP_I2C_SCL_BME280_PORT     GPIOB
-#define BSP_I2C_SCL_BME280_PIN      GPIO_ODR_6
-#define BSP_I2C_SDA_BME280_PORT     GPIOB
-#define BSP_I2C_SDA_BME280_PIN      GPIO_ODR_7
-#define BSP_ADDRESS_LED_DATA_0_PORT GPIOD
-#define BSP_ADDRESS_LED_DATA_0_PIN  GPIO_ODR_2
 
 #endif /* BSP_PINS_H */

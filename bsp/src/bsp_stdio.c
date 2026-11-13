@@ -1,7 +1,5 @@
 #include "bsp_console.h"
 
-#include "bsp_console.h"
-
 int _write(int file, char* ptr, int len) {
     (void)file;
 

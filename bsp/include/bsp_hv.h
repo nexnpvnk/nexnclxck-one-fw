@@ -21,11 +21,10 @@ extern "C" {
 
 typedef enum {
     BSP_HV_FAULT_NONE = 0,
-    BSP_HV_FAULT_INIT,
-    BSP_HV_FAULT_ADC,
-    BSP_HV_FAULT_OVERVOLTAGE,
-    BSP_HV_FAULT_TIMEOUT,
-    BSP_HV_FAULT_SHUTDOWN,
+    BSP_HV_FAULT_INIT = 1,
+    BSP_HV_FAULT_OVERVOLTAGE = 3,
+    BSP_HV_FAULT_TIMEOUT = 4,
+    BSP_HV_FAULT_SHUTDOWN = 5,
 } bsp_hv_fault_t;
 
 /* Invalid samples update raw telemetry but must not drive the PI/filter. */

@@ -21,10 +21,9 @@ typedef enum {
 
 typedef enum {
     APP_HV_FAULT_NONE = 0,
-    APP_HV_FAULT_INIT,
-    APP_HV_FAULT_BSP,
-    APP_HV_FAULT_NO_RISE,
-    APP_HV_FAULT_NO_REGULATION,
+    APP_HV_FAULT_INIT = 1,
+    APP_HV_FAULT_BSP = 2,
+    APP_HV_FAULT_NO_REGULATION = 4,
 } app_hv_fault_t;
 
 typedef struct {

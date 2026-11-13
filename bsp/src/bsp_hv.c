@@ -232,8 +232,8 @@ bool bsp_hv_set_enabled(bool enabled) {
         return true;
     }
 
-    /* Enable also retries runtime faults. Initialization/ADC
-     * failures require repair; a stale or overvoltage sample cannot enable PWM. */
+    /* Enable also retries runtime faults. Initialization failures require
+     * repair; a stale or overvoltage sample cannot enable PWM. */
     bool recoverable = hv.fault == BSP_HV_FAULT_NONE || hv.fault == BSP_HV_FAULT_OVERVOLTAGE
                        || hv.fault == BSP_HV_FAULT_TIMEOUT || hv.fault == BSP_HV_FAULT_SHUTDOWN;
     bool ready = recoverable && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW && (TIM17->CCER & TIM_CCER_CC1E) != 0U

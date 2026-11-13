@@ -1,27 +1,34 @@
-## Shared-bus policy
+# BME280
 
-BME280 uses the same ui2c controller as other application clients.
+`app_bme280` измеряет температуру, давление и влажность через Bosch SensorAPI
+и общую шину ui2c. Датчик работает в forced mode, oversampling всех каналов ×1,
+IIR выключен. При инициализации проверяется адрес 0x76; при NACK или отсутствии
+BME280 проверяется 0x77.
 
-Before starting an acquisition, the application checks whether a local
-transfer is already pending. If the controller is busy, acquisition is
-deferred without entering Bosch SensorAPI.
+## Измерения и кэш
 
-UI2C_STATUS_BUSY, UI2C_STATUS_BUS_BUSY and
-UI2C_STATUS_ARBITRATION_LOST are treated as temporary bus contention.
+Интервал между попытками измерения — 500 мс. Вызовы SensorAPI синхронные:
+порт обслуживает `ui2c_process()` до завершения передачи и выдерживает задержку
+измерения по миллисекундному таймеру. Дескрипторы и буферы живут до callback.
+IRQ индикации, HV и DMA продолжают обслуживаться во время ожидания.
 
-Bus contention:
-- Does not invalidate the Bosch device context.
-- Does not trigger a sensor reset.
-- Does not increment or clear the sensor failure counter.
-- Does not overwrite the cached measurement.
-- Schedules another attempt after 50 ms.
+`app_bme280_latest()` возвращает последний завершённый результат. До первого
+результата `ready=false`; затем результат содержит данные либо коды ошибки
+датчика и транспорта, адрес и `sampled_at_ms`. Температура — в сотых °C,
+давление — в сотых Па, влажность — в сотых процента. Возраст результата
+вычисляется потребителем по `sampled_at_ms`.
 
-UI2C_STATUS_NOT_INITIALIZED is treated as temporary infrastructure
-unavailability and retried after 1000 ms.
+## Общая шина и восстановление
 
-Successful measurements are scheduled every 500 ms. Actual
-non-contention measurement failures use the existing three-failure
-recovery policy.
+Перед обращением к SensorAPI приложение проверяет `ui2c_busy()`. Занятая шина,
+`BUSY`, `BUS_BUSY` и `ARBITRATION_LOST` откладывают попытку на 50 мс.
+`NOT_INITIALIZED` задаёт повтор через 1000 мс. Отложенная попытка сохраняет
+контекст Bosch, кэш и счётчик ошибок датчика.
 
-When acquisition is deferred, the previous cached sample remains
-available. Consumers must use sampled_at_ms to determine its age.
+Успешное измерение обнуляет счётчик ошибок. Три последовательные ошибки
+измерения сбрасывают готовность контекста датчика; следующая инициализация
+выполняется через 1000 мс. Ошибки самой инициализации также повторяются
+через 1000 мс.
+
+CLI: `bme280` показывает результат и возраст, `bme280 -w` выводит его раз
+в секунду. Ошибка датчика отображается в результате команды.

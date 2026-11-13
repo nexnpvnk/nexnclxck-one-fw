@@ -17,7 +17,7 @@ typedef enum { APP_CLI_WATCH_BME280, APP_CLI_WATCH_HV } app_cli_watch_t;
 
 void app_cli_watch_start(app_cli_watch_t source, void* ctx);
 
-/* Strict unsigned conversion: rejects suffixes and overflow, unlike shell INT. */
+/* Unsigned conversion with optional 0x prefix; rejects signs, suffixes and overflow. */
 bool app_cli_parse_u32(const char* text, uint32_t max, bool allow_hex, uint32_t* value);
 
 #ifdef __cplusplus

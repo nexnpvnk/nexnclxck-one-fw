@@ -53,8 +53,6 @@ static bool rtc_end_update(void) {
     return ready;
 }
 
-static bool rtc_is_ready(void) { return ready; }
-
 void bsp_rtc_hw_init(void) {
     /* Keep the digital input enabled for PC13 readback. RTC_CALIB overrides
      * the output driver independently of the GPIO mode. No pull on the LED. */
@@ -80,7 +78,7 @@ static uint8_t from_bcd(uint32_t value) { return (uint8_t)((value >> 4U) * 10U +
 static uint32_t to_bcd(uint32_t value) { return ((value / 10U) << 4U) | (value % 10U); }
 
 bool bsp_rtc_read(bsp_rtc_datetime_t* datetime) {
-    if (datetime == NULL || !rtc_is_ready()) {
+    if (datetime == NULL || !ready) {
         return false;
     }
     /* ES0202 2.11.2: retry if SSR changed during the shadow snapshot.
@@ -131,7 +129,7 @@ bool bsp_rtc_write(const bsp_rtc_datetime_t* datetime) {
     return true;
 }
 
-bool bsp_rtc_is_valid(void) { return rtc_is_ready() && RTC->BKP0R == BSP_RTC_BKP_MAGIC; }
+bool bsp_rtc_is_valid(void) { return ready && RTC->BKP0R == BSP_RTC_BKP_MAGIC; }
 
 bool bsp_rtc_invalidate(void) {
     PWR->CR |= PWR_CR_DBP;
@@ -143,7 +141,7 @@ bool bsp_rtc_get_status(bsp_rtc_status_t* status) {
     if (status == NULL) {
         return false;
     }
-    status->ready = rtc_is_ready();
+    status->ready = ready;
     status->source_ready = (RCC->BDCR & RCC_BDCR_LSERDY) != 0U;
     return true;
 }

@@ -48,7 +48,6 @@ static const char* fault_name(app_hv_fault_t fault) {
         case APP_HV_FAULT_NONE: return "NONE";
         case APP_HV_FAULT_INIT: return "INIT";
         case APP_HV_FAULT_BSP: return "BSP";
-        case APP_HV_FAULT_NO_RISE: return "NO_RISE";
         case APP_HV_FAULT_NO_REGULATION: return "NO_REGULATION";
         default: return "UNKNOWN";
     }
@@ -58,7 +57,6 @@ static const char* bsp_fault_name(uint8_t fault) {
     switch ((bsp_hv_fault_t)fault) {
         case BSP_HV_FAULT_NONE: return "NONE";
         case BSP_HV_FAULT_INIT: return "INIT";
-        case BSP_HV_FAULT_ADC: return "ADC";
         case BSP_HV_FAULT_OVERVOLTAGE: return "OVERVOLTAGE";
         case BSP_HV_FAULT_TIMEOUT: return "TIMEOUT";
         case BSP_HV_FAULT_SHUTDOWN: return "SHUTDOWN";

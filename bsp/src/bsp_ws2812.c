@@ -37,11 +37,7 @@ static volatile bool latch_pending;
 static volatile uint32_t finished_ms;
 static uint32_t started_ms;
 
-static volatile uint32_t completed_count;
 static volatile uint32_t failed_count;
-static volatile uint32_t missed_deadline_count;
-static volatile uint32_t timeout_count;
-static volatile bsp_ws2812_error_t last_error;
 
 static uint8_t frame_count;
 static uint8_t next_led;
@@ -79,7 +75,7 @@ static void fill_half(uint32_t* output) {
     }
 }
 
-static void stop_transfer(bsp_ws2812_error_t error) {
+static void stop_transfer(bool failed) {
     TIM2->DIER &= ~TIM_DIER_CC3DE;
     TIM2->CR1 &= ~TIM_CR1_CEN;
     TIM2->CCER &= ~TIM_CCER_CC3E;
@@ -92,17 +88,8 @@ static void stop_transfer(bsp_ws2812_error_t error) {
     /* Force LOW regardless of transfer outcome. */
     GPIOD->BSRR = GPIO_BSRR_BR_2;
 
-    if (error == BSP_WS2812_ERROR_NONE) {
-        ++completed_count;
-    } else {
-        last_error = error;
+    if (failed) {
         ++failed_count;
-
-        if (error == BSP_WS2812_ERROR_DEADLINE) {
-            ++missed_deadline_count;
-        } else if (error == BSP_WS2812_ERROR_TIMEOUT) {
-            ++timeout_count;
-        }
     }
 
     finished_ms = bsp_time_ms();
@@ -124,14 +111,14 @@ static bool dma_phase_valid(bool first_half) {
 
 static void half_completed(uint32_t* completed_half, bool first_half) {
     if (!dma_phase_valid(first_half)) {
-        stop_transfer(BSP_WS2812_ERROR_DEADLINE);
+        stop_transfer(true);
         return;
     }
 
     ++completed_halves;
 
     if (completed_halves >= required_halves) {
-        stop_transfer(BSP_WS2812_ERROR_NONE);
+        stop_transfer(false);
         return;
     }
 
@@ -140,7 +127,7 @@ static void half_completed(uint32_t* completed_half, bool first_half) {
 
     /* Check that DMA did not catch up during refill. */
     if (!dma_phase_valid(first_half)) {
-        stop_transfer(BSP_WS2812_ERROR_DEADLINE);
+        stop_transfer(true);
     }
 }
 
@@ -151,9 +138,9 @@ void bsp_ws2812_dma_irq(void) {
         return;
     }
     if ((flags & DMA_ISR_TEIF1) != 0U) {
-        stop_transfer(BSP_WS2812_ERROR_DMA);
+        stop_transfer(true);
     } else if ((flags & (DMA_ISR_HTIF1 | DMA_ISR_TCIF1)) == (DMA_ISR_HTIF1 | DMA_ISR_TCIF1)) {
-        stop_transfer(BSP_WS2812_ERROR_DEADLINE);
+        stop_transfer(true);
     } else if ((flags & DMA_ISR_HTIF1) != 0U) {
         DMA1->IFCR = DMA_IFCR_CHTIF1;
         half_completed(&dma_buffer[0], true);
@@ -203,7 +190,7 @@ bool bsp_ws2812_is_busy(void) {
         NVIC_DisableIRQ(DMA1_Channel1_IRQn);
 
         if (busy && (uint32_t)(bsp_time_ms() - started_ms) >= WS2812_TIMEOUT_MS) {
-            stop_transfer(BSP_WS2812_ERROR_TIMEOUT);
+            stop_transfer(true);
         }
 
         if (irq_enabled != 0U) {
@@ -232,7 +219,7 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
     }
 
     if ((DMA1_Channel1->CCR & DMA_CCR_EN) != 0U || (TIM2->CR1 & TIM_CR1_CEN) != 0U) {
-        stop_transfer(BSP_WS2812_ERROR_START);
+        stop_transfer(true);
         return false;
     }
 
@@ -273,33 +260,6 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
 }
 
 uint32_t bsp_ws2812_error_count(void) { return failed_count; }
-
-bool bsp_ws2812_get_stats(bsp_ws2812_stats_t* stats) {
-    if (stats == NULL || !initialized) {
-        return false;
-    }
-
-    /*
-     * Take a consistent snapshot of values
-     * also modified from the DMA interrupt.
-     */
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-
-    *stats = (bsp_ws2812_stats_t){
-        .completed = completed_count,
-        .failed = failed_count,
-        .missed_deadlines = missed_deadline_count,
-        .timeouts = timeout_count,
-        .last_error = last_error,
-    };
-
-    if ((primask & 1U) == 0U) {
-        __enable_irq();
-    }
-
-    return true;
-}
 
 void bsp_ws2812_hw_init(void) {
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;

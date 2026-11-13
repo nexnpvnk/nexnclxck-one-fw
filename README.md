@@ -1,138 +1,101 @@
 # nexnclxck-one-fw
 
-Инициализация платы, CMSIS-драйверы и аппаратные контракты: [BSP](bsp/README.md).
-Измерения BME280: [кэш измерений и политика общей шины](apps/app_bme280/README.md).
-Индикация ГРИ: [часы, профиль верхней платы и API передачи кадров](apps/app_display/README.md).
+[Русский](README_RU.md)
 
-Текущая плата из шести ИН-12 показывает время RTC в формате **ЧЧ:ММ:СС**.
-Четыре внешние точки мигают синхронно со светодиодом RTC на PC13:
-около 500 мс горят непрерывно, 500 мс погашены. Оба фронта PC13 обслуживает
-EXTI13; точки работают независимо от кадров цифровых ламп и основного цикла.
-После установки `clock set -d 2026-11-02 -t 12:34:56` время появляется автоматически,
-когда HV готов. Без установленного времени индикаторы погашены.
+A personal pet project: a Nixie clock and an embedded MCU template.
 
-## Архитектура проекта
+Firmware for STM32F051x8 with six IN-12B tubes, four INS-1 indicators, RTC,
+a high-voltage converter, WS2812 lighting, buttons, a buzzer and BME280.
+Drivers access registers through CMSIS. Flash: 64 KiB. RAM: 8 KiB.
 
-Этот pet-проект используется для обкатки MCU template. Шаблон сохраняет
-организацию проекта при смене MCU и способа работы с железом: HAL, LL,
-CMSIS/pure registers, DFP или другой SDK. При переносе адаптируются platform
-и аппаратная реализация BSP.
-
-| Часть | Ответственность |
+| Device | Initial settings |
 | --- | --- |
-| `platform/` | Системный каркас: main, startup/system, IRQ-векторы, syscalls/sysmem, системное тактирование и интеграция SDK/генератора |
-| `bsp/` | Устройства конкретной платы: привязка выводов и периферии, её ручная настройка, рабочее состояние и ошибки |
-| `apps/` | Поведение приложения и пользовательские сценарии через API BSP и компонентов |
+| Digits and separators | 7 scan slots, 120 Hz full scan, 500 µs blanking, 100% brightness |
+| Clock | HH:MM:SS, 24-hour format, leading zero; RTC clocked by LSE |
+| Separator blinking | PC13 LOW enables the separator slot; about 500 ms per phase |
+| DC/DC | 180 V, 24 kHz PWM, 1 kHz ADC/PI |
+| Console | USART1, 1500000 baud, 8N1 |
+| Lighting | 12 WS2812 LEDs, rainbow, brightness 32/255, 33 ms effect interval |
+| BME280 | Forced mode, 500 ms measurement interval |
 
-`main.c` и файл IRQ-векторов — точки связки прошивки: им разрешено вызывать
-BSP и приложение. Общие служебные определения MCU находятся в platform.
+The display is blank until time is valid and HV is ready. Device settings live
+in RAM; the RTC calendar and validity marker live in the backup domain.
 
-При использовании CubeMX или другого генератора его конфигурация и
-сгенерированные файлы, включая периферийную инициализацию, размещаются
-в platform. BSP использует API выбранного SDK и подготовленные ресурсы.
-При CMSIS/pure registers ручная настройка и работа с регистрами находятся
-в соответствующих BSP-модулях. Нативные типы и определения производителя
-допустимы в аппаратной реализации BSP.
+## Structure
 
-Для каждого ресурса фиксируются владелец и порядок запуска. Начальная
-настройка выполняется один раз: генератором/SDK либо ручным кодом BSP.
-Рабочие изменения выполняет драйвер, которому назначен ресурс. В варианте
-HAL его IRQ handler обслуживает периферийные флаги и вызывает callbacks BSP;
-в CMSIS-варианте файл векторов передаёт IRQ BSP-обработчику. Один аппаратный
-источник события обслуживается одним обработчиком.
-
-Текущий STM32F051-вариант использует CMSIS напрямую. После системного
-тактирования `main()` вызывает `bsp_board_init()`, затем `app_main()`.
-Подготовка GPIO/DMA и периферии выполняется BSP до рабочих `*_init()`
-приложения. Общий переносимый API периферии и отдельный слой Core отсутствуют.
-
-## Консоль приложения
-
-Общий путь команды: разбор всех аргументов → проверка значений → вызов сервиса →
-ответ до возврата приглашения. Каждый обработчик напрямую использует
-`WshShellCmd_ParseOpt` и `WshShellCmd_PrintOptionsOverview`: распознавание опций,
-проверка наличия аргументов, проверка прав и формат справки остаются в wsh-shell.
-В приложении проверяются диапазоны, формат значений и допустимые сочетания
-параметров. Ошибки ввода не изменяют состояние устройства или активного монитора.
-`-h` / `--help` показывает штатную справку без выполнения действия; неизвестные
-опции и повторное задание одного параметра настройки или `--watch` отклоняются,
-в том числе рядом с `--help`.
-
-| Задача | Команда |
+| Directory | Responsibility |
 | --- | --- |
-| Штатный список команд | `wsh --exec` |
-| Диагностика RTC, дата и время | `clock` |
-| Установка даты и времени | `clock set -d 2026-10-31 -t 12:34:56` |
-| Инвалидация календаря (admin) | `clock invalidate` |
-| Последний результат BME280 | `bme280` |
-| Монитор BME280 | `bme280 -w` |
-| Подробный статус HV | `hv` |
-| Компактный монитор HV | `hv -w` |
-| Целевое напряжение HV, 100–250 V | `hv set -v 180` |
-| Запрос включения HV / отключение с отменой повторных запусков | `hv on` / `hv off` |
-| Статус buzzer | `buzzer` |
-| Частота, 100–10000 Hz, и громкость, 0–100% | `buzzer set -f 2500 -v 20` |
-| Ручное включение / отключение buzzer | `buzzer on` / `buzzer off` |
-| Статус индикации ГРИ | `display` |
-| Общая яркость, 0–100% | `display set -b 50` |
-| Частота полного обновления индикации, 1–400 Гц (blanking time меньше слота) | `display set -r 150` |
-| Яркость и частота одной настройкой | `display set -b 50 -r 150` |
-| Межразрядная пауза гашения, мкс | `display set -t 500` |
-| Частота и пауза одной настройкой | `display set -r 30 -t 1000` |
+| `platform/` | MCU startup, system clocks, interrupt vectors and libc hooks |
+| `bsp/` | Board GPIO, peripheral drivers and hardware fault handling |
+| `apps/` | Clock, display, HV, sensor, lighting, buttons, sound and CLI |
+| `components/` | Libraries and hardware-independent components |
+| `ports/ui2c/stm32f0/` | Register-based ui2c backend for STM32F0 |
+| `cmake/` | Toolchain, firmware composition and OpenOCD targets |
+| `debug/` | OpenOCD configuration and SVD |
 
-Все настройки используют `set` с именованными параметрами. Для часов обязательны
-дата и время вместе; допустимы годы 2000–2099. Для buzzer можно задать частоту,
-громкость или оба параметра. Для индикации можно задать яркость, частоту и blanking time
-в любом сочетании; параметры проверяются вместе до применения. Настройки индикации живут
-в RAM до reset. Короткие и длинные имена опций указаны в справке
-конкретной команды, например `hv set --help`.
+`main()` configures system clocks, calls `bsp_board_init()`, then `app_main()`.
+The main loop services applications, ui2c and the console. Interrupt vectors
+dispatch to BSP handlers. Each hardware resource has one owner. Source files
+and CMake configuration are maintained manually;
+[the .ioc file](nexnclxck-one-fw.ioc) is a pin-assignment reference.
 
-Числовые параметры приложения — строго десятичные без знака; суффиксы и
-переполнение отклоняются. Прикладной разбор сохраняется, поскольку штатный
-INT использует автоматический выбор основания и не проверяет остаток строки.
+- [BSP hardware contracts](bsp/README.md) (Russian)
+- [Display and upper-board profile](apps/app_display/README.md) (Russian)
+- [BME280 measurements and shared bus](apps/app_bme280/README.md) (Russian)
 
-Монитор сразу печатает первый снимок, затем обновляется раз в секунду без
-догоняющего вывода пропущенных обновлений. Одновременно активен один монитор;
-новый заменяет предыдущий только после успешного получения начальных данных.
-Отказ получения статуса завершает монитор с сообщением. Ctrl+C останавливает
-только вывод, а не HV или buzzer. Для отключения используются `hv off` и `buzzer off`.
+## Build
 
-`Age` у BME280 — возраст последнего завершённого результата; при временной
-занятости шины кэш сохраняется и его возраст растёт. Ошибка датчика отображается
-как состояние датчика, а не как ошибка синтаксиса команды.
+Requires CMake 3.22+, Ninja and Arm GNU Toolchain (`arm-none-eabi-*`) on PATH.
+OpenOCD and ST-Link are required for programming and debugging targets.
 
-В HV watch `Out/Set` — фильтрованное напряжение / задание, далее следуют duty,
-измеренная частота ADC и ошибки приложения/BSP. У первого снимка частота `n/a`:
-интервал ещё не измерен. Обычный `hv` не подставляет фиктивную частоту 0 Hz.
-`hv on` подтверждает запрос на включение и автоматические повторные попытки;
-фактическое состояние выводится отдельно. Формат ответов обновлён — скриптам,
-разбирающим прежние строки статуса, потребуется адаптация.
+```powershell
+git submodule update --init --recursive
+cmake --preset Release
+cmake --build --preset Release
+```
 
-Прошивка STM32F051x8 использует CMSIS и прямую работу с регистрами, без HAL/LL.
-`platform` и [cmake/platform/CMakeLists.txt](cmake/platform/CMakeLists.txt)
-поддерживаются вручную. CMake target `platform` задаёт device headers,
-определения MCU и системные исходники. Ручная инициализация устройств
-платы включается через CMake target `bsp`.
-Файл [nexnclxck-one-fw.ioc](nexnclxck-one-fw.ioc) сохранён для наглядного
-просмотра распиновки и настроек периферии; рабочие исходники поддерживаются вручную.
-FlashDB не подключён; linker script сохраняет 64 КиБ Flash и 8 КиБ RAM.
+ELF: `build/Release/nexnclxck-one-fw.elf`. The `Debug` preset uses `-Og -g3`;
+`Release` uses `-Os -g0` and LTO when supported by the toolchain. Linker script:
+`STM32F051xx_FLASH.ld`. OpenOCD targets: `flash` (program/verify/reset),
+`reset` and `erase` (the entire Flash).
 
-Переход не проверен сборкой, тестами или на плате. Размер и временные
-характеристики прошивки после перехода пока не измерены.
+## Console
 
-cmake --version
+```text
+wsh --exec
+clock set -d 2026-11-14 -t 12:34:56
+```
 
-ninja --version
+| Task | Command |
+| --- | --- |
+| RTC status and calendar | `clock` |
+| Set date and time | `clock set -d 2026-11-14 -t 12:34:56` |
+| Invalidate the calendar (admin) | `clock invalidate` |
+| Latest BME280 result / monitor | `bme280` / `bme280 -w` |
+| HV status / monitor | `hv` / `hv -w` |
+| HV target, 100..250 V | `hv set -v 180` |
+| HV PWM, 20000..50000 Hz | `hv set -f 24000` |
+| Request HV operation / disable HV | `hv on` / `hv off` |
+| Buzzer status | `buzzer` |
+| Frequency 100..10000 Hz, volume 0..100% | `buzzer set -f 2500 -v 20` |
+| Manual buzzer enable / disable | `buzzer on` / `buzzer off` |
+| Display status | `display` |
+| Brightness 0..100%, refresh 1..400 Hz, blanking in µs | `display set -b 100 -r 120 -t 500` |
 
+`set` options can be combined. Date and time must be supplied together;
+supported years are 2000..2099. Numeric options accept unsigned decimal values
+without suffixes. All arguments are validated before changes are applied.
+Unknown and repeated options are rejected. `-h` / `--help` shows help without
+performing an action.
 
-arm-none-eabi-gcc --version
+One monitor can run at a time. It prints an initial snapshot and updates once
+per second without replaying missed intervals. Ctrl+C stops output. Devices
+are disabled with `hv off` and `buzzer off`.
 
-arm-none-eabi-gdb --version
+HV watch shows filtered voltage/target, Duty, PWM frequency, measured ADC rate
+and application/BSP faults. The initial ADC rate is `n/a`. `hv on` confirms
+the request; status reports the actual state. `hv off` also cancels automatic
+restart attempts.
 
-
-openocd --version
-
-
-clangd --version
-
-clang-format --version
+BME280 `Age` is the elapsed time since the latest completed result. Shared
+I2C bus contention defers acquisition while the cached result gets older.

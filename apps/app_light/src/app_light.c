@@ -122,10 +122,7 @@ void app_light_process(void) {
     if (errors != observed_ws2812_errors) {
         observed_ws2812_errors = errors;
 
-    /*
-     * Last accepted frame may not have reached the LEDs.
-     * Render and submit the current frame again.
-     */
+        /* Resubmit the frame after a failed physical transfer. */
         have_sent = false;
         dirty = true;
     }
@@ -139,11 +136,6 @@ void app_light_process(void) {
         if (!ledfx_render(&config, pixels, led_count, now - effect_started_ms)) {
             return;
         }
-
-        /*
-         * Application-level RGB processing and UX feedback
-         * can be added here in the future.
-         */
 
         last_render_ms = now;
         dirty = false;

@@ -38,7 +38,7 @@ static void logger_prefix(ulog_event* event, char* buffer, size_t size) {
 
 static bool logger_init(void) {
     static const char* const topics[] = {
-        "main", "rtc", "i2c", "bme280", "sound", "storage", "input",
+        "main", "input",
     };
 
     if (ulog_syslog_enable() != ULOG_STATUS_OK) {

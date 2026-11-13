@@ -4,9 +4,8 @@
 #include <stdint.h>
 
 /* Pure arithmetic for edge-aligned upcounters; no peripheral or driver dependency.
- * PSC rounds to the nearest divisor, ARR truncates the period, matching the
- * arithmetic of the previous ST timer helpers. Validate exactness and register
- * widths at each use site. Arguments must be positive 32-bit frequencies,
+ * PSC rounds to the nearest divisor; ARR truncates the period. Validate
+ * exactness and register widths at each use site. Arguments must be positive 32-bit frequencies,
  * clock_hz >= counter_hz and clock_hz / (psc + 1) >= rate_hz.
  * Arguments may be evaluated more than once; do not pass side effects.
  * Keep results wide so range checks cannot be defeated by a narrowing cast. */
