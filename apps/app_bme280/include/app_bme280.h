@@ -1,6 +1,8 @@
 #ifndef APP_BME280_H
 #define APP_BME280_H
-#include "ui2c.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -10,19 +12,17 @@ typedef struct {
     int32_t temperature_centi_c;
     uint32_t pressure_centi_pa;
     uint32_t humidity_centi_percent;
-    uint32_t sampled_at_ms;
-    ui2c_status_t transport_status;
-    int8_t sensor_status; /* Bosch result: zero means success. */
-    uint8_t address;
-    bool ready; /* At least one attempt completed; values valid only on success. */
-} app_bme280_sample_t;
+} app_bme280_readings_t;
 
-/* Foreground only. First call reads immediately, then at most every 500 ms.
+/* Foreground only. First call reads immediately; normal polling interval is 100 ms.
  * Blocking, with no catch-up reads for missed periods. */
 void app_bme280_process(void);
 
-/* Read-only latest attempt. No I/O; valid until the next process call. */
-const app_bme280_sample_t* app_bme280_latest(void);
+/* Foreground only. Copies saved readings without I/O. An acquisition error makes
+ * them unavailable until the next success; deferring an unstarted read keeps them.
+ * Returns false before the first success, after an error or for NULL.
+ * On false, out remains unchanged. Readings do not expire by age. */
+bool app_bme280_get(app_bme280_readings_t* out);
 
 #ifdef __cplusplus
 }

@@ -9,11 +9,10 @@
 #include <stddef.h>
 #include <string.h>
 
-#define APP_DISPLAY_TIME_MS        40000U
-#define APP_DISPLAY_INFO_MS        5000U
-#define APP_DISPLAY_MANUAL_MS      10000U
-#define APP_DISPLAY_POLL_MS        20U
-#define APP_DISPLAY_SAMPLE_MAX_MS  3000U
+#define APP_DISPLAY_TIME_MS   40000U
+#define APP_DISPLAY_INFO_MS   5000U
+#define APP_DISPLAY_MANUAL_MS 10000U
+#define APP_DISPLAY_POLL_MS   20U
 
 typedef enum {
     SCREEN_TIME = 0,
@@ -36,13 +35,6 @@ static screen_t screen;
 static uint32_t screen_started_ms;
 static uint32_t last_poll_ms;
 static bool manual;
-static bool have_sample;
-static struct {
-    int32_t temperature_centi_c;
-    uint32_t pressure_centi_pa;
-    uint32_t humidity_centi_percent;
-    uint32_t sampled_at_ms;
-} sample;
 
 static uint16_t available_symbols(const nixie_tube_t* tube) {
     uint16_t mask = 0U;
@@ -208,26 +200,6 @@ bool app_display_get_status(app_display_status_t* status) {
 
 nixie_issue_t app_display_last_issue(void) { return last_issue; }
 
-static void update_sample(uint32_t now) {
-    const app_bme280_sample_t* latest = app_bme280_latest();
-    if (have_sample && (uint32_t)(now - sample.sampled_at_ms) >= APP_DISPLAY_SAMPLE_MAX_MS) {
-        have_sample = false;
-    }
-    /* Keep one successful result across transient errors. Bosch integer
-     * compensation bounds these ranges; they also keep all formatting in uint32. */
-    if (latest->ready && latest->sensor_status == 0 && latest->transport_status == UI2C_STATUS_OK
-        && (uint32_t)(now - latest->sampled_at_ms) < APP_DISPLAY_SAMPLE_MAX_MS
-        && latest->temperature_centi_c >= -4000 && latest->temperature_centi_c <= 8500
-        && latest->humidity_centi_percent <= 10000U
-        && latest->pressure_centi_pa >= 3000000U && latest->pressure_centi_pa <= 11000000U) {
-        sample.temperature_centi_c = latest->temperature_centi_c;
-        sample.pressure_centi_pa = latest->pressure_centi_pa;
-        sample.humidity_centi_percent = latest->humidity_centi_percent;
-        sample.sampled_at_ms = latest->sampled_at_ms;
-        have_sample = true;
-    }
-}
-
 /* A failed snapshot is transient. Readiness/range failures are explicit and
  * may blank time, without preventing independent sensor screens. */
 static bool read_clock(app_clock_datetime_t* datetime, bool* time_valid) {
@@ -249,17 +221,17 @@ static uint8_t numeric_top_point(void) {
     return selected.layout->digit_count == 6U ? APP_DISPLAY_POINT_RIGHT_TOP : APP_DISPLAY_POINT_LEFT_TOP;
 }
 
-static bool screen_available(screen_t candidate, bool date_valid, uint32_t now) {
+static bool screen_available(screen_t candidate, bool date_valid, const app_bme280_readings_t* readings) {
     if (candidate == SCREEN_TIME) {
         return true;
     }
     if (candidate == SCREEN_DATE) {
         return date_valid;
     }
-    if (!have_sample || (uint32_t)(now - sample.sampled_at_ms) >= APP_DISPLAY_SAMPLE_MAX_MS) {
+    if (readings == NULL) {
         return false;
     }
-    return candidate != SCREEN_TEMPERATURE || sample.temperature_centi_c >= 0
+    return candidate != SCREEN_TEMPERATURE || readings->temperature_centi_c >= 0
            || selected.layout->points[numeric_top_point()] != NIXIE_CHANNEL_UNASSIGNED;
 }
 
@@ -268,17 +240,18 @@ void app_display_step(int8_t direction) {
         return;
     }
     uint32_t now = bsp_time_ms();
-    update_sample(now);
+    app_bme280_readings_t readings;
+    const app_bme280_readings_t* sample = app_bme280_get(&readings) ? &readings : NULL;
     app_clock_datetime_t datetime;
     bool time_valid = false;
     bool date_valid = read_clock(&datetime, &time_valid) && time_valid && app_clock_datetime_is_valid(&datetime);
-    if (!screen_available(screen, date_valid, now)) {
+    if (!screen_available(screen, date_valid, sample)) {
         screen = SCREEN_TIME;
     }
     for (uint8_t i = 0U; i < SCREEN_COUNT; ++i) {
         screen = direction > 0 ? (screen_t)((screen + 1U) % SCREEN_COUNT)
                                : (screen_t)((screen + SCREEN_COUNT - 1U) % SCREEN_COUNT);
-        if (screen_available(screen, date_valid, now)) {
+        if (screen_available(screen, date_valid, sample)) {
             break;
         }
     }
@@ -380,15 +353,17 @@ static void present_ui(uint32_t now) {
         return;
     }
     bool date_valid = time_valid && app_clock_datetime_is_valid(&datetime);
+    app_bme280_readings_t readings;
+    const app_bme280_readings_t* sample = app_bme280_get(&readings) ? &readings : NULL;
     uint32_t duration = manual ? APP_DISPLAY_MANUAL_MS
                                : (screen == SCREEN_TIME ? APP_DISPLAY_TIME_MS : APP_DISPLAY_INFO_MS);
     if ((uint32_t)(now - screen_started_ms) >= duration
-        || (manual && !screen_available(screen, date_valid, now))) {
+        || (manual && !screen_available(screen, date_valid, sample))) {
         screen = manual ? SCREEN_TIME : (screen_t)((screen + 1U) % SCREEN_COUNT);
         manual = false;
         screen_started_ms = now;
     }
-    screen_t shown = screen_available(screen, date_valid, now) ? screen : SCREEN_TIME;
+    screen_t shown = screen_available(screen, date_valid, sample) ? screen : SCREEN_TIME;
     uint8_t symbols[NIXIE_MAX_ELEMENTS];
     memset(symbols, NIXIE_SYMBOL_BLANK, selected.board.element_count);
     uint16_t dots = 0U;
@@ -405,18 +380,18 @@ static void present_ui(uint32_t now) {
             }
             break;
         case SCREEN_TEMPERATURE: {
-            int32_t t = sample.temperature_centi_c;
+            int32_t t = sample->temperature_centi_c;
             uint32_t magnitude = t < 0 ? 0U - (uint32_t)t : (uint32_t)t;
             formatted = render_number(symbols, &dots, (magnitude + 5U) / 10U, true, t < 0);
             break;
         }
         case SCREEN_HUMIDITY:
-            formatted = render_number(symbols, &dots, (sample.humidity_centi_percent + 5U) / 10U, true, false);
+            formatted = render_number(symbols, &dots, (sample->humidity_centi_percent + 5U) / 10U, true, false);
             break;
         case SCREEN_PRESSURE:
             /* Integer mmHg, using 133.322 Pa/mmHg. Bosch pressure is Pa * 100;
              * the bounded sensor range keeps this multiplication within uint32. */
-            formatted = render_number(symbols, &dots, (sample.pressure_centi_pa * 10U + 66661U) / 133322U,
+            formatted = render_number(symbols, &dots, (sample->pressure_centi_pa * 10U + 66661U) / 133322U,
                                       false, false);
             break;
         default: rtc_anodes = render_time(symbols, &datetime, time_valid); break;
@@ -452,7 +427,6 @@ void app_display_process(bool power_ready) {
         return;
     }
     last_poll_ms = now;
-    update_sample(now);
     if (enabled) {
         present_ui(now);
     }

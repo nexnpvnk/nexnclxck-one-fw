@@ -16,7 +16,7 @@ Drivers access registers through CMSIS. Flash: 64 KiB. RAM: 8 KiB.
 | DC/DC | 180 V, 24 kHz PWM, 1 kHz ADC/PI |
 | Console | USART1, 1500000 baud, 8N1 |
 | Lighting | 12 WS2812 LEDs, rainbow, brightness 32/255, 33 ms effect interval |
-| BME280 | Forced mode, 500 ms measurement interval |
+| BME280 | Forced mode, 100 ms measurement interval |
 
 The display shows the RTC counters once RTC and HV are ready, even when the
 time has not been set. Device settings live in RAM; the RTC calendar and
@@ -27,8 +27,9 @@ or six tubes and four points. Six-digit time/date formats are `HH:MM:SS` and
 `DD.MM.YY`; four-digit formats are `HH:MM` and `DD.MM`. The cycle shows time
 for 40 seconds, then date, temperature, humidity and pressure for 5 seconds each.
 Temperature is in °C and humidity in %, both rounded to tenths; pressure is
-rounded to integer mmHg. Unavailable data screens show time. Sensor data remains
-usable for less than 3 seconds after the last successful measurement.
+rounded to integer mmHg. Unavailable data screens show time. Sensor readings are
+unavailable until the first successful measurement and after an acquisition error;
+the next successful measurement makes them available again.
 
 RIGHT / LEFT steps through available screens and holds the selection for
 10 seconds after the last press, then returns to time and the automatic cycle.
@@ -154,5 +155,6 @@ and application/BSP faults. The initial ADC rate is `n/a`. `hv on` confirms
 the request; status reports the actual state. `hv off` also cancels automatic
 restart attempts.
 
-BME280 `Age` is the elapsed time since the latest completed result. Shared
-I2C bus contention defers acquisition while the cached result gets older.
+BME280 shows temperature, pressure in integer mmHg and humidity, or `readings unavailable`.
+Readings have no age limit and rely on regular acquisition. A read deferred before
+accessing the busy I2C bus preserves availability; a failed acquisition clears it.

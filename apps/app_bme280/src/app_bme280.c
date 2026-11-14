@@ -3,7 +3,9 @@
 #include "bsp_i2c.h"
 #include "bsp_time.h"
 
-#define BME280_SAMPLE_INTERVAL_MS    500U
+#include <stddef.h>
+
+#define BME280_SAMPLE_INTERVAL_MS    100U
 #define BME280_RETRY_INTERVAL_MS     1000U
 #define BME280_BUS_RETRY_INTERVAL_MS 50U
 #define BME280_FAILURE_LIMIT         3U
@@ -18,7 +20,8 @@ static const struct bme280_settings settings = {
 static struct bme280_dev sensor;
 static bme280_port_t port;
 
-static app_bme280_sample_t latest;
+static app_bme280_readings_t latest;
+static bool valid;
 
 static uint32_t measurement_delay_us;
 static uint32_t last_start;
@@ -93,7 +96,7 @@ void app_bme280_process(void) {
     /*
      * Zero permits the first attempt immediately.
      * Subsequent attempts use the interval selected by
-     * the previous outcome, independently of latest.ready.
+     * the previous outcome, independently of readings availability.
      */
     if (poll_interval_ms != 0U && (uint32_t)(now - last_start) < poll_interval_ms) {
         return;
@@ -110,7 +113,6 @@ void app_bme280_process(void) {
         return;
     }
 
-    app_bme280_sample_t sample = {0};
     struct bme280_data data;
 
     int8_t result = BME280_OK;
@@ -123,6 +125,8 @@ void app_bme280_process(void) {
     if (result == BME280_OK) {
         result = read_sample(&data);
     }
+
+    valid = result == BME280_OK;
 
     /*
      * The bus can become unavailable during a transaction
@@ -138,14 +142,12 @@ void app_bme280_process(void) {
         }
     }
 
-    sample.sensor_status = result;
-    sample.transport_status = port.status;
-    sample.address = port.address;
-
-    if (result == BME280_OK) {
-        sample.temperature_centi_c = data.temperature;
-        sample.pressure_centi_pa = data.pressure;
-        sample.humidity_centi_percent = (data.humidity * 100U + 512U) / 1024U;
+    if (valid) {
+        latest = (app_bme280_readings_t){
+            .temperature_centi_c = data.temperature,
+            .pressure_centi_pa = data.pressure,
+            .humidity_centi_percent = (data.humidity * 100U + 512U) / 1024U,
+        };
 
         failures = 0U;
     } else if (initialized && ++failures >= BME280_FAILURE_LIMIT) {
@@ -158,11 +160,12 @@ void app_bme280_process(void) {
     }
 
     poll_interval_ms = initialized ? BME280_SAMPLE_INTERVAL_MS : BME280_RETRY_INTERVAL_MS;
-
-    sample.sampled_at_ms = bsp_time_ms();
-    sample.ready = true;
-
-    latest = sample;
 }
 
-const app_bme280_sample_t* app_bme280_latest(void) { return &latest; }
+bool app_bme280_get(app_bme280_readings_t* out) {
+    if (out == NULL || !valid) {
+        return false;
+    }
+    *out = latest;
+    return true;
+}
