@@ -22,6 +22,39 @@ The display shows the RTC counters once RTC and HV are ready, even when the
 time has not been set. Device settings live in RAM; the RTC calendar and
 time-set marker live in the backup domain.
 
+Presentation supports a profile with four digit tubes and two central points,
+or six tubes and four points. Six-digit time/date formats are `HH:MM:SS` and
+`DD.MM.YY`; four-digit formats are `HH:MM` and `DD.MM`. The cycle shows time
+for 40 seconds, then date, temperature, humidity and pressure for 5 seconds each.
+Temperature is in °C and humidity in %, both rounded to tenths; pressure is
+rounded to integer mmHg. Unavailable data screens show time. Sensor data remains
+usable for less than 3 seconds after the last successful measurement.
+
+RIGHT / LEFT steps through available screens and holds the selection for
+10 seconds after the last press, then returns to time and the automatic cycle.
+The configured tube's internal decimal point takes priority for fractional
+values (IN-12B); tubes without one (IN-12A) use the lower external point.
+The IN-12B point is to the left of its digit, so `23.4` lights it on the tube
+showing `4`.
+The upper point of the last separator marks a negative temperature. On four
+tubes without an internal point, values that do not fit with a decimal are
+rounded to integers, including `100.0` % → `100` %.
+
+The current upper board uses digit anodes A6, A5, A4, A3, A1, A0 from left to
+right and a shared A2 for the four points:
+
+| Point | Cathode |
+| --- | --- |
+| Upper left | C7 |
+| Upper right | C3 |
+| Lower left | C10 |
+| Lower right | C13 |
+
+The complete digit cathode map and the four-digit layout example are in the
+[upper-board profile documentation](apps/app_display/README.md). The profile
+sets the actual element count, wiring, logical positions and tube capabilities;
+unused physical elements are omitted. Scan slots remain constant across screens.
+
 ## Structure
 
 | Directory | Responsibility |

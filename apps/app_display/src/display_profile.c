@@ -32,6 +32,7 @@ const nixie_tube_t display_tube_in12b = {
     .cathode_count = 11U,
     .symbols = in12_symbols,
     .symbol_count = 11U,
+    .dot_before_digit = true,
 };
 
 static const nixie_symbol_t separator_symbols[] = {{NIXIE_SYMBOL_ON, 0U}};
@@ -43,7 +44,7 @@ static const nixie_tube_t separator = {
 };
 
 /* REQUIRED: CATHODE_n connected to digits 0,1,2,3,4,5,6,7,8,9,comma respectively.
- * Share this table only if all six sockets really have the same connections.
+ * Share this table only if all digit sockets really have the same connections.
  * For different wiring, make another table and point the relevant socket at it.
  * IN-12A uses the first ten entries and has no internal comma. */
 static const uint8_t in12_cathode_channels[] = {
@@ -60,7 +61,8 @@ static const uint8_t in12_cathode_channels[] = {
     15, /* internal comma, IN-12B only */
 };
 
-/* Four separately ballasted points share A2 and one scan slot. */
+/* Four separately ballasted points share A2 and one scan slot.
+ * Element order: right top, right bottom, left top, left bottom. */
 static const uint8_t separator_channels[] = {3U, 13U, 7U, 10U};
 
 static const nixie_element_t upper_board[] = {
@@ -76,18 +78,18 @@ static const nixie_element_t upper_board[] = {
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_channels[3]},
 };
 
-/* Clock presentation follows logical elements, independently of GPIO wiring.
- * A four-digit board uses only HOUR/MINUTE roles. Omit absent elements; use
- * UNUSED for elements which should stay blank. Separator anodes follow PC13. */
-static const app_display_clock_role_t clock_roles[] = {
-    [0] = APP_DISPLAY_CLOCK_HOUR_TENS,    [1] = APP_DISPLAY_CLOCK_HOUR_UNITS,  [2] = APP_DISPLAY_CLOCK_MINUTE_TENS,
-    [3] = APP_DISPLAY_CLOCK_MINUTE_UNITS, [4] = APP_DISPLAY_CLOCK_SECOND_TENS, [5] = APP_DISPLAY_CLOCK_SECOND_UNITS,
-    [6] = APP_DISPLAY_CLOCK_SEPARATOR, [7] = APP_DISPLAY_CLOCK_SEPARATOR,
-    [8] = APP_DISPLAY_CLOCK_SEPARATOR, [9] = APP_DISPLAY_CLOCK_SEPARATOR,
+/* Logical positions are independent of GPIO and cathode channel numbers.
+ * Four-digit profiles list four digits and the two central points as LEFT_*. */
+static const app_display_layout_t layout = {
+    .digit_count = 6U,
+    .digits = {0U, 1U, 2U, 3U, 4U, 5U},
+    .points = {
+        [APP_DISPLAY_POINT_LEFT_TOP] = 8U,     /* C7 */
+        [APP_DISPLAY_POINT_LEFT_BOTTOM] = 9U,  /* C10 */
+        [APP_DISPLAY_POINT_RIGHT_TOP] = 6U,    /* C3 */
+        [APP_DISPLAY_POINT_RIGHT_BOTTOM] = 7U, /* C13 */
+    },
 };
-
-_Static_assert(sizeof(clock_roles) / sizeof(clock_roles[0]) == sizeof(upper_board) / sizeof(upper_board[0]),
-               "Every display element must have a clock role");
 
 const app_display_profile_t display_default_profile = {
     .board =
@@ -96,7 +98,7 @@ const app_display_profile_t display_default_profile = {
             .elements = upper_board,
             .element_count = sizeof(upper_board) / sizeof(upper_board[0]),
         },
-    .clock_roles = clock_roles,
+    .layout = &layout,
     /* Wait for the TLP127 anode switch to turn off before changing cathodes. */
     .timing =
         {

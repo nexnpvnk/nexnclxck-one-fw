@@ -105,6 +105,9 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
     if (result != NIXIE_OK) {
         return result;
     }
+    if (((uint32_t)frame->dot_elements >> board->element_count) != 0U) {
+        return report(issue, NIXIE_INVALID_ARGUMENT, UINT8_MAX);
+    }
     plan->timing = *timing;
     plan->slot_count = 0U;
     uint8_t anode_slots[NIXIE_MAX_ANODES] = {0U};
@@ -124,23 +127,28 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
             plan->slots[plan->slot_count++] = (nixie_slot_t){.anode = anode};
             anodes |= bit;
         }
-        if (frame->symbols[e] == NIXIE_SYMBOL_BLANK) {
+        bool dot = (frame->dot_elements & (1U << e)) != 0U;
+        if (frame->symbols[e] == NIXIE_SYMBOL_BLANK && !dot) {
             continue;
         }
         const nixie_tube_t* tube = element->tube;
-        const nixie_symbol_t* selected = NULL;
+        bool found_symbol = frame->symbols[e] == NIXIE_SYMBOL_BLANK;
+        bool found_dot = !dot;
         for (uint8_t s = 0U; s < tube->symbol_count; ++s) {
-            if (tube->symbols[s].id == frame->symbols[e]) {
-                selected = &tube->symbols[s];
-                break;
+            const nixie_symbol_t* symbol = &tube->symbols[s];
+            bool selected = symbol->id == frame->symbols[e];
+            bool selected_dot = dot && symbol->id == NIXIE_SYMBOL_DOT;
+            found_symbol |= selected;
+            found_dot |= selected_dot;
+            if (selected || selected_dot) {
+                uint8_t channel = element->cathode_channels[symbol->cathode];
+                if (channel != NIXIE_CHANNEL_FIXED) {
+                    plan->slots[anode_slots[anode]].cathodes |= (uint16_t)(1U << channel);
+                }
             }
         }
-        if (selected == NULL) {
+        if (!found_symbol || !found_dot) {
             return report(issue, NIXIE_INVALID_SYMBOL, e);
-        }
-        uint8_t channel = element->cathode_channels[selected->cathode];
-        if (channel != NIXIE_CHANNEL_FIXED) {
-            plan->slots[anode_slots[anode]].cathodes |= (uint16_t)(1U << channel);
         }
         lit_anodes |= bit;
     }

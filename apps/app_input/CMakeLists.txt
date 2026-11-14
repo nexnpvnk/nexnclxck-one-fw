@@ -12,4 +12,5 @@ target_link_libraries(app_input
         lwbtn
         microlog
         app_sound
+        app_display
 )

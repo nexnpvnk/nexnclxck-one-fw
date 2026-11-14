@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* One scan slot per distinct wired anode, one selectable electrode per element.
+/* One scan slot per distinct wired anode, one symbol plus an optional dot per element.
  * Shared-anode elements must have separate current-limiting paths. */
 #define NIXIE_MAX_ELEMENTS       16U
 #define NIXIE_MAX_ANODES         16U
@@ -43,6 +43,7 @@ typedef struct {
     uint8_t cathode_count;
     const nixie_symbol_t* symbols;
     uint8_t symbol_count;
+    bool dot_before_digit; /* Physical position of NIXIE_SYMBOL_DOT; ignored if absent. */
 } nixie_tube_t;
 
 typedef struct {
@@ -74,6 +75,7 @@ typedef struct {
 
 typedef struct {
     uint16_t brightness_pm;
+    uint16_t dot_elements; /* Bit per logical element: add NIXIE_SYMBOL_DOT to its symbol. */
     uint16_t anode_brightness_pm[NIXIE_MAX_ANODES]; /* Indexed by carrier ANODE_n. */
     uint8_t symbols[NIXIE_MAX_ELEMENTS];            /* Symbol ID per logical element. */
 } nixie_frame_t;

@@ -1,5 +1,6 @@
 #include "app_input.h"
 
+#include "app_display.h"
 #include "app_sound.h"
 
 #include "bsp_buttons.h"
@@ -41,6 +42,12 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
     switch (event) {
         case LWBTN_EVT_ONPRESS:
             long_press_reported[id] = false;
+
+            if (id == BSP_BUTTON_RIGHT) {
+                app_display_step(1);
+            } else if (id == BSP_BUTTON_LEFT) {
+                app_display_step(-1);
+            }
 
             (void)app_sound_beep(APP_INPUT_BEEP_FREQ_HZ, APP_INPUT_BEEP_VOLUME, APP_INPUT_BEEP_DURATION);
 

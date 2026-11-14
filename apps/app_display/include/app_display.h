@@ -7,21 +7,26 @@
 #define APP_DISPLAY_REFRESH_RATE_MAX_HZ 400U
 
 typedef enum {
-    APP_DISPLAY_CLOCK_UNUSED = 0,
-    APP_DISPLAY_CLOCK_HOUR_TENS,
-    APP_DISPLAY_CLOCK_HOUR_UNITS,
-    APP_DISPLAY_CLOCK_MINUTE_TENS,
-    APP_DISPLAY_CLOCK_MINUTE_UNITS,
-    APP_DISPLAY_CLOCK_SECOND_TENS,
-    APP_DISPLAY_CLOCK_SECOND_UNITS,
-    APP_DISPLAY_CLOCK_SEPARATOR,
-} app_display_clock_role_t;
+    APP_DISPLAY_POINT_LEFT_TOP = 0,
+    APP_DISPLAY_POINT_LEFT_BOTTOM,
+    APP_DISPLAY_POINT_RIGHT_TOP,
+    APP_DISPLAY_POINT_RIGHT_BOTTOM,
+    APP_DISPLAY_POINT_COUNT,
+} app_display_point_t;
+
+typedef struct {
+    uint8_t digit_count; /* 4 or 6; digits[] lists board element indices from left to right. */
+    uint8_t digits[6];
+    /* Board element indices, NIXIE_CHANNEL_UNASSIGNED for absent points.
+     * On a four-digit board LEFT_TOP/BOTTOM describe the central colon. */
+    uint8_t points[APP_DISPLAY_POINT_COUNT];
+} app_display_layout_t;
 
 typedef struct {
     nixie_board_t board;
-    /* One role per element; separator roles require an anode separate from
-     * digits. NULL keeps explicit frame control without automatic RTC gating. */
-    const app_display_clock_role_t* clock_roles;
+    /* NULL selects manual frames. Automatic presentation uses this layout;
+     * points and digits must have separate anodes. */
+    const app_display_layout_t* layout;
     nixie_timing_t timing;
     uint16_t brightness_pm;
     uint16_t anode_brightness_pm[NIXIE_MAX_ANODES]; /* One PWM factor per ANODE_n. */
@@ -37,18 +42,21 @@ typedef struct {
 
 /* Default profile is in src/display_profile.c. Starts with every element blank. */
 bool app_display_init(void);
-/* Foreground-only. Authorize illumination when HV is ready and update the clock
- * frame when clock_roles is configured. Separator slots follow RTC via TIM1.
- * Unready RTC or out-of-range HH:MM:SS blanks clock digits and separators;
- * the time-set marker does not gate display. A failed snapshot retains the
- * accepted state for retry. */
+/* Foreground-only. Authorize illumination when HV is ready and update automatic
+ * time/date/sensor screens when layout is configured. Time separators follow
+ * RTC via TIM1; other points are steady. The time-set marker does not gate
+ * display. A transient RTC snapshot failure retains the accepted frame. */
 void app_display_process(bool power_ready);
+/* Foreground-only. -1/1 selects previous/next available screen for 10 seconds,
+ * then returns to time and resumes the automatic cycle. Other values are ignored. */
+void app_display_step(int8_t direction);
 /* Select a profile and blank all elements. Descriptor arrays/strings must remain
  * valid and immutable while selected. Invalid/BUSY leaves the current state intact. */
 nixie_status_t app_display_configure(const app_display_profile_t* profile);
 /* Copy one symbol ID per board element. Count must equal board.element_count.
  * Foreground-only; invalid/BUSY leaves the current frame intact. Automatic clock
- * presentation owns the frame while clock_roles is configured. */
+ * presentation owns the frame while layout is configured. Internal dot overlays
+ * are cleared by this raw-symbol operation. */
 nixie_status_t app_display_present(const uint8_t* symbols, uint8_t count);
 /* Foreground-only. Update parameters in one validated publication, preserving
  * anode brightness and the current symbols. Brightness applies to all slots. */
