@@ -27,7 +27,7 @@ HIGH до подключения AF: инвертирующий NPN-драйве
 | `platform/include/platform_config.h` | HSI, PLL и HCLK |
 | `bsp/src/bsp_hw.h` | Расчёты таймеров и приоритеты IRQ |
 | `bsp/src/bsp_pins.h` | Электроды индикации и PC13 |
-| `apps/app_display/src/display_profile.c` | Верхняя плата, символы и параметры скана |
+| `apps/app_display/src/display_profile.c` | Верхняя плата, геометрия цифр/точек, символы и исходные параметры скана |
 
 `timer_calc.h` вычисляет PSC с округлением делителя, ARR с усечением периода
 и частоту из PSC/ARR. `_Static_assert` проверяют делимость, разрядность регистров,

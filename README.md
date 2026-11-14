@@ -52,9 +52,10 @@ right and a shared A2 for the four points:
 | Lower right | C13 |
 
 The complete digit cathode map and the four-digit layout example are in the
-[upper-board profile documentation](apps/app_display/README.md). The profile
-sets the actual element count, wiring, logical positions and tube capabilities;
-unused physical elements are omitted. Scan slots remain constant across screens.
+[upper-board profile documentation](apps/app_display/README.md). The hardware
+profile in `apps/app_display/src/display_profile.c` sets the actual element count,
+wiring, tube capabilities and physical digit/point positions on the upper board.
+Unused physical elements are omitted. Scan slots remain constant across screens.
 
 ## Structure
 
@@ -62,7 +63,7 @@ unused physical elements are omitted. Scan slots remain constant across screens.
 | --- | --- |
 | `platform/` | MCU startup, system clocks, interrupt vectors and libc hooks |
 | `bsp/` | Board GPIO, peripheral drivers and hardware fault handling |
-| `apps/` | Clock, display, HV, sensor, lighting, buttons, sound and CLI |
+| `apps/` | Clock UI, display control, HV, sensor, lighting, buttons, sound and CLI |
 | `components/` | Libraries and hardware-independent components |
 | `ports/ui2c/stm32f0/` | Register-based ui2c backend for STM32F0 |
 | `cmake/` | Toolchain, firmware composition and OpenOCD targets |
@@ -73,6 +74,15 @@ The main loop services applications, ui2c and the console. Interrupt vectors
 dispatch to BSP handlers. Each hardware resource has one owner. Source files
 and CMake configuration are maintained manually;
 [the .ioc file](nexnclxck-one-fw.ioc) is a pin-assignment reference.
+
+`app_input` recognizes button presses, releases and holds. `app_ui` chooses their
+actions, sound feedback and screen content; button-based clock settings will live
+here, with browsing implemented so far. `app_display` owns the Nixie profile,
+brightness and plan publication through `nixie` / `bsp_nixie`. The hardware profile
+is immutable; live brightness and timing are stored separately. `app_main` connects
+the modules and passes permission to render without blocking UI input. WS2812
+lighting is handled separately by `app_light` / `ledfx` / `bsp_ws2812`.
+CLI is an additional service interface.
 
 - [BSP hardware contracts](bsp/README.md) (Russian)
 - [Display and upper-board profile](apps/app_display/README.md) (Russian)

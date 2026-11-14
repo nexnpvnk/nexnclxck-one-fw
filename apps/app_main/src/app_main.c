@@ -8,6 +8,7 @@
 #include "app_input.h"
 #include "app_light.h"
 #include "app_sound.h"
+#include "app_ui.h"
 
 #include "bsp_buzzer.h"
 #include "bsp_console.h"
@@ -89,6 +90,12 @@ void app_main(void) {
         nixie_issue_t issue = app_display_last_issue();
         printf("Display disabled: %s, element=%u; edit app_display/src/display_profile.c\n",
                nixie_status_name(issue.status), (unsigned)issue.element);
+    } else {
+        nixie_issue_t issue;
+        if (app_ui_init(&issue) != NIXIE_OK) {
+            printf("UI disabled: %s, element=%u; edit app_display/src/display_profile.c\n",
+                   nixie_status_name(issue.status), (unsigned)issue.element);
+        }
     }
 
     if (!app_cli_init()) {
@@ -114,7 +121,8 @@ void app_main(void) {
         display_power_ready =
             app_hv_get_status(&hv_status) && hv_status.requested_enabled && hv_status.fault == APP_HV_FAULT_NONE
             && (hv_status.state == APP_HV_RUNNING || (display_power_ready && hv_status.state == APP_HV_STARTING));
-        app_display_process(display_power_ready);
+        bool display_enabled = app_display_process(display_power_ready);
+        app_ui_process(display_enabled);
         bsp_i2c_process();
         shell_process();
         /* Handle cancellation and commands before the next periodic CLI output. */

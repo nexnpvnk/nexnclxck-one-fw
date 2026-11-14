@@ -78,9 +78,8 @@ static const nixie_element_t upper_board[] = {
     {.tube = &separator, .anode_channel = 2, .cathode_channels = &separator_channels[3]},
 };
 
-/* Logical positions are independent of GPIO and cathode channel numbers.
- * Four-digit profiles list four digits and the two central points as LEFT_*. */
-static const app_display_layout_t layout = {
+/* Physical positions on the upper board, independent of the current UI screen. */
+static const app_display_layout_t upper_board_layout = {
     .digit_count = 6U,
     .digits = {0U, 1U, 2U, 3U, 4U, 5U},
     .points = {
@@ -98,7 +97,7 @@ const app_display_profile_t display_default_profile = {
             .elements = upper_board,
             .element_count = sizeof(upper_board) / sizeof(upper_board[0]),
         },
-    .layout = &layout,
+    .layout = &upper_board_layout,
     /* Wait for the TLP127 anode switch to turn off before changing cathodes. */
     .timing =
         {

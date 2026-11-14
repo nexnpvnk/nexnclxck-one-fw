@@ -1,7 +1,6 @@
 #include "app_input.h"
 
-#include "app_display.h"
-#include "app_sound.h"
+#include "app_ui.h"
 
 #include "bsp_buttons.h"
 #include "bsp_time.h"
@@ -13,20 +12,19 @@
 #define APP_INPUT_PERIOD_MS     5U
 #define APP_INPUT_LONG_PRESS_MS 1000U
 
-#define APP_INPUT_BEEP_FREQ_HZ  2800U
-#define APP_INPUT_BEEP_VOLUME   10U
-#define APP_INPUT_BEEP_DURATION 35U
-
 static lwbtn_btn_t buttons[BSP_BUTTON_COUNT];
 static bool long_press_reported[BSP_BUTTON_COUNT];
 static uint32_t last_process_ms;
 
-static const char* const button_names[BSP_BUTTON_COUNT] = {
-    "RIGHT",
-    "OK",
-    "LEFT",
-    "LIGHT",
+/* Translate board button identities into UI keys; GPIO and lwbtn stay private to input. */
+static const app_ui_key_t ui_keys[] = {
+    [BSP_BUTTON_RIGHT] = APP_UI_KEY_RIGHT,
+    [BSP_BUTTON_OK] = APP_UI_KEY_OK,
+    [BSP_BUTTON_LEFT] = APP_UI_KEY_LEFT,
+    [BSP_BUTTON_LIGHT] = APP_UI_KEY_LIGHT,
 };
+
+_Static_assert(sizeof(ui_keys) / sizeof(ui_keys[0]) == BSP_BUTTON_COUNT, "Map every board button to a UI key");
 
 static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event) {
     (void)group;
@@ -37,27 +35,18 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
         return;
     }
 
-    const char* name = button_names[id];
-
     switch (event) {
         case LWBTN_EVT_ONPRESS:
             long_press_reported[id] = false;
 
-            if (id == BSP_BUTTON_RIGHT) {
-                app_display_step(1);
-            } else if (id == BSP_BUTTON_LEFT) {
-                app_display_step(-1);
-            }
-
-            (void)app_sound_beep(APP_INPUT_BEEP_FREQ_HZ, APP_INPUT_BEEP_VOLUME, APP_INPUT_BEEP_DURATION);
-
-            ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s pressed", name);
+            app_ui_handle_input(ui_keys[id], APP_UI_EVENT_PRESS);
             break;
 
-        case LWBTN_EVT_ONRELEASE: ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s released", name); break;
+        case LWBTN_EVT_ONRELEASE:
+            app_ui_handle_input(ui_keys[id], APP_UI_EVENT_RELEASE);
+            break;
 
         case LWBTN_EVT_ONCLICK:
-            ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s click x%u", name, (unsigned)lwbtn_click_get_count(button));
             break;
 
         case LWBTN_EVT_KEEPALIVE:
@@ -67,8 +56,7 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
 
                 long_press_reported[id] = true;
 
-                (void)app_sound_beep(APP_INPUT_BEEP_FREQ_HZ, APP_INPUT_BEEP_VOLUME, APP_INPUT_BEEP_DURATION * 4);
-                ulog_t(ULOG_SYSLOG_DEBUG, "input", "%s long press", name);
+                app_ui_handle_input(ui_keys[id], APP_UI_EVENT_LONG_PRESS);
             }
             break;
 
