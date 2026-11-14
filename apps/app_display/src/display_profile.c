@@ -102,7 +102,7 @@ const app_display_profile_t display_default_profile = {
     .timing =
         {
             .refresh_rate_hz = 120U,
-            .blanking_time_us = 500U,
+            .blanking_time_us = 600U,
         },
     .brightness_pm = 1000U, /* Global 0..1000, multiplied by the anode factor. */
     /* Per scanned ANODE_n, 0..1000; A2 controls all four separator points.

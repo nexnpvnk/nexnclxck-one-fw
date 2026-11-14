@@ -32,7 +32,7 @@ typedef struct {
 
 typedef struct {
     uint8_t symbols[NIXIE_MAX_ELEMENTS]; /* One symbol ID per logical board element. */
-    uint16_t dot_elements;              /* Add an internal dot to the selected elements. */
+    uint16_t dot_elements;               /* Add an internal dot to the selected elements. */
     /* Select logical elements gated by the board RTC phase. Gating applies to
      * the whole shared anode; the application must group its elements accordingly. */
     uint16_t blink_elements;
