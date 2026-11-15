@@ -6,11 +6,17 @@
 
 static volatile uint8_t pressed_mask;
 
-static void buttons_capture(void) { pressed_mask = (uint8_t)(~GPIOC->IDR & BUTTON_PINS_MASK); }
+static void buttons_capture(void) {
+    pressed_mask = (uint8_t)(~GPIOC->IDR & BUTTON_PINS_MASK);
+}
 
-void bsp_buttons_init(void) { buttons_capture(); }
+void bsp_buttons_init(void) {
+    buttons_capture();
+}
 
-uint8_t bsp_buttons_get_pressed_mask(void) { return pressed_mask; }
+uint8_t bsp_buttons_get_pressed_mask(void) {
+    return pressed_mask;
+}
 
 void bsp_buttons_irq(uint32_t lines) {
     uint32_t pending = EXTI->PR & lines & BUTTON_PINS_MASK;

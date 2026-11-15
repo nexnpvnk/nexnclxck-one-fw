@@ -30,7 +30,7 @@ typedef enum {
     LEDFX_EFFECT_FADE,
     LEDFX_EFFECT_FLICKER,
     LEDFX_EFFECT_COMET,
-    LEDFX_EFFECT_COUNT
+    LEDFX_EFFECT_COUNT,
 } ledfx_effect_t;
 
 typedef struct {

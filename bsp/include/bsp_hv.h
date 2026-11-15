@@ -10,8 +10,8 @@
 /* Nominal ADC/control rate. The trigger period is rounded to whole PWM cycles. */
 #define BSP_HV_SAMPLE_RATE_HZ ((uint32_t)BSP_BOARD_HV_ADC_TARGET_RATE_HZ)
 
-#define BSP_HV_PWM_MIN_HZ 20000U
-#define BSP_HV_PWM_MAX_HZ 50000U
+#define BSP_HV_PWM_MIN_HZ     20000U
+#define BSP_HV_PWM_MAX_HZ     50000U
 /* Q16 fraction of a complete PWM period: 65536 means 100%. */
 #define BSP_HV_DUTY_SCALE     65536UL
 

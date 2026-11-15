@@ -110,7 +110,8 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
             break;
         }
 
-        default: return false;
+        default:
+            return false;
     }
 
     return true;

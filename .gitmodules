@@ -1,24 +1,24 @@
 [submodule "components/lwrb"]
-	path = components/lwrb
-	url = https://github.com/MaJerle/lwrb.git
+    path = components/lwrb
+    url = https://github.com/MaJerle/lwrb.git
 [submodule "components/wsh-shell"]
-	path = components/wsh-shell
-	url = https://github.com/whoosh-bike/wsh-shell.git
+    path = components/wsh-shell
+    url = https://github.com/whoosh-bike/wsh-shell.git
 [submodule "components/bme280"]
-	path = components/bme280
-	url = https://github.com/boschsensortec/BME280_SensorAPI.git
+    path = components/bme280
+    url = https://github.com/boschsensortec/BME280_SensorAPI.git
 [submodule "components/FlashDB"]
-	path = components/FlashDB
-	url = https://github.com/armink/FlashDB.git
+    path = components/FlashDB
+    url = https://github.com/armink/FlashDB.git
 [submodule "components/ui2c"]
-	path = components/ui2c
-	url = https://github.com/nexnpvnk/ui2c.git
+    path = components/ui2c
+    url = https://github.com/nexnpvnk/ui2c.git
 [submodule "components/microlog"]
-	path = components/microlog
-	url = https://github.com/an-dr/microlog.git
+    path = components/microlog
+    url = https://github.com/an-dr/microlog.git
 [submodule "components/lwbtn"]
-	path = components/lwbtn
-	url = https://github.com/MaJerle/lwbtn.git
+    path = components/lwbtn
+    url = https://github.com/MaJerle/lwbtn.git
 [submodule "tools/c-code-style"]
-	path = tools/c-code-style
-	url = https://github.com/nexnpvnk/c-code-style.git
+    path = tools/c-code-style
+    url = https://github.com/nexnpvnk/c-code-style.git

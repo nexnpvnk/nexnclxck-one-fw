@@ -27,5 +27,4 @@ void app_sound_process(void);
 }
 #endif
 
-
 #endif /* APP_SOUND_H */

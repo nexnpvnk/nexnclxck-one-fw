@@ -28,5 +28,14 @@ Do not run builds or tests unless explicitly requested.
   workflow and validation restrictions remain in effect.
 - Use LLVM 23.x for both `clang-format` and `clangd`. The root `.clang-format`
   inherits `tools/c-code-style/.clang-format` using directory redirection.
-- Apply the style to first-party code. Preserve third-party and generated code
-  conventions, and do not reformat files outside the task's scope.
+- Reformat only files authored from scratch for this project. Files copied or
+  adapted from libraries, vendors, SDKs, code generators, or external templates
+  retain their original formatting, even outside submodules and after local edits.
+  Reformat such files only when the owner explicitly authorizes those files.
+- Exclusions include `Drivers/`, `startup_stm32f051x8.s`, `STM32F051xx_FLASH.ld`,
+  ST-generated platform sources and headers (including `syscalls.c`, `sysmem.c`,
+  and `system_stm32f0xx.c`), and
+  `components/wsh-shell-integration/include/wsh_shell_cfg.h`.
+- Before repository-wide formatting, identify file provenance and use an explicit
+  list of project-authored files. Git tracking and location outside a submodule
+  do not establish authorship. Do not reformat files outside the task's scope.

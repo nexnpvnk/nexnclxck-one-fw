@@ -87,7 +87,7 @@
      | BSP_CATHODE_10_PIN | BSP_CATHODE_11_PIN)
 
 /* LED anode is connected to +3.3 V; PC13 sinks current while LOW. */
-#define BSP_RTC_LED_PORT            GPIOC
-#define BSP_RTC_LED_PIN             GPIO_IDR_13
+#define BSP_RTC_LED_PORT GPIOC
+#define BSP_RTC_LED_PIN  GPIO_IDR_13
 
 #endif /* BSP_PINS_H */

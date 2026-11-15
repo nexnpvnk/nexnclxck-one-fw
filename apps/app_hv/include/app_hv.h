@@ -8,8 +8,8 @@
 extern "C" {
 #endif
 
-#define APP_HV_MIN_VOLTAGE_V 100U
-#define APP_HV_MAX_VOLTAGE_V 250U
+#define APP_HV_MIN_VOLTAGE_V     100U
+#define APP_HV_MAX_VOLTAGE_V     250U
 #define APP_HV_DEFAULT_VOLTAGE_V 180U
 
 typedef enum {

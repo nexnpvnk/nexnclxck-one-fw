@@ -64,9 +64,13 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -95,8 +99,11 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
             case OPT_FREQUENCY:
                 if (frequency_text != NULL) {
                     WSH_SHELL_PRINT_WARN("Specify --frequency only once\n");
@@ -111,7 +118,8 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
                 }
                 volume_text = argv[opt.TokenPos + 1U];
                 break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -173,9 +181,13 @@ static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {

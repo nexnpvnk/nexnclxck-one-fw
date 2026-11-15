@@ -1,7 +1,7 @@
 #include "bsp_rtc.h"
-#include "bsp_time.h"
-#include "bsp_hw.h"
 #include <stddef.h>
+#include "bsp_hw.h"
+#include "bsp_time.h"
 
 static bool ready;
 
@@ -73,9 +73,13 @@ void bsp_rtc_hw_init(void) {
 #define BSP_RTC_YEAR_BASE 2000U
 #define BSP_RTC_BKP_MAGIC 0x434C4B31U /* "CLK1" */
 
-static uint8_t from_bcd(uint32_t value) { return (uint8_t)((value >> 4U) * 10U + (value & 15U)); }
+static uint8_t from_bcd(uint32_t value) {
+    return (uint8_t)((value >> 4U) * 10U + (value & 15U));
+}
 
-static uint32_t to_bcd(uint32_t value) { return ((value / 10U) << 4U) | (value % 10U); }
+static uint32_t to_bcd(uint32_t value) {
+    return ((value / 10U) << 4U) | (value % 10U);
+}
 
 bool bsp_rtc_read(bsp_rtc_datetime_t* datetime) {
     if (datetime == NULL || !ready) {
@@ -129,7 +133,9 @@ bool bsp_rtc_write(const bsp_rtc_datetime_t* datetime) {
     return true;
 }
 
-bool bsp_rtc_is_valid(void) { return ready && RTC->BKP0R == BSP_RTC_BKP_MAGIC; }
+bool bsp_rtc_is_valid(void) {
+    return ready && RTC->BKP0R == BSP_RTC_BKP_MAGIC;
+}
 
 bool bsp_rtc_invalidate(void) {
     PWR->CR |= PWR_CR_DBP;

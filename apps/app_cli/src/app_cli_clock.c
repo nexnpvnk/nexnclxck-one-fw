@@ -32,7 +32,9 @@ static const char* const clock_weekday_names[] = {
     "???", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
 };
 
-static bool app_cli_clock_is_digit(char ch) { return (ch >= '0') && (ch <= '9'); }
+static bool app_cli_clock_is_digit(char ch) {
+    return (ch >= '0') && (ch <= '9');
+}
 
 static uint8_t app_cli_clock_parse_u8_2(const char* str) {
     return (uint8_t)(((uint8_t)(str[0] - '0') * 10U) + (uint8_t)(str[1] - '0'));
@@ -126,9 +128,13 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -184,8 +190,11 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
             case OPT_DATE:
                 if (date_text != NULL) {
                     WSH_SHELL_PRINT_WARN("Specify --date only once\n");
@@ -200,7 +209,8 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
                 }
                 time_text = argv[opt.TokenPos + 1U];
                 break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -261,9 +271,13 @@ static WSH_SHELL_RET_STATE_t invalidate_handler(const WshShellCmd_t* cmd, WshShe
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {

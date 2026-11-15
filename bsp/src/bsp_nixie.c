@@ -19,7 +19,10 @@ enum {
 };
 
 static const nixie_caps_t caps = {
-    .anode_count = ANODE_COUNT, .cathode_count = CATHODE_COUNT, .max_slot_us = UINT16_MAX};
+    .anode_count = ANODE_COUNT,
+    .cathode_count = CATHODE_COUNT,
+    .max_slot_us = UINT16_MAX,
+};
 
 _Static_assert(ANODE_COUNT == 8U, "Carrier has eight anodes");
 _Static_assert(CATHODE_COUNT == 16U, "Carrier has sixteen cathodes");
@@ -74,7 +77,9 @@ static void all_outputs_off(void) {
 }
 
 /* One RTC phase per complete frame; no foreground blink timer or EXTI needed. */
-static void sample_rtc_phase(void) { rtc_phase_on = (BSP_RTC_LED_PORT->IDR & BSP_RTC_LED_PIN) == 0U; }
+static void sample_rtc_phase(void) {
+    rtc_phase_on = (BSP_RTC_LED_PORT->IDR & BSP_RTC_LED_PIN) == 0U;
+}
 
 static void timer_stop(void) {
     TIM1->DIER = 0U;
@@ -173,7 +178,9 @@ bool bsp_nixie_init(void) {
     return true;
 }
 
-const nixie_caps_t* bsp_nixie_caps(void) { return &caps; }
+const nixie_caps_t* bsp_nixie_caps(void) {
+    return &caps;
+}
 
 nixie_status_t bsp_nixie_present(const nixie_plan_t* plan, uint16_t rtc_anodes) {
     if (__get_IPSR() != 0U || __get_PRIMASK() != 0U || !initialized || shutdown_latched) {

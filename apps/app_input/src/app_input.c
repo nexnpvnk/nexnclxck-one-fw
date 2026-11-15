@@ -60,7 +60,8 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
             }
             break;
 
-        default: break;
+        default:
+            break;
     }
 }
 

@@ -75,7 +75,7 @@ typedef struct {
 
 typedef struct {
     uint16_t brightness_pm;
-    uint16_t dot_elements; /* Bit per logical element: add NIXIE_SYMBOL_DOT to its symbol. */
+    uint16_t dot_elements;                          /* Bit per logical element: add NIXIE_SYMBOL_DOT to its symbol. */
     uint16_t anode_brightness_pm[NIXIE_MAX_ANODES]; /* Indexed by carrier ANODE_n. */
     uint8_t symbols[NIXIE_MAX_ELEMENTS];            /* Symbol ID per logical element. */
 } nixie_frame_t;

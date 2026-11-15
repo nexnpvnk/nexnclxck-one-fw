@@ -26,9 +26,13 @@ static const WshShellUser_t shell_users[] = {
 };
 
 #if WSH_SHELL_HISTORY
-static WshShellHistory_t shell_history_read(void) { return shell_history; }
+static WshShellHistory_t shell_history_read(void) {
+    return shell_history;
+}
 
-static void shell_history_write(WshShellHistory_t history) { shell_history = history; }
+static void shell_history_write(WshShellHistory_t history) {
+    shell_history = history;
+}
 #endif
 
 bool shell_init(void) {
@@ -70,7 +74,9 @@ void shell_process(void) {
     }
 }
 
-void shell_set_cancel_handler(void (*handler)(void)) { cancel_handler = handler; }
+void shell_set_cancel_handler(void (*handler)(void)) {
+    cancel_handler = handler;
+}
 
 bool shell_commands_attach(const WshShellCmd_t* commands[], WshShell_Size_t count) {
     return WshShellCmd_Attach(&shell.Commands, commands, count) == WSH_SHELL_RET_STATE_SUCCESS;

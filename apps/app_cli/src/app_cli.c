@@ -12,8 +12,10 @@
 #include "shell.h"
 #include "wsh_shell.h"
 
-static const WshShellCmd_t* app_cli_commands[] = {&app_cli_clock_cmd, &app_cli_bme280_cmd, &app_cli_buzzer_cmd,
-                                                  &app_cli_hv_cmd, &app_cli_display_cmd, &app_cli_light_cmd};
+static const WshShellCmd_t* app_cli_commands[] = {
+    &app_cli_clock_cmd, &app_cli_bme280_cmd,  &app_cli_buzzer_cmd,
+    &app_cli_hv_cmd,    &app_cli_display_cmd, &app_cli_light_cmd,
+};
 
 static struct {
     WshShell_t* console;
@@ -48,14 +50,18 @@ bool app_cli_init(void) {
 }
 
 void app_cli_process(void) {
-    if (watch.console == NULL) return;
+    if (watch.console == NULL) {
+        return;
+    }
     WshShell_t* console = watch.console;
     if (!WshShell_IsAuth(console) || console->Interact.Handler != NULL) {
         app_cli_cancel();
         return;
     }
     uint32_t now = bsp_time_ms();
-    if ((uint32_t)(now - watch.last_print_ms) < 1000U) return;
+    if ((uint32_t)(now - watch.last_print_ms) < 1000U) {
+        return;
+    }
     watch.last_print_ms = now;
 
     WSH_SHELL_PRINT("\r\033[2K");

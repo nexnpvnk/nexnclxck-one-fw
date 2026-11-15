@@ -36,11 +36,14 @@ static uint32_t defer_interval_ms(ui2c_status_t status) {
     switch (status) {
         case UI2C_STATUS_BUSY:
         case UI2C_STATUS_BUS_BUSY:
-        case UI2C_STATUS_ARBITRATION_LOST: return BME280_BUS_RETRY_INTERVAL_MS;
+        case UI2C_STATUS_ARBITRATION_LOST:
+            return BME280_BUS_RETRY_INTERVAL_MS;
 
-        case UI2C_STATUS_NOT_INITIALIZED: return BME280_RETRY_INTERVAL_MS;
+        case UI2C_STATUS_NOT_INITIALIZED:
+            return BME280_RETRY_INTERVAL_MS;
 
-        default: return 0U;
+        default:
+            return 0U;
     }
 }
 

@@ -82,12 +82,13 @@ static const nixie_element_t upper_board[] = {
 static const app_display_layout_t upper_board_layout = {
     .digit_count = 6U,
     .digits = {0U, 1U, 2U, 3U, 4U, 5U},
-    .points = {
-        [APP_DISPLAY_POINT_LEFT_TOP] = 8U,     /* C7 */
-        [APP_DISPLAY_POINT_LEFT_BOTTOM] = 9U,  /* C10 */
-        [APP_DISPLAY_POINT_RIGHT_TOP] = 6U,    /* C3 */
-        [APP_DISPLAY_POINT_RIGHT_BOTTOM] = 7U, /* C13 */
-    },
+    .points =
+        {
+            [APP_DISPLAY_POINT_LEFT_TOP] = 8U,     /* C7 */
+            [APP_DISPLAY_POINT_LEFT_BOTTOM] = 9U,  /* C10 */
+            [APP_DISPLAY_POINT_RIGHT_TOP] = 6U,    /* C3 */
+            [APP_DISPLAY_POINT_RIGHT_BOTTOM] = 7U, /* C13 */
+        },
 };
 
 const app_display_profile_t display_default_profile = {

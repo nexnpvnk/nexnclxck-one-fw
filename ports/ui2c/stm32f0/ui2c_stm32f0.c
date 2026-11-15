@@ -19,7 +19,9 @@ static void unlock(ui2c_t* bus, ui2c_lock_key_t key) {
     __set_PRIMASK((uint32_t)key);
 }
 
-static uint32_t dma_shift(const ui2c_stm32f0_dma_t* dma) { return 4U * (dma->number - 1U); }
+static uint32_t dma_shift(const ui2c_stm32f0_dma_t* dma) {
+    return 4U * (dma->number - 1U);
+}
 
 static void dma_disable(const ui2c_stm32f0_dma_t* dma) {
     if (dma->channel != NULL) {

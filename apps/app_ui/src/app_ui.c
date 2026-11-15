@@ -10,17 +10,17 @@
 #include <stddef.h>
 #include <string.h>
 
-#define APP_UI_TIME_MS   40000U
-#define APP_UI_INFO_MS   5000U
-#define APP_UI_MANUAL_MS 10000U
-#define APP_UI_POLL_MS   20U
+#define APP_UI_TIME_MS                 40000U
+#define APP_UI_INFO_MS                 5000U
+#define APP_UI_MANUAL_MS               10000U
+#define APP_UI_POLL_MS                 20U
 
 #define APP_UI_SETTING_TIMEOUT_MS      10000U
 #define APP_UI_SETTING_REPEAT_DELAY_MS 400U
 
-#define APP_UI_BEEP_FREQ_HZ     2800U
-#define APP_UI_BEEP_VOLUME      10U
-#define APP_UI_BEEP_DURATION_MS 35U
+#define APP_UI_BEEP_FREQ_HZ            2800U
+#define APP_UI_BEEP_VOLUME             10U
+#define APP_UI_BEEP_DURATION_MS        35U
 
 typedef enum {
     SCREEN_TIME = 0,
@@ -47,22 +47,22 @@ typedef struct {
 } setting_range_t;
 
 static const ledfx_rgb_t light_palette[] = {
-    {255U, 80U, 8U},   /*  1: warm orange, startup primary */
-    {255U, 144U, 0U},  /*  2: amber */
-    {255U, 208U, 0U},  /*  3: yellow */
-    {128U, 255U, 0U},  /*  4: lime */
-    {0U, 255U, 0U},    /*  5: green */
-    {0U, 255U, 128U},  /*  6: turquoise */
-    {0U, 255U, 255U},  /*  7: cyan */
-    {0U, 32U, 255U},   /*  8: blue, startup secondary */
-    {128U, 0U, 255U},  /*  9: violet */
-    {255U, 0U, 255U},  /* 10: magenta */
-    {255U, 64U, 128U}, /* 11: pink */
-    {255U, 0U, 0U},    /* 12: red */
+    {255U, 80U, 8U},    /*  1: warm orange, startup primary */
+    {255U, 144U, 0U},   /*  2: amber */
+    {255U, 208U, 0U},   /*  3: yellow */
+    {128U, 255U, 0U},   /*  4: lime */
+    {0U, 255U, 0U},     /*  5: green */
+    {0U, 255U, 128U},   /*  6: turquoise */
+    {0U, 255U, 255U},   /*  7: cyan */
+    {0U, 32U, 255U},    /*  8: blue, startup secondary */
+    {128U, 0U, 255U},   /*  9: violet */
+    {255U, 0U, 255U},   /* 10: magenta */
+    {255U, 64U, 128U},  /* 11: pink */
+    {255U, 0U, 0U},     /* 12: red */
     {255U, 214U, 160U}, /* 13: warm white */
     {255U, 255U, 255U}, /* 14: white */
     {192U, 216U, 255U}, /* 15: cool white */
-    {0U, 0U, 0U},      /* 16: black */
+    {0U, 0U, 0U},       /* 16: black */
 };
 
 #define APP_UI_LIGHT_COLOR_COUNT (sizeof(light_palette) / sizeof(light_palette[0]))
@@ -268,11 +268,20 @@ static bool read_setting_value(setting_id_t id, uint8_t* value) {
         return false;
     }
     switch (id) {
-        case SETTING_LIGHT_BRIGHTNESS: *value = status.brightness; break;
-        case SETTING_LIGHT_SPEED: *value = status.speed; break;
-        case SETTING_LIGHT_PRIMARY: *value = palette_index(status.primary); break;
-        case SETTING_LIGHT_SECONDARY: *value = palette_index(status.secondary); break;
-        default: return false;
+        case SETTING_LIGHT_BRIGHTNESS:
+            *value = status.brightness;
+            break;
+        case SETTING_LIGHT_SPEED:
+            *value = status.speed;
+            break;
+        case SETTING_LIGHT_PRIMARY:
+            *value = palette_index(status.primary);
+            break;
+        case SETTING_LIGHT_SECONDARY:
+            *value = palette_index(status.secondary);
+            break;
+        default:
+            return false;
     }
     return true;
 }
@@ -285,8 +294,8 @@ static bool write_setting_value(setting_id_t id, uint8_t value) {
         return app_light_set_speed(value);
     }
     app_light_status_t status;
-    if ((id != SETTING_LIGHT_PRIMARY && id != SETTING_LIGHT_SECONDARY)
-        || value == 0U || value > APP_UI_LIGHT_COLOR_COUNT || !app_light_get_status(&status)) {
+    if ((id != SETTING_LIGHT_PRIMARY && id != SETTING_LIGHT_SECONDARY) || value == 0U
+        || value > APP_UI_LIGHT_COLOR_COUNT || !app_light_get_status(&status)) {
         return false;
     }
     if (id == SETTING_LIGHT_PRIMARY) {
@@ -412,7 +421,8 @@ void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
                 }
             }
             break;
-        default: break;
+        default:
+            break;
     }
 }
 
@@ -524,8 +534,7 @@ static void update_view(uint32_t now, bool can_render) {
     app_bme280_readings_t readings;
     const app_bme280_readings_t* sample = app_bme280_get(&readings) ? &readings : NULL;
     uint32_t duration = manual ? APP_UI_MANUAL_MS : (screen == SCREEN_TIME ? APP_UI_TIME_MS : APP_UI_INFO_MS);
-    if ((uint32_t)(now - screen_started_ms) >= duration
-        || (manual && !screen_available(screen, date_valid, sample))) {
+    if ((uint32_t)(now - screen_started_ms) >= duration || (manual && !screen_available(screen, date_valid, sample))) {
         screen = manual ? SCREEN_TIME : (screen_t)((screen + 1U) % SCREEN_COUNT);
         manual = false;
         screen_started_ms = now;
@@ -554,8 +563,8 @@ static void update_view(uint32_t now, bool can_render) {
             break;
         }
         case SCREEN_HUMIDITY:
-            formatted = render_number(frame.symbols, &frame.dot_elements,
-                                      (sample->humidity_centi_percent + 5U) / 10U, true, false);
+            formatted = render_number(frame.symbols, &frame.dot_elements, (sample->humidity_centi_percent + 5U) / 10U,
+                                      true, false);
             break;
         case SCREEN_PRESSURE:
             /* Integer mmHg, using 133.322 Pa/mmHg. Bosch pressure is Pa * 100;
@@ -563,7 +572,9 @@ static void update_view(uint32_t now, bool can_render) {
             formatted = render_number(frame.symbols, &frame.dot_elements,
                                       (sample->pressure_centi_pa * 10U + 66661U) / 133322U, false, false);
             break;
-        default: frame.blink_elements = render_time(frame.symbols, &datetime, time_valid); break;
+        default:
+            frame.blink_elements = render_time(frame.symbols, &datetime, time_valid);
+            break;
     }
     if (!formatted) {
         memset(frame.symbols, NIXIE_SYMBOL_BLANK, board->element_count);

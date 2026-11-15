@@ -116,9 +116,10 @@ void app_main(void) {
         app_hv_status_t hv_status;
         /* Qualify initial HV startup once. Keep the display load connected
          * during ordinary regulation transients; OFF/FAULT revoke permission. */
-        display_power_ready =
-            app_hv_get_status(&hv_status) && hv_status.requested_enabled && hv_status.fault == APP_HV_FAULT_NONE
-            && (hv_status.state == APP_HV_RUNNING || (display_power_ready && hv_status.state == APP_HV_STARTING));
+        display_power_ready = app_hv_get_status(&hv_status) && hv_status.requested_enabled
+                              && hv_status.fault == APP_HV_FAULT_NONE
+                              && (hv_status.state == APP_HV_RUNNING
+                                  || (display_power_ready && hv_status.state == APP_HV_STARTING));
         bool display_enabled = app_display_process(display_power_ready);
         app_ui_process(display_enabled);
         bsp_i2c_process();
