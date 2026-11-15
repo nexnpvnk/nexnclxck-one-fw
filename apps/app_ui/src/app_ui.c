@@ -3,6 +3,7 @@
 #include "app_bme280.h"
 #include "app_clock.h"
 #include "app_display.h"
+#include "app_light.h"
 #include "app_sound.h"
 #include "bsp_time.h"
 
@@ -13,6 +14,9 @@
 #define APP_UI_INFO_MS   5000U
 #define APP_UI_MANUAL_MS 10000U
 #define APP_UI_POLL_MS   20U
+
+#define APP_UI_LIGHT_TIMEOUT_MS      10000U
+#define APP_UI_LIGHT_REPEAT_DELAY_MS 400U
 
 #define APP_UI_BEEP_FREQ_HZ     2800U
 #define APP_UI_BEEP_VOLUME      10U
@@ -35,6 +39,12 @@ static uint32_t last_poll_ms;
 static bool initialized;
 static bool view_started;
 static bool manual;
+static bool light_adjusting;
+static bool fn_short_pending;
+static int8_t light_direction;
+static uint32_t light_activity_ms;
+static uint32_t light_hold_started_ms;
+static uint32_t light_last_step_ms;
 
 static nixie_status_t report(nixie_issue_t* issue, nixie_status_t status, uint8_t element) {
     if (issue != NULL) {
@@ -98,7 +108,8 @@ nixie_status_t app_ui_init(nixie_issue_t* issue) {
     initialized = false;
     view_started = false;
     const app_display_profile_t* profile = app_display_profile();
-    if (profile == NULL) {
+    app_display_status_t display_status;
+    if (!app_display_get_status(&display_status)) {
         return report(issue, NIXIE_NOT_READY, UINT8_MAX);
     }
     nixie_status_t result = validate_layout(&profile->board, profile->layout, issue);
@@ -109,6 +120,9 @@ nixie_status_t app_ui_init(nixie_issue_t* issue) {
     layout = profile->layout;
     screen = SCREEN_TIME;
     manual = false;
+    light_adjusting = false;
+    fn_short_pending = false;
+    light_direction = 0;
     screen_started_ms = bsp_time_ms();
     last_poll_ms = screen_started_ms - APP_UI_POLL_MS;
     initialized = true;
@@ -173,13 +187,78 @@ static void step_screen(int8_t direction) {
     last_poll_ms = now - APP_UI_POLL_MS;
 }
 
+static void finish_light_adjustment(uint32_t now) {
+    light_adjusting = false;
+    light_direction = 0;
+    fn_short_pending = false;
+    screen = SCREEN_TIME;
+    manual = false;
+    view_started = true;
+    screen_started_ms = now;
+    last_poll_ms = now - APP_UI_POLL_MS;
+}
+
+static void step_light_effect(void) {
+    app_light_status_t status;
+    if (app_light_get_status(&status)) {
+        ledfx_effect_t next = (ledfx_effect_t)((status.effect + 1U) % LEDFX_EFFECT_COUNT);
+        (void)app_light_set_effect(next);
+    }
+}
+
+static void step_light_brightness(int8_t direction) {
+    app_light_status_t status;
+    if (!app_light_get_status(&status)) {
+        return;
+    }
+    /* Whole percent in the UI, with app_light retaining its 0..255 range.
+     * Read each step so changes from the CLI are reflected immediately. */
+    uint8_t percent = (uint8_t)(((uint16_t)status.brightness * 100U + 127U) / 255U);
+    if (direction > 0 && percent < 100U) {
+        ++percent;
+    } else if (direction < 0 && percent > 0U) {
+        --percent;
+    }
+    (void)app_light_set_brightness((uint8_t)((percent * 255U + 50U) / 100U));
+}
+
+static void repeat_light_brightness(uint32_t now) {
+    if (light_direction == 0) {
+        return;
+    }
+    /* Holding a key is activity even at the bounds. Keep one-percent steps;
+     * accelerate only their rate and never replay missed steps in a burst. */
+    light_activity_ms = now;
+    uint32_t held_ms = now - light_hold_started_ms;
+    uint32_t interval_ms = held_ms >= 2500U ? 20U : (held_ms >= 1200U ? 60U : 150U);
+    if (held_ms >= APP_UI_LIGHT_REPEAT_DELAY_MS && (uint32_t)(now - light_last_step_ms) >= interval_ms) {
+        step_light_brightness(light_direction);
+        light_last_step_ms = now;
+    }
+}
+
 void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
     if (!initialized || (unsigned)key >= APP_UI_KEY_COUNT) {
         return;
     }
+    uint32_t now = bsp_time_ms();
     switch (event) {
         case APP_UI_EVENT_PRESS:
-            if (key == APP_UI_KEY_RIGHT) {
+            if (light_adjusting) {
+                light_activity_ms = now;
+            }
+            if (key == APP_UI_KEY_FN) {
+                fn_short_pending = true;
+            } else if (light_adjusting) {
+                if (key == APP_UI_KEY_RIGHT || key == APP_UI_KEY_LEFT) {
+                    light_direction = key == APP_UI_KEY_RIGHT ? 1 : -1;
+                    light_hold_started_ms = now;
+                    light_last_step_ms = now;
+                    step_light_brightness(light_direction);
+                } else if (key == APP_UI_KEY_OK) {
+                    finish_light_adjustment(now);
+                }
+            } else if (key == APP_UI_KEY_RIGHT) {
                 step_screen(1);
             } else if (key == APP_UI_KEY_LEFT) {
                 step_screen(-1);
@@ -187,9 +266,40 @@ void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
             (void)app_sound_beep(APP_UI_BEEP_FREQ_HZ, APP_UI_BEEP_VOLUME, APP_UI_BEEP_DURATION_MS);
             break;
         case APP_UI_EVENT_LONG_PRESS:
+            if (light_adjusting && (key == APP_UI_KEY_LEFT || key == APP_UI_KEY_RIGHT)) {
+                /* Repeat is handled by process(); no hold beep in adjustment. */
+                break;
+            }
+            if (key == APP_UI_KEY_FN && fn_short_pending) {
+                /* Consume the later RELEASE: entering adjustment must neither
+                 * switch the effect nor immediately leave the new mode. */
+                fn_short_pending = false;
+                app_light_status_t status;
+                if (app_light_get_status(&status)) {
+                    light_adjusting = true;
+                    light_direction = 0;
+                    light_activity_ms = now;
+                    view_started = true;
+                    last_poll_ms = now - APP_UI_POLL_MS;
+                }
+            }
             (void)app_sound_beep(APP_UI_BEEP_FREQ_HZ, APP_UI_BEEP_VOLUME, APP_UI_BEEP_DURATION_MS * 4U);
             break;
-        case APP_UI_EVENT_RELEASE: break;
+        case APP_UI_EVENT_RELEASE:
+            if ((key == APP_UI_KEY_RIGHT && light_direction > 0)
+                || (key == APP_UI_KEY_LEFT && light_direction < 0)) {
+                light_direction = 0;
+                light_activity_ms = now;
+            }
+            if (key == APP_UI_KEY_FN && fn_short_pending) {
+                fn_short_pending = false;
+                if (light_adjusting) {
+                    finish_light_adjustment(now);
+                } else {
+                    step_light_effect();
+                }
+            }
+            break;
         default: break;
     }
 }
@@ -280,6 +390,18 @@ static bool render_number(uint8_t* symbols, uint16_t* dots, uint32_t value, bool
     return true;
 }
 
+static void show_light_brightness(void) {
+    app_light_status_t status;
+    if (!app_light_get_status(&status)) {
+        return;
+    }
+    app_display_frame_t frame = {.element_count = board->element_count};
+    memset(frame.symbols, NIXIE_SYMBOL_BLANK, sizeof(frame.symbols));
+    uint8_t percent = (uint8_t)(((uint16_t)status.brightness * 100U + 127U) / 255U);
+    (void)put_unsigned(frame.symbols, percent, layout->digit_count);
+    (void)app_display_present(&frame);
+}
+
 static void update_view(uint32_t now, bool can_render) {
     app_clock_datetime_t datetime;
     bool time_valid;
@@ -344,6 +466,12 @@ void app_ui_process(bool can_render) {
         return;
     }
     uint32_t now = bsp_time_ms();
+    if (light_adjusting) {
+        repeat_light_brightness(now);
+        if ((uint32_t)(now - light_activity_ms) >= APP_UI_LIGHT_TIMEOUT_MS) {
+            finish_light_adjustment(now);
+        }
+    }
     if (!view_started) {
         if (!can_render) {
             return;
@@ -356,5 +484,11 @@ void app_ui_process(bool can_render) {
         return;
     }
     last_poll_ms = now;
+    if (light_adjusting) {
+        if (can_render) {
+            show_light_brightness();
+        }
+        return;
+    }
     update_view(now, can_render);
 }

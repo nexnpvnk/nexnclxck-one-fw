@@ -78,7 +78,7 @@ void app_main(void) {
     /* Sound is optional; a failed buzzer must not prevent the clock from running. */
     (void)bsp_buzzer_init();
 
-    if (!app_light_init(12U)) {
+    if (!app_light_init(app_display_profile()->led_count)) {
         ulog_t(ULOG_SYSLOG_ERR, TAG, "Lighting initialization failed");
     }
 

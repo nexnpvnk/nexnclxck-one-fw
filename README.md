@@ -10,12 +10,12 @@ Drivers access registers through CMSIS. Flash: 64 KiB. RAM: 8 KiB.
 
 | Device | Initial settings |
 | --- | --- |
-| Digits and separators | 7 scan slots, 120 Hz full scan, 500 µs blanking, 100% brightness |
+| Digits and separators | 7 scan slots, 120 Hz full scan, 600 µs blanking, 100% brightness |
 | Clock | HH:MM:SS, 24-hour format, leading zero; RTC clocked by LSE |
 | Separator blinking | PC13 LOW enables the separator slot; about 500 ms per phase |
 | DC/DC | 180 V, 24 kHz PWM, 1 kHz ADC/PI |
 | Console | USART1, 1500000 baud, 8N1 |
-| Lighting | 12 WS2812 LEDs, rainbow, brightness 32/255, 33 ms effect interval |
+| Lighting | 12 WS2812 LEDs, static warm orange (0xFF5008), brightness 25% (64/255) |
 | BME280 | Forced mode, 100 ms measurement interval |
 
 The display shows the RTC counters once RTC and HV are ready, even when the
@@ -33,6 +33,14 @@ the next successful measurement makes them available again.
 
 RIGHT / LEFT steps through available screens and holds the selection for
 10 seconds after the last press, then returns to time and the automatic cycle.
+Short FN cycles `static` → `breath` → `rainbow` → `fade` → `flicker` → `comet`
+→ `static` on release. Hold FN for 1 second to adjust lighting brightness:
+LEFT / RIGHT changes 0..100% in one-percent steps, shown on the tubes.
+Holding LEFT / RIGHT starts repeat after 400 ms and speeds it up after 1.2 and
+2.5 seconds. The initial press beeps once; holding and repeat are silent.
+OK, short FN or 10 seconds of inactivity return to time. Changes apply immediately
+and remain in RAM until reset. Releasing the initial FN hold keeps adjustment open.
+
 The configured tube's internal decimal point takes priority for fractional
 values (IN-12B); tubes without one (IN-12A) use the lower external point.
 The IN-12B point is to the left of its digit, so `23.4` lights it on the tube
@@ -56,6 +64,10 @@ The complete digit cathode map and the four-digit layout example are in the
 profile in `apps/app_display/src/display_profile.c` sets the actual element count,
 wiring, tube capabilities and physical digit/point positions on the upper board.
 Unused physical elements are omitted. Scan slots remain constant across screens.
+The physical WS2812 count is set only by `led_count` in that same upper-board
+profile. `app_main` reads it through `app_display_profile()` before hardware
+initialization. The driver has storage for up to 16 LEDs and sends the requested
+count; set the profile to 8 or 14 for a different upper board.
 
 ## Structure
 
@@ -77,7 +89,8 @@ and CMake configuration are maintained manually;
 
 `app_input` recognizes button presses, releases and holds. `app_ui` chooses their
 actions, sound feedback and screen content; button-based clock settings will live
-here, with browsing implemented so far. `app_display` owns the Nixie profile,
+here; browsing and lighting brightness adjustment are implemented.
+`app_display` owns the Nixie profile,
 brightness and plan publication through `nixie` / `bsp_nixie`. The hardware profile
 is immutable; live brightness and timing are stored separately. `app_main` connects
 the modules and passes permission to render without blocking UI input. WS2812
@@ -125,7 +138,7 @@ clock set -d 2026-11-14 -t 12:34:56
 | Frequency 100..10000 Hz, volume 0..100% | `buzzer set -f 2500 -v 20` |
 | Manual buzzer enable / disable | `buzzer on` / `buzzer off` |
 | Display status | `display` |
-| Brightness 0..100%, refresh 1..400 Hz, blanking in µs | `display set -b 100 -r 120 -t 500` |
+| Brightness 0..100%, refresh 1..400 Hz, blanking in µs | `display set -b 100 -r 120 -t 600` |
 | Lighting parameters | `light` |
 | Lighting effect | `light set --effect fade` |
 | Primary and secondary RGB colors | `light set --primary 0xFF5008 --secondary 0x0020FF` |
@@ -148,8 +161,9 @@ changed independently; omitted values are preserved. Short forms are `-e`
 for effect, `-s` for speed and `-b` for brightness. Changes are rendered from
 the main loop and sent asynchronously via DMA. Settings are held in RAM
 and return to startup defaults after reset.
-`light reset` restores `rainbow`, colors `0xFF5008` / `0x0020FF`, speed 128
-and brightness 32, and restarts the effect phase while preserving the LED count.
+`light reset` restores `static`, colors `0xFF5008` / `0x0020FF`, speed 128
+and brightness 25% (64/255), and restarts the effect phase while preserving the LED count.
+Animated effects render every 33 ms; static lighting renders when needed.
 
 `clock` shows the RTC date and time whenever they can be read, with a `not set`
 warning if the time-set marker is absent. Log timestamps use RTC time when it

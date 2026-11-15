@@ -28,6 +28,7 @@ typedef struct {
     nixie_timing_t timing;
     uint16_t brightness_pm;
     uint16_t anode_brightness_pm[NIXIE_MAX_ANODES]; /* One PWM factor per ANODE_n. */
+    uint8_t led_count; /* Physical WS2812 population of the upper board. */
 } app_display_profile_t;
 
 typedef struct {
@@ -53,8 +54,9 @@ bool app_display_init(void);
 /* Foreground-only. Apply the HV permission and return whether illumination is
  * enabled. Does not choose or render content. Emergency shutdown remains in BSP. */
 bool app_display_process(bool power_ready);
-/* Immutable board, geometry and startup defaults; NULL before initialization.
- * Valid for the program lifetime. Read live brightness/timing through get_status(). */
+/* Immutable upper-board description and startup defaults, available before init.
+ * Valid for the program lifetime; does not imply display readiness.
+ * Read live brightness/timing through get_status(). */
 const app_display_profile_t* app_display_profile(void);
 /* Foreground-only. Copy logical content; element_count must match the board.
  * Invalid/BUSY leaves the accepted frame intact. Identical content is a no-op.

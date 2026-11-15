@@ -52,14 +52,14 @@ bool app_light_reset(void) {
     }
 
     config = (ledfx_config_t){
-        .effect = LEDFX_EFFECT_RAINBOW,
+        .effect = LEDFX_EFFECT_STATIC,
         .primary = {255U, 80U, 8U},
         .secondary = {0U, 32U, 255U},
         .speed = 128U,
         .seed = 0x2812U,
     };
 
-    brightness = 32U;
+    brightness = (25U * 255U + 50U) / 100U; /* 25%, rounded to the 0..255 range. */
 
     effect_started_ms = bsp_time_ms();
     last_render_ms = effect_started_ms;
@@ -143,6 +143,9 @@ void app_light_process(void) {
         return;
     }
 
+    /* Service transfer timeouts even when a static frame has no changes.
+     * Read errors afterward so an aborted transfer is retried. */
+    bool transport_busy = bsp_ws2812_is_busy();
     uint32_t errors = bsp_ws2812_error_count();
 
     if (errors != observed_ws2812_errors) {
@@ -179,7 +182,7 @@ void app_light_process(void) {
         }
     }
 
-    if (!pending || bsp_ws2812_is_busy()) {
+    if (!pending || transport_busy) {
         return;
     }
 

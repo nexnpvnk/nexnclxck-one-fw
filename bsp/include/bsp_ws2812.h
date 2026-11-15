@@ -10,7 +10,8 @@
 extern "C" {
 #endif
 
-#define BSP_WS2812_MAX_LEDS 12U
+/* Storage capacity; the actual LED count comes from the upper-board profile. */
+#define BSP_WS2812_MAX_LEDS 16U
 
 typedef struct {
     uint8_t r;

@@ -21,7 +21,7 @@ static const app_ui_key_t ui_keys[] = {
     [BSP_BUTTON_RIGHT] = APP_UI_KEY_RIGHT,
     [BSP_BUTTON_OK] = APP_UI_KEY_OK,
     [BSP_BUTTON_LEFT] = APP_UI_KEY_LEFT,
-    [BSP_BUTTON_LIGHT] = APP_UI_KEY_LIGHT,
+    [BSP_BUTTON_LIGHT] = APP_UI_KEY_FN,
 };
 
 _Static_assert(sizeof(ui_keys) / sizeof(ui_keys[0]) == BSP_BUTTON_COUNT, "Map every board button to a UI key");

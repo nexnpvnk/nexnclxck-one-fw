@@ -76,7 +76,7 @@ bool app_display_init(void) {
 }
 
 const app_display_profile_t* app_display_profile(void) {
-    return initialized ? &display_default_profile : NULL;
+    return &display_default_profile;
 }
 
 nixie_status_t app_display_present(const app_display_frame_t* frame) {

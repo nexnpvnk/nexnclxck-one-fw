@@ -17,9 +17,10 @@
  * This exceeds the reset time of conventional WS2812 variants. */
 #define WS2812_LATCH_MS      2U
 
-/* Maximum expected transfer is about 360 us for 12 LEDs.
- * Allow a generous margin for interrupt latency. */
-#define WS2812_TIMEOUT_MS    5U
+/* Maximum frame duration, rounded up, plus interrupt-latency margin. */
+#define WS2812_TIMEOUT_MS \
+    ((BSP_WS2812_MAX_LEDS * 24UL * 1000UL + BSP_BOARD_WS2812_BIT_RATE_HZ - 1UL) \
+     / BSP_BOARD_WS2812_BIT_RATE_HZ + 5UL)
 
 _Static_assert(BSP_BOARD_WS2812_SYMBOLS_PER_BIT == 3U, "The BSRR encoder emits three symbols per bit");
 _Static_assert(WS2812_LEDS_PER_HALF > 0U && WS2812_LEDS_PER_HALF <= UINT8_MAX && WS2812_BUFFER_WORDS <= DMA_CNDTR_NDT,

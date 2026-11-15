@@ -91,6 +91,7 @@ static const app_display_layout_t upper_board_layout = {
 };
 
 const app_display_profile_t display_default_profile = {
+    .led_count = 12U,
     .board =
         {
             .name = "6 x IN-12 + 4 INS-1 (shared A2)",
