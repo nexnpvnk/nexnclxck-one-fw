@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 
-#define APP_CLOCK_YEAR_MIN  2000U
-#define APP_CLOCK_YEAR_MAX  2099U
+#define APP_CLOCK_YEAR_MIN 2000U
+#define APP_CLOCK_YEAR_MAX 2099U
 
 static bool is_leap_year(uint16_t year) {
     return ((year % 4U) == 0U) && (((year % 100U) != 0U) || ((year % 400U) == 0U));
@@ -108,7 +108,9 @@ bool app_clock_get(app_clock_datetime_t* datetime) {
     return true;
 }
 
-bool app_clock_is_valid(void) { return bsp_rtc_is_valid(); }
+bool app_clock_is_valid(void) {
+    return bsp_rtc_is_valid();
+}
 
 bool app_clock_set(const app_clock_datetime_t* datetime) {
     bsp_rtc_datetime_t bsp_rtc_datetime;
@@ -131,7 +133,9 @@ bool app_clock_set(const app_clock_datetime_t* datetime) {
     return bsp_rtc_write(&bsp_rtc_datetime);
 }
 
-bool app_clock_invalidate(void) { return bsp_rtc_invalidate(); }
+bool app_clock_invalidate(void) {
+    return bsp_rtc_invalidate();
+}
 
 bool app_clock_get_status(app_clock_status_t* status) {
     bsp_rtc_status_t bsp_rtc_status;

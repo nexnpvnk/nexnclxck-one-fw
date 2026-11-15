@@ -2,8 +2,8 @@
 #include "bsp_ws2812.h"
 
 #include "bsp_board_config.h"
-#include "bsp_time.h"
 #include "bsp_hw.h"
+#include "bsp_time.h"
 
 #include <string.h>
 
@@ -260,7 +260,9 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
     return true;
 }
 
-uint32_t bsp_ws2812_error_count(void) { return failed_count; }
+uint32_t bsp_ws2812_error_count(void) {
+    return failed_count;
+}
 
 void bsp_ws2812_hw_init(void) {
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;

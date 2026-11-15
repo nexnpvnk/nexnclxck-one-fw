@@ -18,11 +18,9 @@ static nixie_issue_t last_issue = {NIXIE_NOT_READY, UINT8_MAX};
 static bool initialized;
 static bool enabled;
 
-static nixie_status_t publish_configuration(const display_parameters_t* candidate,
-                                            const app_display_frame_t* content) {
+static nixie_status_t publish_configuration(const display_parameters_t* candidate, const app_display_frame_t* content) {
     const app_display_profile_t* profile = &display_default_profile;
-    if (content == NULL || profile->board.element_count == 0U
-        || profile->board.element_count > NIXIE_MAX_ELEMENTS
+    if (content == NULL || profile->board.element_count == 0U || profile->board.element_count > NIXIE_MAX_ELEMENTS
         || content->element_count != profile->board.element_count
         || ((uint32_t)content->blink_elements >> profile->board.element_count) != 0U) {
         last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX};
@@ -124,7 +122,9 @@ bool app_display_get_status(app_display_status_t* status) {
     return true;
 }
 
-nixie_issue_t app_display_last_issue(void) { return last_issue; }
+nixie_issue_t app_display_last_issue(void) {
+    return last_issue;
+}
 
 bool app_display_process(bool power_ready) {
     if (!initialized) {

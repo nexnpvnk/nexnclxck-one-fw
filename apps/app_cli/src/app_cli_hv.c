@@ -35,32 +35,48 @@ static uint32_t last_samples;
 
 static const char* state_name(app_hv_state_t state) {
     switch (state) {
-        case APP_HV_OFF: return "OFF";
-        case APP_HV_STARTING: return "STARTING";
-        case APP_HV_RUNNING: return "RUNNING";
-        case APP_HV_FAULT: return "FAULT";
-        default: return "UNKNOWN";
+        case APP_HV_OFF:
+            return "OFF";
+        case APP_HV_STARTING:
+            return "STARTING";
+        case APP_HV_RUNNING:
+            return "RUNNING";
+        case APP_HV_FAULT:
+            return "FAULT";
+        default:
+            return "UNKNOWN";
     }
 }
 
 static const char* fault_name(app_hv_fault_t fault) {
     switch (fault) {
-        case APP_HV_FAULT_NONE: return "NONE";
-        case APP_HV_FAULT_INIT: return "INIT";
-        case APP_HV_FAULT_BSP: return "BSP";
-        case APP_HV_FAULT_NO_REGULATION: return "NO_REGULATION";
-        default: return "UNKNOWN";
+        case APP_HV_FAULT_NONE:
+            return "NONE";
+        case APP_HV_FAULT_INIT:
+            return "INIT";
+        case APP_HV_FAULT_BSP:
+            return "BSP";
+        case APP_HV_FAULT_NO_REGULATION:
+            return "NO_REGULATION";
+        default:
+            return "UNKNOWN";
     }
 }
 
 static const char* bsp_fault_name(uint8_t fault) {
     switch ((bsp_hv_fault_t)fault) {
-        case BSP_HV_FAULT_NONE: return "NONE";
-        case BSP_HV_FAULT_INIT: return "INIT";
-        case BSP_HV_FAULT_OVERVOLTAGE: return "OVERVOLTAGE";
-        case BSP_HV_FAULT_TIMEOUT: return "TIMEOUT";
-        case BSP_HV_FAULT_SHUTDOWN: return "SHUTDOWN";
-        default: return "UNKNOWN";
+        case BSP_HV_FAULT_NONE:
+            return "NONE";
+        case BSP_HV_FAULT_INIT:
+            return "INIT";
+        case BSP_HV_FAULT_OVERVOLTAGE:
+            return "OVERVOLTAGE";
+        case BSP_HV_FAULT_TIMEOUT:
+            return "TIMEOUT";
+        case BSP_HV_FAULT_SHUTDOWN:
+            return "SHUTDOWN";
+        default:
+            return "UNKNOWN";
     }
 }
 
@@ -102,7 +118,9 @@ bool app_cli_hv_watch_print(void) {
     uint32_t now = bsp_time_ms();
     uint32_t elapsed = now - last_print_ms;
     app_hv_status_t status;
-    if (!app_hv_get_status(&status)) return false;
+    if (!app_hv_get_status(&status)) {
+        return false;
+    }
     uint32_t samples = status.samples - last_samples;
     last_samples = status.samples;
     last_print_ms = now;
@@ -119,22 +137,29 @@ bool app_cli_hv_watch_print(void) {
     return true;
 }
 
-static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                          const WshShell_Char_t* argv[], void* ctx) {
+static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
+                                          void* ctx) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) return WSH_SHELL_RET_STATE_ERR_PARAM;
+    if (!WshShell_IsAuth(shell)) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
     WshShell_Size_t pos = 0U;
     bool help = false;
     bool watch = false;
     while (pos < argc) {
         WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) return WSH_SHELL_RET_STATE_ERR_PARAM;
+        if (opt.Option == NULL || opt.ParseError) {
+            return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
             case OPT_WATCH:
                 if (watch) {
                     WSH_SHELL_PRINT_WARN("Specify --watch only once\n");
@@ -142,7 +167,8 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
                 }
                 watch = true;
                 break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -165,23 +191,30 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                         const WshShell_Char_t* argv[], void* ctx) {
+static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
+                                         void* ctx) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) return WSH_SHELL_RET_STATE_ERR_PARAM;
+    if (!WshShell_IsAuth(shell)) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
     WshShell_Size_t pos = 0U;
     bool help = false;
     const char* voltage_text = NULL;
     const char* frequency_text = NULL;
     while (pos < argc) {
         WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) return WSH_SHELL_RET_STATE_ERR_PARAM;
+        if (opt.Option == NULL || opt.ParseError) {
+            return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
             case OPT_VOLTAGE:
                 if (voltage_text != NULL) {
                     WSH_SHELL_PRINT_WARN("Specify --voltage only once\n");
@@ -196,7 +229,8 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
                 }
                 frequency_text = argv[opt.TokenPos + 1U];
                 break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -252,16 +286,24 @@ static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) return WSH_SHELL_RET_STATE_ERR_PARAM;
+    if (!WshShell_IsAuth(shell)) {
+        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
     WshShell_Size_t pos = 0U;
     bool help = false;
     while (pos < argc) {
         WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) return WSH_SHELL_RET_STATE_ERR_PARAM;
+        if (opt.Option == NULL || opt.ParseError) {
+            return WSH_SHELL_RET_STATE_ERR_PARAM;
+        }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -287,30 +329,44 @@ static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t on_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                        const WshShell_Char_t* argv[], void* ctx) {
+static WSH_SHELL_RET_STATE_t on_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
+                                        void* ctx) {
     return control_handler(cmd, argc, argv, ctx, true);
 }
 
-static WSH_SHELL_RET_STATE_t off_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                         const WshShell_Char_t* argv[], void* ctx) {
+static WSH_SHELL_RET_STATE_t off_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
+                                         void* ctx) {
     return control_handler(cmd, argc, argv, ctx, false);
 }
 
 static const WshShellCmd_t on_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "on", .Descr = "Enable HV with automatic retry",
-    .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = on_handler,
+    .Groups = WSH_SHELL_CMD_GROUP_USER,
+    .Name = "on",
+    .Descr = "Enable HV with automatic retry",
+    .Options = control_opts,
+    .OptNum = WSH_SHELL_ARR_LEN(control_opts),
+    .Handler = on_handler,
 };
 static const WshShellCmd_t off_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "off", .Descr = "Disable HV and automatic retry",
-    .Options = control_opts, .OptNum = WSH_SHELL_ARR_LEN(control_opts), .Handler = off_handler,
+    .Groups = WSH_SHELL_CMD_GROUP_USER,
+    .Name = "off",
+    .Descr = "Disable HV and automatic retry",
+    .Options = control_opts,
+    .OptNum = WSH_SHELL_ARR_LEN(control_opts),
+    .Handler = off_handler,
 };
 static const WshShellCmd_t set_cmd = {
-    .Groups = WSH_SHELL_CMD_GROUP_USER, .Name = "set", .Descr = "Set HV: -v <100..250 V> / -f <20000..50000 Hz>",
-    .Options = set_opts, .OptNum = WSH_SHELL_ARR_LEN(set_opts), .Handler = set_handler,
+    .Groups = WSH_SHELL_CMD_GROUP_USER,
+    .Name = "set",
+    .Descr = "Set HV: -v <100..250 V> / -f <20000..50000 Hz>",
+    .Options = set_opts,
+    .OptNum = WSH_SHELL_ARR_LEN(set_opts),
+    .Handler = set_handler,
 };
 static const WshShellCmd_t* const subcommands[] = {
-    &on_cmd, &off_cmd, &set_cmd,
+    &on_cmd,
+    &off_cmd,
+    &set_cmd,
 };
 
 const WshShellCmd_t app_cli_hv_cmd = {

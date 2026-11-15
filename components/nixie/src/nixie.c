@@ -177,14 +177,23 @@ nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* t
 
 const char* nixie_status_name(nixie_status_t status) {
     switch (status) {
-        case NIXIE_OK: return "OK";
-        case NIXIE_INVALID_ARGUMENT: return "invalid argument";
-        case NIXIE_INVALID_TUBE: return "invalid tube description";
-        case NIXIE_INVALID_WIRING: return "invalid/unassigned wiring";
-        case NIXIE_INVALID_SYMBOL: return "unsupported symbol";
-        case NIXIE_INVALID_TIMING: return "invalid refresh rate/blanking time";
-        case NIXIE_BUSY: return "pending frame busy";
-        case NIXIE_NOT_READY: return "backend not ready";
-        default: return "unknown error";
+        case NIXIE_OK:
+            return "OK";
+        case NIXIE_INVALID_ARGUMENT:
+            return "invalid argument";
+        case NIXIE_INVALID_TUBE:
+            return "invalid tube description";
+        case NIXIE_INVALID_WIRING:
+            return "invalid/unassigned wiring";
+        case NIXIE_INVALID_SYMBOL:
+            return "unsupported symbol";
+        case NIXIE_INVALID_TIMING:
+            return "invalid refresh rate/blanking time";
+        case NIXIE_BUSY:
+            return "pending frame busy";
+        case NIXIE_NOT_READY:
+            return "backend not ready";
+        default:
+            return "unknown error";
     }
 }

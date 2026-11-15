@@ -1,6 +1,6 @@
 #include "bsp_i2c.h"
-#include "bsp_time.h"
 #include "bsp_hw.h"
+#include "bsp_time.h"
 #include "ui2c_stm32f0.h"
 
 #define BSP_I2C_INIT_RETRY_MS 1000U
@@ -37,7 +37,9 @@ bool bsp_i2c_init(void) {
     return ui2c_stm32f0_init(&sensor_bus, &hw, &config) == UI2C_STATUS_OK;
 }
 
-ui2c_t* bsp_i2c_bus(void) { return &sensor_bus.bus; }
+ui2c_t* bsp_i2c_bus(void) {
+    return &sensor_bus.bus;
+}
 
 void bsp_i2c_process(void) {
     if (sensor_bus.bus.ops != NULL) {
@@ -50,9 +52,13 @@ void bsp_i2c_process(void) {
     }
 }
 
-void bsp_i2c_irq(void) { ui2c_stm32f0_irq(&sensor_bus); }
+void bsp_i2c_irq(void) {
+    ui2c_stm32f0_irq(&sensor_bus);
+}
 
-void bsp_i2c_dma_irq(void) { ui2c_stm32f0_dma_irq(&sensor_bus); }
+void bsp_i2c_dma_irq(void) {
+    ui2c_stm32f0_dma_irq(&sensor_bus);
+}
 
 void bsp_i2c_hw_init(void) {
     RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;

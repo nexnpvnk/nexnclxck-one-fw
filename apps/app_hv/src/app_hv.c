@@ -103,11 +103,9 @@ static void control_step(void) {
     int32_t error_mv = (int32_t)goal_mv - (int32_t)hv.filtered_mv;
     /* Split before multiplication to retain millivolts without overflowing
      * at large startup errors or needing 64-bit division in the ADC IRQ. */
-    int32_t proportional_q16 = (error_mv / 100L) * HV_KP_Q16
-                               + ((error_mv % 100L) * HV_KP_Q16) / 100L;
+    int32_t proportional_q16 = (error_mv / 100L) * HV_KP_Q16 + ((error_mv % 100L) * HV_KP_Q16) / 100L;
     int32_t limit_q16 = (int32_t)hv.duty_limit_pm * 65536L;
-    int32_t integral_q16 = hv.integral_q16 + (error_mv / 100L) * HV_KI_Q16
-                           + ((error_mv % 100L) * HV_KI_Q16) / 100L;
+    int32_t integral_q16 = hv.integral_q16 + (error_mv / 100L) * HV_KI_Q16 + ((error_mv % 100L) * HV_KI_Q16) / 100L;
 
     /* The steady-state duty is nonnegative and cannot exceed the BSP limit. */
     if (integral_q16 < 0) {

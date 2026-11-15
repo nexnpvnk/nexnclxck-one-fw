@@ -94,9 +94,13 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -123,9 +127,13 @@ static WSH_SHELL_RET_STATE_t reset_handler(const WshShellCmd_t* cmd, WshShell_Si
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {
@@ -159,8 +167,11 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
             return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
         switch (opt.Option->ID) {
-            case OPT_DEFAULT: break;
-            case OPT_HELP: help = true; break;
+            case OPT_DEFAULT:
+                break;
+            case OPT_HELP:
+                help = true;
+                break;
             case OPT_EFFECT:
             case OPT_PRIMARY:
             case OPT_SECONDARY:
@@ -173,7 +184,8 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
                 values[opt.Option->ID] = argv[opt.TokenPos + 1U];
                 has_parameters = true;
                 break;
-            default: return WSH_SHELL_RET_STATE_ERR_PARAM;
+            default:
+                return WSH_SHELL_RET_STATE_ERR_PARAM;
         }
     }
     if (help) {

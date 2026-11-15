@@ -1,8 +1,8 @@
 
 #include "bsp_hv.h"
 
-#include "bsp_time.h"
 #include "bsp_hw.h"
+#include "bsp_time.h"
 
 #include <stddef.h>
 
@@ -25,10 +25,9 @@
 #define BSP_HV_DUTY_MAX_PM         980U
 #define BSP_HV_DUTY_MAX_Q16        ((BSP_HV_DUTY_MAX_PM * BSP_HV_DUTY_SCALE) / 1000U)
 
-#define BSP_HV_PWM_TICK_HZ ((uint32_t)PLATFORM_HCLK_HZ) /* TIM17 PSC=0. */
+#define BSP_HV_PWM_TICK_HZ         ((uint32_t)PLATFORM_HCLK_HZ) /* TIM17 PSC=0. */
 
-_Static_assert(BSP_BOARD_HV_PWM_RATE_HZ >= BSP_HV_PWM_MIN_HZ
-                   && BSP_BOARD_HV_PWM_RATE_HZ <= BSP_HV_PWM_MAX_HZ,
+_Static_assert(BSP_BOARD_HV_PWM_RATE_HZ >= BSP_HV_PWM_MIN_HZ && BSP_BOARD_HV_PWM_RATE_HZ <= BSP_HV_PWM_MAX_HZ,
                "The default HV PWM frequency must be within the runtime range");
 _Static_assert(BSP_HV_PWM_TICK_HZ / BSP_HV_PWM_MAX_HZ >= 2U
                    && (BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ <= (uint32_t)UINT16_MAX + 1U,
@@ -44,7 +43,7 @@ _Static_assert(PLATFORM_HCLK_HZ / BSP_HV_SAMPLE_RATE_HZ > PLATFORM_HCLK_HZ / BSP
 _Static_assert(BSP_HV_SAMPLE_OFFSET_TICKS < PLATFORM_HCLK_HZ / BSP_HV_PWM_MAX_HZ,
                "The ADC sample offset must fit the shortest PWM period");
 
-#define BSP_HV_OVP_RAW             ((BSP_HV_OVP_VOLTAGE_MV * BSP_HV_ADC_MAX) / (BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO))
+#define BSP_HV_OVP_RAW ((BSP_HV_OVP_VOLTAGE_MV * BSP_HV_ADC_MAX) / (BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO))
 
 static struct {
     volatile uint32_t voltage_mv;
@@ -124,7 +123,9 @@ static void trip(bsp_hv_fault_t reason) {
     __set_PRIMASK(primask);
 }
 
-void bsp_hv_shutdown(void) { trip(BSP_HV_FAULT_SHUTDOWN); }
+void bsp_hv_shutdown(void) {
+    trip(BSP_HV_FAULT_SHUTDOWN);
+}
 
 static bool adc_wait(volatile uint32_t* reg, uint32_t mask, uint32_t value) {
     uint32_t start = bsp_time_ms();
@@ -420,7 +421,7 @@ static void adc_hw_init(void) {
     ADC1->IER = 0U;
     /* 12-bit, right aligned, one channel, rising TIM3 TRGO, overwrite on OVR. */
     ADC1->CFGR1 = ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD;
-    ADC1->CFGR2 = 0U;          /* Asynchronous HSI14 / 1. */
+    ADC1->CFGR2 = 0U; /* Asynchronous HSI14 / 1. */
     ADC1->SMPR = BSP_HV_ADC_SAMPLE_TIME;
     ADC1->CHSELR = ADC_CHSELR_CHSEL2;
     ADC1->ISR = ADC_ISR_ADRDY | ADC_ISR_EOSMP | ADC_ISR_EOC | ADC_ISR_EOS | ADC_ISR_OVR | ADC_ISR_AWD;
@@ -479,8 +480,12 @@ void bsp_hv_hw_init(void) {
 }
 
 void bsp_hv_pwm_irq(void) {
-    if ((TIM17->SR & TIM17->DIER & TIM_SR_UIF) == 0U) return;
+    if ((TIM17->SR & TIM17->DIER & TIM_SR_UIF) == 0U) {
+        return;
+    }
     TIM17->DIER &= ~TIM_DIER_UIE;
     TIM17->SR = ~TIM_SR_UIF;
-    if (hv.initialized) synchronize_sampling();
+    if (hv.initialized) {
+        synchronize_sampling();
+    }
 }
