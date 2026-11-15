@@ -108,8 +108,11 @@ static uint16_t available_symbols(const nixie_tube_t* tube) {
     return mask;
 }
 
-static nixie_status_t validate_layout(const nixie_board_t* board, const app_display_layout_t* layout,
-                                      nixie_issue_t* issue) {
+static nixie_status_t validate_layout(
+    const nixie_board_t* board,
+    const app_display_layout_t* layout,
+    nixie_issue_t* issue
+) {
     if (layout == NULL) {
         return report(issue, NIXIE_INVALID_ARGUMENT, UINT8_MAX);
     }
