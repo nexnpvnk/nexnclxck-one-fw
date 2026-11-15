@@ -34,15 +34,16 @@ the next successful measurement makes them available again.
 RIGHT / LEFT steps through available screens and holds the selection for
 10 seconds after the last press, then returns to time and the automatic cycle.
 Short FN cycles `static` → `breath` → `rainbow` → `fade` → `flicker` → `comet`
-→ `static` on release. Each 1-second FN hold selects the next lighting setting:
-1 brightness, 2 speed, 3 primary color, 4 secondary color, then 1 again.
+→ `static` on release outside the editor. Hold FN for 1 second to enter at
+setting 1. Inside, short FN selects the next setting: 1 brightness, 2 speed,
+3 primary color, 4 secondary color, then 1 again.
 The leftmost tube shows the setting number; the value is aligned to the right.
 LEFT / RIGHT changes brightness/speed by one point in 0..255, or cycles a
 16-color palette for primary/secondary. Color settings preview the selected
 color as static at current brightness; leaving them resumes the selected effect.
 Holding LEFT / RIGHT starts repeat after 400 ms and speeds it up after 1.2 and
 2.5 seconds. The initial press beeps once; holding and repeat are silent.
-OK, short FN or 10 seconds of inactivity return to time. Changes apply immediately
+OK or 10 seconds of inactivity return to time. Changes apply immediately
 and remain in RAM until reset. Releasing the initial FN hold keeps adjustment open.
 
 The configured tube's internal decimal point takes priority for fractional

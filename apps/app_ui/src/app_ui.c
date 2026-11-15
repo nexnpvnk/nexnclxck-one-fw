@@ -387,9 +387,12 @@ void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
                 break;
             }
             if (key == APP_UI_KEY_FN && fn_short_pending) {
-                /* Each hold selects the next setting. Consume its RELEASE so
-                 * it cannot also switch the effect or close the editor. */
+                /* A hold enters the editor. Consume RELEASE so it cannot
+                 * also switch the effect or advance the first setting. */
                 fn_short_pending = false;
+                if (setting != SETTING_NONE) {
+                    break;
+                }
                 next_setting(now);
             }
             (void)app_sound_beep(APP_UI_BEEP_FREQ_HZ, APP_UI_BEEP_VOLUME, APP_UI_BEEP_DURATION_MS * 4U);
@@ -403,7 +406,7 @@ void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
             if (key == APP_UI_KEY_FN && fn_short_pending) {
                 fn_short_pending = false;
                 if (setting != SETTING_NONE) {
-                    finish_adjustment(now);
+                    next_setting(now);
                 } else {
                     step_light_effect();
                 }
