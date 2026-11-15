@@ -32,7 +32,7 @@
 
 // temporally off the startup banner
 #undef WSH_SHELL_HEADER
-#define WSH_SHELL_HEADER ""
+#define WSH_SHELL_HEADER "\n\n\n"
 
 /*
  * ─────────────────────────────────────────────
