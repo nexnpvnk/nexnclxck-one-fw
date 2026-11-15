@@ -137,7 +137,9 @@ the firmware still builds with Arm GNU Toolchain.
 Codex uses the [project skill adapter](.agents/skills/c-code-style/SKILL.md)
 alongside [AGENTS.md](AGENTS.md). The adapter links to the canonical skill and
 provides native formatter commands that work in PowerShell. Apply the style
-only to first-party code within the task's scope.
+only to project-authored files within the task's scope. Imported and adapted
+vendor, library, generated, and external-template files retain their original
+formatting; see [AGENTS.md](AGENTS.md) for the project's exclusions.
 
 To review and adopt the latest style revision explicitly:
 

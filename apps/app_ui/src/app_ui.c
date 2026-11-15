@@ -116,10 +116,9 @@ static nixie_status_t validate_layout(
     if (layout == NULL) {
         return report(issue, NIXIE_INVALID_ARGUMENT, UINT8_MAX);
     }
-    if ((layout->digit_count != 4U && layout->digit_count != 6U)
-        || (layout->digit_count == 4U
-            && (layout->points[APP_DISPLAY_POINT_RIGHT_TOP] != NIXIE_CHANNEL_UNASSIGNED
-                || layout->points[APP_DISPLAY_POINT_RIGHT_BOTTOM] != NIXIE_CHANNEL_UNASSIGNED))) {
+    if ((layout->digit_count != 4U && layout->digit_count != 6U) ||
+        (layout->digit_count == 4U && (layout->points[APP_DISPLAY_POINT_RIGHT_TOP] != NIXIE_CHANNEL_UNASSIGNED ||
+                                       layout->points[APP_DISPLAY_POINT_RIGHT_BOTTOM] != NIXIE_CHANNEL_UNASSIGNED))) {
         return report(issue, NIXIE_INVALID_ARGUMENT, UINT8_MAX);
     }
     uint16_t used = 0U;

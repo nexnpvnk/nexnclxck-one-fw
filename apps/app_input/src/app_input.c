@@ -50,9 +50,8 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
             break;
 
         case LWBTN_EVT_KEEPALIVE:
-            if (!long_press_reported[id]
-                && lwbtn_keepalive_get_count(button)
-                       >= lwbtn_keepalive_get_count_for_time(button, APP_INPUT_LONG_PRESS_MS)) {
+            if (!long_press_reported[id] && lwbtn_keepalive_get_count(button) >=
+                                                lwbtn_keepalive_get_count_for_time(button, APP_INPUT_LONG_PRESS_MS)) {
 
                 long_press_reported[id] = true;
 
