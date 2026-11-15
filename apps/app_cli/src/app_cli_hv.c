@@ -11,8 +11,13 @@ enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_VOLTAGE, OPT_FREQUENCY, OPT_END };
 static const WshShellOption_t read_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_READ, "Show HV status")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
-    {OPT_WATCH, WSH_SHELL_OPT_WO_PARAM(WSH_SHELL_OPT_ACCESS_READ, "-w", "--watch",
-                                      "Watch voltage, duty, PWM/ADC rates and faults once per second")},
+    {OPT_WATCH,
+     WSH_SHELL_OPT_WO_PARAM(
+         WSH_SHELL_OPT_ACCESS_READ,
+         "-w",
+         "--watch",
+         "Watch voltage, duty, PWM/ADC rates and faults once per second"
+     )},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
@@ -26,7 +31,8 @@ static const WshShellOption_t set_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set HV voltage or PWM frequency")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
     {OPT_VOLTAGE, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-v", "--voltage", "100..250 V")},
-    {OPT_FREQUENCY, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-f", "--frequency", "PWM frequency in Hz (20000..50000)")},
+    {OPT_FREQUENCY,
+     WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-f", "--frequency", "PWM frequency in Hz (20000..50000)")},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
@@ -92,26 +98,40 @@ static void print_status(const app_hv_status_t* status) {
         "ADC              : %u\n"
         "PWM available    : %s\n"
         "Fault            : %s / %s\n",
-        state_name(status->state), status->requested_enabled ? "yes" : "no",
-        status->requested_enabled ? "enabled" : "disabled", (unsigned)status->target_v,
-        (unsigned long)(status->voltage_mv / 1000U), (unsigned long)(status->voltage_mv % 1000U),
-        (unsigned long)(status->filtered_mv / 1000U), (unsigned long)(status->filtered_mv % 1000U),
-        (unsigned)(status->duty_permille / 10U), (unsigned)(status->duty_permille % 10U),
-        (unsigned)(status->duty_limit_permille / 10U), (unsigned)(status->duty_limit_permille % 10U),
+        state_name(status->state),
+        status->requested_enabled ? "yes" : "no",
+        status->requested_enabled ? "enabled" : "disabled",
+        (unsigned)status->target_v,
+        (unsigned long)(status->voltage_mv / 1000U),
+        (unsigned long)(status->voltage_mv % 1000U),
+        (unsigned long)(status->filtered_mv / 1000U),
+        (unsigned long)(status->filtered_mv % 1000U),
+        (unsigned)(status->duty_permille / 10U),
+        (unsigned)(status->duty_permille % 10U),
+        (unsigned)(status->duty_limit_permille / 10U),
+        (unsigned)(status->duty_limit_permille % 10U),
         (unsigned long)status->pwm_frequency_hz,
-        (unsigned)status->adc_raw, status->pwm_available ? "yes" : "no",
-        fault_name(status->fault), bsp_fault_name(status->bsp_fault));
+        (unsigned)status->adc_raw,
+        status->pwm_available ? "yes" : "no",
+        fault_name(status->fault),
+        bsp_fault_name(status->bsp_fault)
+    );
 }
 
 static void print_watch_status(const app_hv_status_t* status, const char* rate) {
     WSH_SHELL_PRINT_SYS(
         "HV %s | Out/Set: %lu.%03lu/%u V | Duty: %u.%01u%% | PWM: %lu Hz | ADC: %s | %s/%s\n",
         state_name(status->state),
-        (unsigned long)(status->filtered_mv / 1000U), (unsigned long)(status->filtered_mv % 1000U),
+        (unsigned long)(status->filtered_mv / 1000U),
+        (unsigned long)(status->filtered_mv % 1000U),
         (unsigned)status->target_v,
-        (unsigned)(status->duty_permille / 10U), (unsigned)(status->duty_permille % 10U),
-        (unsigned long)status->pwm_frequency_hz, rate,
-        fault_name(status->fault), bsp_fault_name(status->bsp_fault));
+        (unsigned)(status->duty_permille / 10U),
+        (unsigned)(status->duty_permille % 10U),
+        (unsigned long)status->pwm_frequency_hz,
+        rate,
+        fault_name(status->fault),
+        bsp_fault_name(status->bsp_fault)
+    );
 }
 
 bool app_cli_hv_watch_print(void) {
@@ -137,8 +157,12 @@ bool app_cli_hv_watch_print(void) {
     return true;
 }
 
-static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                          void* ctx) {
+static WSH_SHELL_RET_STATE_t read_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -191,8 +215,12 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                         void* ctx) {
+static WSH_SHELL_RET_STATE_t set_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -275,13 +303,21 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
         WSH_SHELL_PRINT_ERR("Parameters updated, but HV status unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-    WSH_SHELL_PRINT_INFO("HV parameters: target %u V, PWM %lu Hz\n",
-                        (unsigned)status.target_v, (unsigned long)status.pwm_frequency_hz);
+    WSH_SHELL_PRINT_INFO(
+        "HV parameters: target %u V, PWM %lu Hz\n",
+        (unsigned)status.target_v,
+        (unsigned long)status.pwm_frequency_hz
+    );
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                             const WshShell_Char_t* argv[], void* ctx, bool enabled) {
+static WSH_SHELL_RET_STATE_t control_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx,
+    bool enabled
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -324,18 +360,30 @@ static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_
         WSH_SHELL_PRINT_ERR("Request accepted, but HV status unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-    WSH_SHELL_PRINT_SYS("State: %s | Fault: %s/%s\n", state_name(status.state), fault_name(status.fault),
-                        bsp_fault_name(status.bsp_fault));
+    WSH_SHELL_PRINT_SYS(
+        "State: %s | Fault: %s/%s\n",
+        state_name(status.state),
+        fault_name(status.fault),
+        bsp_fault_name(status.bsp_fault)
+    );
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t on_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                        void* ctx) {
+static WSH_SHELL_RET_STATE_t on_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     return control_handler(cmd, argc, argv, ctx, true);
 }
 
-static WSH_SHELL_RET_STATE_t off_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                         void* ctx) {
+static WSH_SHELL_RET_STATE_t off_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     return control_handler(cmd, argc, argv, ctx, false);
 }
 

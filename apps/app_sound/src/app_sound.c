@@ -14,8 +14,10 @@ static struct {
 bool app_sound_beep(uint32_t frequency_hz, uint8_t volume_percent, uint32_t duration_ms) {
     bsp_buzzer_status_t status;
 
-    if (duration_ms == 0U || duration_ms > APP_SOUND_MAX_DURATION_MS || volume_percent > BSP_BUZZER_VOLUME_MAX_PERCENT
-        || !bsp_buzzer_get_status(&status)) {
+    if (duration_ms == 0U ||
+        duration_ms > APP_SOUND_MAX_DURATION_MS ||
+        volume_percent > BSP_BUZZER_VOLUME_MAX_PERCENT ||
+        !bsp_buzzer_get_status(&status)) {
         return false;
     }
 

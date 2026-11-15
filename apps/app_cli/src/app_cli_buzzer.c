@@ -38,17 +38,24 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
-    WSH_SHELL_PRINT_SYS("State     : %s\n"
-                        "Frequency : %lu Hz\n"
-                        "Volume    : %u %%\n",
-                        status.enabled ? "on" : "off", (unsigned long)status.frequency_hz,
-                        (unsigned)status.volume_percent);
+    WSH_SHELL_PRINT_SYS(
+        "State     : %s\n"
+        "Frequency : %lu Hz\n"
+        "Volume    : %u %%\n",
+        status.enabled ? "on" : "off",
+        (unsigned long)status.frequency_hz,
+        (unsigned)status.volume_percent
+    );
 
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                          void* ctx) {
+static WSH_SHELL_RET_STATE_t read_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -80,8 +87,12 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
     return print_status();
 }
 
-static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                         void* ctx) {
+static WSH_SHELL_RET_STATE_t set_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -164,8 +175,13 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
     return print_status();
 }
 
-static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                             const WshShell_Char_t* argv[], void* ctx, bool enabled) {
+static WSH_SHELL_RET_STATE_t control_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx,
+    bool enabled
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -203,13 +219,21 @@ static WSH_SHELL_RET_STATE_t control_handler(const WshShellCmd_t* cmd, WshShell_
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t on_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                        void* ctx) {
+static WSH_SHELL_RET_STATE_t on_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     return control_handler(cmd, argc, argv, ctx, true);
 }
 
-static WSH_SHELL_RET_STATE_t off_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                         void* ctx) {
+static WSH_SHELL_RET_STATE_t off_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     return control_handler(cmd, argc, argv, ctx, false);
 }
 

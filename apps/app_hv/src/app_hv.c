@@ -25,14 +25,20 @@
 #define HV_RETRY_DELAY_MS      1000U
 
 _Static_assert(HV_CONTROL_RATE_HZ > 0U, "Control requires a nonzero ADC rate");
-_Static_assert(HV_CONTROL_RATE_HZ % 20U == 0U && HV_SETTLE_STEPS > 0U && HV_SETTLE_STEPS <= UINT16_MAX,
-               "The 50 ms settling interval must be exact and fit its 16-bit counter");
+_Static_assert(
+    HV_CONTROL_RATE_HZ % 20U == 0U && HV_SETTLE_STEPS > 0U && HV_SETTLE_STEPS <= UINT16_MAX,
+    "The 50 ms settling interval must be exact and fit its 16-bit counter"
+);
 _Static_assert(HV_START_TIMEOUT_STEPS <= UINT16_MAX, "The startup timeout must fit its 16-bit counter");
 _Static_assert(HV_KI_Q16 > 0L, "The selected control rate must retain a nonzero integral gain");
-_Static_assert(((uint64_t)APP_HV_MAX_VOLTAGE_V * 10U + 1U) * HV_KP_Q16 + 1000U * 65536U <= INT32_MAX,
-               "Proportional output plus the integral limit must fit 32 bits");
-_Static_assert(((uint64_t)APP_HV_MAX_VOLTAGE_V * 10U + 1U) * HV_KI_Q16 + 1000U * 65536U <= INT32_MAX,
-               "Integral update plus the integral limit must fit 32 bits");
+_Static_assert(
+    ((uint64_t)APP_HV_MAX_VOLTAGE_V * 10U + 1U) * HV_KP_Q16 + 1000U * 65536U <= INT32_MAX,
+    "Proportional output plus the integral limit must fit 32 bits"
+);
+_Static_assert(
+    ((uint64_t)APP_HV_MAX_VOLTAGE_V * 10U + 1U) * HV_KI_Q16 + 1000U * 65536U <= INT32_MAX,
+    "Integral update plus the integral limit must fit 32 bits"
+);
 
 static struct {
     volatile app_hv_state_t state;
@@ -193,8 +199,9 @@ static bool start(void) {
     if (!bsp_hv_get_status(&status)) {
         return false;
     }
-    if (status.enabled && status.fault == BSP_HV_FAULT_NONE
-        && (hv.state == APP_HV_STARTING || hv.state == APP_HV_RUNNING)) {
+    if (status.enabled &&
+        status.fault == BSP_HV_FAULT_NONE &&
+        (hv.state == APP_HV_STARTING || hv.state == APP_HV_RUNNING)) {
         return true;
     }
 

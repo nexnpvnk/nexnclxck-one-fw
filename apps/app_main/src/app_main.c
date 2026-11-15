@@ -86,13 +86,19 @@ void app_main(void) {
 
     if (!app_display_init()) {
         nixie_issue_t issue = app_display_last_issue();
-        printf("Display disabled: %s, element=%u; edit app_display/src/display_profile.c\n",
-               nixie_status_name(issue.status), (unsigned)issue.element);
+        printf(
+            "Display disabled: %s, element=%u; edit app_display/src/display_profile.c\n",
+            nixie_status_name(issue.status),
+            (unsigned)issue.element
+        );
     } else {
         nixie_issue_t issue;
         if (app_ui_init(&issue) != NIXIE_OK) {
-            printf("UI disabled: %s, element=%u; edit app_display/src/display_profile.c\n",
-                   nixie_status_name(issue.status), (unsigned)issue.element);
+            printf(
+                "UI disabled: %s, element=%u; edit app_display/src/display_profile.c\n",
+                nixie_status_name(issue.status),
+                (unsigned)issue.element
+            );
         }
     }
 
@@ -116,10 +122,11 @@ void app_main(void) {
         app_hv_status_t hv_status;
         /* Qualify initial HV startup once. Keep the display load connected
          * during ordinary regulation transients; OFF/FAULT revoke permission. */
-        display_power_ready = app_hv_get_status(&hv_status) && hv_status.requested_enabled
-                              && hv_status.fault == APP_HV_FAULT_NONE
-                              && (hv_status.state == APP_HV_RUNNING
-                                  || (display_power_ready && hv_status.state == APP_HV_STARTING));
+        display_power_ready =
+            app_hv_get_status(&hv_status) &&
+            hv_status.requested_enabled &&
+            hv_status.fault == APP_HV_FAULT_NONE &&
+            (hv_status.state == APP_HV_RUNNING || (display_power_ready && hv_status.state == APP_HV_STARTING));
         bool display_enabled = app_display_process(display_power_ready);
         app_ui_process(display_enabled);
         bsp_i2c_process();

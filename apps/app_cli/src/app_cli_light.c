@@ -24,13 +24,24 @@ static const WshShellOption_t reset_opts[] = {
 static const WshShellOption_t set_opts[] = {
     {OPT_DEFAULT, WSH_SHELL_OPT_NO(WSH_SHELL_OPT_ACCESS_WRITE, "Set one or more lighting parameters")},
     {OPT_HELP, WSH_SHELL_OPT_HELP()},
-    {OPT_EFFECT, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-e", "--effect",
-                                   "Effect: static, breath, rainbow, fade, flicker, comet")},
+    {OPT_EFFECT,
+     WSH_SHELL_OPT_STR(
+         WSH_SHELL_OPT_ACCESS_WRITE,
+         "-e",
+         "--effect",
+         "Effect: static, breath, rainbow, fade, flicker, comet"
+     )},
     {OPT_PRIMARY, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "", "--primary", "Primary color (0xRRGGBB)")},
     {OPT_SECONDARY, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "", "--secondary", "Secondary color (0xRRGGBB)")},
-    {OPT_SPEED, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-s", "--speed", "Effect speed (0..255; higher is faster)")},
-    {OPT_BRIGHTNESS, WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-b", "--brightness",
-                                       "Lighting brightness (0..255; 0 turns lighting off)")},
+    {OPT_SPEED,
+     WSH_SHELL_OPT_STR(WSH_SHELL_OPT_ACCESS_WRITE, "-s", "--speed", "Effect speed (0..255; higher is faster)")},
+    {OPT_BRIGHTNESS,
+     WSH_SHELL_OPT_STR(
+         WSH_SHELL_OPT_ACCESS_WRITE,
+         "-b",
+         "--brightness",
+         "Lighting brightness (0..255; 0 turns lighting off)"
+     )},
     {OPT_END, WSH_SHELL_OPT_END()},
 };
 
@@ -46,8 +57,10 @@ static bool parse_effect(const char* text, ledfx_effect_t* effect) {
 
 static bool parse_color(const char* text, ledfx_rgb_t* color) {
     uint32_t rgb;
-    if (strlen(text) != 8U || text[0] != '0' || (text[1] != 'x' && text[1] != 'X')
-        || !app_cli_parse_u32(text, 0xFFFFFFU, true, &rgb)) {
+    if (strlen(text) != 8U ||
+        text[0] != '0' ||
+        (text[1] != 'x' && text[1] != 'X') ||
+        !app_cli_parse_u32(text, 0xFFFFFFU, true, &rgb)) {
         return false;
     }
     *color = (ledfx_rgb_t){
@@ -64,21 +77,33 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
         WSH_SHELL_PRINT_ERR("Lighting unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-    WSH_SHELL_PRINT_SYS("LEDs       : %u\n"
-                        "Effect     : %s\n"
-                        "Primary    : 0x%02X%02X%02X\n"
-                        "Secondary  : 0x%02X%02X%02X\n"
-                        "Speed      : %u/255\n"
-                        "Brightness : %u/255\n",
-                        (unsigned)status.led_count, ledfx_effect_name(status.effect), (unsigned)status.primary.r,
-                        (unsigned)status.primary.g, (unsigned)status.primary.b, (unsigned)status.secondary.r,
-                        (unsigned)status.secondary.g, (unsigned)status.secondary.b, (unsigned)status.speed,
-                        (unsigned)status.brightness);
+    WSH_SHELL_PRINT_SYS(
+        "LEDs       : %u\n"
+        "Effect     : %s\n"
+        "Primary    : 0x%02X%02X%02X\n"
+        "Secondary  : 0x%02X%02X%02X\n"
+        "Speed      : %u/255\n"
+        "Brightness : %u/255\n",
+        (unsigned)status.led_count,
+        ledfx_effect_name(status.effect),
+        (unsigned)status.primary.r,
+        (unsigned)status.primary.g,
+        (unsigned)status.primary.b,
+        (unsigned)status.secondary.r,
+        (unsigned)status.secondary.g,
+        (unsigned)status.secondary.b,
+        (unsigned)status.speed,
+        (unsigned)status.brightness
+    );
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                          void* ctx) {
+static WSH_SHELL_RET_STATE_t read_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -110,8 +135,12 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
     return print_status();
 }
 
-static WSH_SHELL_RET_STATE_t reset_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                           const WshShell_Char_t* argv[], void* ctx) {
+static WSH_SHELL_RET_STATE_t reset_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -148,8 +177,12 @@ static WSH_SHELL_RET_STATE_t reset_handler(const WshShellCmd_t* cmd, WshShell_Si
     return print_status();
 }
 
-static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                         void* ctx) {
+static WSH_SHELL_RET_STATE_t set_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
@@ -232,11 +265,11 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
 
     /* All values are validated. These foreground-only setters cannot fail
      * after successful status read; rendering resumes after the command. */
-    if ((values[OPT_EFFECT] != NULL && !app_light_set_effect(desired.effect))
-        || ((values[OPT_PRIMARY] != NULL || values[OPT_SECONDARY] != NULL)
-            && !app_light_set_colors(desired.primary, desired.secondary))
-        || (values[OPT_SPEED] != NULL && !app_light_set_speed(desired.speed))
-        || (values[OPT_BRIGHTNESS] != NULL && !app_light_set_brightness(desired.brightness))) {
+    if ((values[OPT_EFFECT] != NULL && !app_light_set_effect(desired.effect)) ||
+        ((values[OPT_PRIMARY] != NULL || values[OPT_SECONDARY] != NULL) &&
+         !app_light_set_colors(desired.primary, desired.secondary)) ||
+        (values[OPT_SPEED] != NULL && !app_light_set_speed(desired.speed)) ||
+        (values[OPT_BRIGHTNESS] != NULL && !app_light_set_brightness(desired.brightness))) {
         WSH_SHELL_PRINT_ERR("Failed to apply lighting parameters\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }

@@ -23,9 +23,15 @@ static void print_readings(void) {
     /* Round Pa * 100 to integer mmHg, matching the display. */
     uint32_t pressure_mmhg = (readings.pressure_centi_pa * 10U + 66661U) / 133322U;
     uint32_t h = readings.humidity_centi_percent;
-    WSH_SHELL_PRINT_SYS("BME280 | T: %s%lu.%02lu C | P: %lu mmHg | RH: %lu.%02lu %%\n", t < 0 ? "-" : "",
-                        (unsigned long)(magnitude / 100U), (unsigned long)(magnitude % 100U),
-                        (unsigned long)pressure_mmhg, (unsigned long)(h / 100U), (unsigned long)(h % 100U));
+    WSH_SHELL_PRINT_SYS(
+        "BME280 | T: %s%lu.%02lu C | P: %lu mmHg | RH: %lu.%02lu %%\n",
+        t < 0 ? "-" : "",
+        (unsigned long)(magnitude / 100U),
+        (unsigned long)(magnitude % 100U),
+        (unsigned long)pressure_mmhg,
+        (unsigned long)(h / 100U),
+        (unsigned long)(h % 100U)
+    );
 }
 
 bool app_cli_bme280_watch_print(void) {
@@ -33,8 +39,12 @@ bool app_cli_bme280_watch_print(void) {
     return true;
 }
 
-static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                          void* ctx) {
+static WSH_SHELL_RET_STATE_t read_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }

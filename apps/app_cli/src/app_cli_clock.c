@@ -29,7 +29,14 @@ static const WshShellOption_t clock_invalidate_opts[] = {
 };
 
 static const char* const clock_weekday_names[] = {
-    "???", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+    "???",
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Sun",
 };
 
 static bool app_cli_clock_is_digit(char ch) {
@@ -41,8 +48,8 @@ static uint8_t app_cli_clock_parse_u8_2(const char* str) {
 }
 
 static uint16_t app_cli_clock_parse_u16_4(const char* str) {
-    return (uint16_t)(((uint16_t)(str[0] - '0') * 1000U) + ((uint16_t)(str[1] - '0') * 100U)
-                      + ((uint16_t)(str[2] - '0') * 10U) + (uint16_t)(str[3] - '0'));
+    return (uint16_t)(((uint16_t)(str[0] - '0') * 1000U) + ((uint16_t)(str[1] - '0') * 100U) +
+                      ((uint16_t)(str[2] - '0') * 10U) + (uint16_t)(str[3] - '0'));
 }
 
 static bool app_cli_clock_parse_date(const char* str, app_clock_datetime_t* datetime) {
@@ -58,9 +65,14 @@ static bool app_cli_clock_parse_date(const char* str, app_clock_datetime_t* date
         return false;
     }
 
-    if (!app_cli_clock_is_digit(str[0]) || !app_cli_clock_is_digit(str[1]) || !app_cli_clock_is_digit(str[2])
-        || !app_cli_clock_is_digit(str[3]) || !app_cli_clock_is_digit(str[5]) || !app_cli_clock_is_digit(str[6])
-        || !app_cli_clock_is_digit(str[8]) || !app_cli_clock_is_digit(str[9])) {
+    if (!app_cli_clock_is_digit(str[0]) ||
+        !app_cli_clock_is_digit(str[1]) ||
+        !app_cli_clock_is_digit(str[2]) ||
+        !app_cli_clock_is_digit(str[3]) ||
+        !app_cli_clock_is_digit(str[5]) ||
+        !app_cli_clock_is_digit(str[6]) ||
+        !app_cli_clock_is_digit(str[8]) ||
+        !app_cli_clock_is_digit(str[9])) {
         return false;
     }
 
@@ -84,8 +96,12 @@ static bool app_cli_clock_parse_time(const char* str, app_clock_datetime_t* date
         return false;
     }
 
-    if (!app_cli_clock_is_digit(str[0]) || !app_cli_clock_is_digit(str[1]) || !app_cli_clock_is_digit(str[3])
-        || !app_cli_clock_is_digit(str[4]) || !app_cli_clock_is_digit(str[6]) || !app_cli_clock_is_digit(str[7])) {
+    if (!app_cli_clock_is_digit(str[0]) ||
+        !app_cli_clock_is_digit(str[1]) ||
+        !app_cli_clock_is_digit(str[3]) ||
+        !app_cli_clock_is_digit(str[4]) ||
+        !app_cli_clock_is_digit(str[6]) ||
+        !app_cli_clock_is_digit(str[7])) {
         return false;
     }
 
@@ -104,13 +120,24 @@ static void app_cli_clock_print_datetime(const app_clock_datetime_t* datetime) {
         weekday = clock_weekday_names[datetime->weekday];
     }
 
-    WSH_SHELL_PRINT_SYS("%s %04u-%02u-%02u %02u:%02u:%02u\n", weekday, (unsigned)datetime->year,
-                        (unsigned)datetime->month, (unsigned)datetime->day, (unsigned)datetime->hour,
-                        (unsigned)datetime->minute, (unsigned)datetime->second);
+    WSH_SHELL_PRINT_SYS(
+        "%s %04u-%02u-%02u %02u:%02u:%02u\n",
+        weekday,
+        (unsigned)datetime->year,
+        (unsigned)datetime->month,
+        (unsigned)datetime->day,
+        (unsigned)datetime->hour,
+        (unsigned)datetime->minute,
+        (unsigned)datetime->second
+    );
 }
 
-static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                          void* ctx) {
+static WSH_SHELL_RET_STATE_t read_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
     app_clock_status_t status;
     app_clock_datetime_t datetime;
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
@@ -147,11 +174,14 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
         return WSH_SHELL_RET_STATE_ERROR;
     }
 
-    WSH_SHELL_PRINT_SYS("RTC      : %s\n"
-                        "SOURCE   : %s\n"
-                        "Calendar : %s\n",
-                        status.rtc_ready ? "ready" : "not ready", status.source_ready ? "ready" : "not ready",
-                        status.datetime_valid ? "valid" : "not set");
+    WSH_SHELL_PRINT_SYS(
+        "RTC      : %s\n"
+        "SOURCE   : %s\n"
+        "Calendar : %s\n",
+        status.rtc_ready ? "ready" : "not ready",
+        status.source_ready ? "ready" : "not ready",
+        status.datetime_valid ? "valid" : "not set"
+    );
 
     if (!status.datetime_valid) {
         WSH_SHELL_PRINT_WARN("Clock is not set\n");
@@ -169,8 +199,12 @@ static WSH_SHELL_RET_STATE_t read_handler(const WshShellCmd_t* cmd, WshShell_Siz
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc, const WshShell_Char_t* argv[],
-                                         void* ctx) {
+static WSH_SHELL_RET_STATE_t set_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
 
     app_clock_datetime_t datetime = {0};
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
@@ -253,8 +287,12 @@ static WSH_SHELL_RET_STATE_t set_handler(const WshShellCmd_t* cmd, WshShell_Size
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
-static WSH_SHELL_RET_STATE_t invalidate_handler(const WshShellCmd_t* cmd, WshShell_Size_t argc,
-                                                const WshShell_Char_t* argv[], void* ctx) {
+static WSH_SHELL_RET_STATE_t invalidate_handler(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx
+) {
 
     if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
         return WSH_SHELL_RET_STATE_ERR_PARAM;

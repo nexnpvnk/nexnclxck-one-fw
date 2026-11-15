@@ -20,14 +20,16 @@ static bool enabled;
 
 static nixie_status_t publish_configuration(const display_parameters_t* candidate, const app_display_frame_t* content) {
     const app_display_profile_t* profile = &display_default_profile;
-    if (content == NULL || profile->board.element_count == 0U || profile->board.element_count > NIXIE_MAX_ELEMENTS
-        || content->element_count != profile->board.element_count
-        || ((uint32_t)content->blink_elements >> profile->board.element_count) != 0U) {
+    if (content == NULL ||
+        profile->board.element_count == 0U ||
+        profile->board.element_count > NIXIE_MAX_ELEMENTS ||
+        content->element_count != profile->board.element_count ||
+        ((uint32_t)content->blink_elements >> profile->board.element_count) != 0U) {
         last_issue = (nixie_issue_t){NIXIE_INVALID_ARGUMENT, UINT8_MAX};
         return last_issue.status;
     }
-    if (candidate->timing.refresh_rate_hz < APP_DISPLAY_REFRESH_RATE_MIN_HZ
-        || candidate->timing.refresh_rate_hz > APP_DISPLAY_REFRESH_RATE_MAX_HZ) {
+    if (candidate->timing.refresh_rate_hz < APP_DISPLAY_REFRESH_RATE_MIN_HZ ||
+        candidate->timing.refresh_rate_hz > APP_DISPLAY_REFRESH_RATE_MAX_HZ) {
         last_issue = (nixie_issue_t){NIXIE_INVALID_TIMING, UINT8_MAX};
         return last_issue.status;
     }
@@ -86,8 +88,9 @@ nixie_status_t app_display_present(const app_display_frame_t* frame) {
         return last_issue.status;
     }
     /* Cache only accepted content. BUSY leaves it unchanged so the UI can retry. */
-    if (frame->dot_elements == current_frame.dot_elements && frame->blink_elements == current_frame.blink_elements
-        && memcmp(frame->symbols, current_frame.symbols, frame->element_count) == 0) {
+    if (frame->dot_elements == current_frame.dot_elements &&
+        frame->blink_elements == current_frame.blink_elements &&
+        memcmp(frame->symbols, current_frame.symbols, frame->element_count) == 0) {
         return NIXIE_OK;
     }
     return publish_configuration(&parameters, frame);

@@ -4,26 +4,42 @@
 
 /* Check the calculations before narrowing their results to peripheral registers. */
 _Static_assert(1000000UL <= PLATFORM_HCLK_HZ, "The microsecond counter clock must be achievable");
-_Static_assert(BSP_TIM_US_PSC <= TIM_PSC_PSC && PLATFORM_HCLK_HZ % (BSP_TIM_US_PSC + 1U) == 0U
-                   && PLATFORM_HCLK_HZ / (BSP_TIM_US_PSC + 1U) == 1000000UL,
-               "The microsecond prescaler must fit 16 bits and produce the exact counter clock");
-_Static_assert(BSP_BOARD_BUZZER_INITIAL_RATE_HZ > 0U
-                   && PLATFORM_HCLK_HZ % ((BSP_TIM_US_PSC + 1U) * BSP_BOARD_BUZZER_INITIAL_RATE_HZ) == 0U
-                   && BSP_TIM16_ARR > 0U && BSP_TIM16_ARR <= UINT16_MAX,
-               "The initial TIM16 period must be exact and fit its 16-bit counter");
-_Static_assert(BSP_BOARD_HV_ADC_TARGET_RATE_HZ > 0U
-                   && PLATFORM_HCLK_HZ % BSP_BOARD_HV_ADC_TARGET_RATE_HZ == 0U
-                   && BSP_TIM3_ARR > 0U && BSP_TIM3_ARR <= UINT16_MAX
-                   && TIMER_CALC_RATE_HZ(PLATFORM_HCLK_HZ, 0U, BSP_TIM3_ARR)
-                          == BSP_BOARD_HV_ADC_TARGET_RATE_HZ,
-               "The TIM3 ADC trigger period must be exact and fit its 16-bit counter");
-_Static_assert(BSP_BOARD_HV_PWM_RATE_HZ > 0U && PLATFORM_HCLK_HZ % BSP_BOARD_HV_PWM_RATE_HZ == 0U
-                   && BSP_TIM17_ARR > 0U && BSP_TIM17_ARR <= UINT16_MAX,
-               "The TIM17 PWM period must be exact and fit its 16-bit counter");
-_Static_assert((BSP_BOARD_WS2812_BIT_RATE_HZ * BSP_BOARD_WS2812_SYMBOLS_PER_BIT) > 0U
-                   && PLATFORM_HCLK_HZ % (BSP_BOARD_WS2812_BIT_RATE_HZ * BSP_BOARD_WS2812_SYMBOLS_PER_BIT) == 0U
-                   && BSP_TIM2_ARR > 0U && BSP_TIM2_ARR <= TIM_ARR_ARR && (BSP_TIM2_ARR + 1U) % 2U == 0U,
-               "The TIM2 DMA slot must fit its 32-bit counter and have an exact midpoint");
+_Static_assert(
+    BSP_TIM_US_PSC <= TIM_PSC_PSC &&
+        PLATFORM_HCLK_HZ % (BSP_TIM_US_PSC + 1U) == 0U &&
+        PLATFORM_HCLK_HZ / (BSP_TIM_US_PSC + 1U) == 1000000UL,
+    "The microsecond prescaler must fit 16 bits and produce the exact counter clock"
+);
+_Static_assert(
+    BSP_BOARD_BUZZER_INITIAL_RATE_HZ > 0U &&
+        PLATFORM_HCLK_HZ % ((BSP_TIM_US_PSC + 1U) * BSP_BOARD_BUZZER_INITIAL_RATE_HZ) == 0U &&
+        BSP_TIM16_ARR > 0U &&
+        BSP_TIM16_ARR <= UINT16_MAX,
+    "The initial TIM16 period must be exact and fit its 16-bit counter"
+);
+_Static_assert(
+    BSP_BOARD_HV_ADC_TARGET_RATE_HZ > 0U &&
+        PLATFORM_HCLK_HZ % BSP_BOARD_HV_ADC_TARGET_RATE_HZ == 0U &&
+        BSP_TIM3_ARR > 0U &&
+        BSP_TIM3_ARR <= UINT16_MAX &&
+        TIMER_CALC_RATE_HZ(PLATFORM_HCLK_HZ, 0U, BSP_TIM3_ARR) == BSP_BOARD_HV_ADC_TARGET_RATE_HZ,
+    "The TIM3 ADC trigger period must be exact and fit its 16-bit counter"
+);
+_Static_assert(
+    BSP_BOARD_HV_PWM_RATE_HZ > 0U &&
+        PLATFORM_HCLK_HZ % BSP_BOARD_HV_PWM_RATE_HZ == 0U &&
+        BSP_TIM17_ARR > 0U &&
+        BSP_TIM17_ARR <= UINT16_MAX,
+    "The TIM17 PWM period must be exact and fit its 16-bit counter"
+);
+_Static_assert(
+    (BSP_BOARD_WS2812_BIT_RATE_HZ * BSP_BOARD_WS2812_SYMBOLS_PER_BIT) > 0U &&
+        PLATFORM_HCLK_HZ % (BSP_BOARD_WS2812_BIT_RATE_HZ * BSP_BOARD_WS2812_SYMBOLS_PER_BIT) == 0U &&
+        BSP_TIM2_ARR > 0U &&
+        BSP_TIM2_ARR <= TIM_ARR_ARR &&
+        (BSP_TIM2_ARR + 1U) % 2U == 0U,
+    "The TIM2 DMA slot must fit its 32-bit counter and have an exact midpoint"
+);
 
 static void analog_pins(GPIO_TypeDef* gpio, uint32_t pins) {
     for (uint32_t pin = 0U; pin < 16U; ++pin) {
@@ -55,8 +71,10 @@ static void gpio_init(void) {
         RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOFEN;
     (void)RCC->AHBENR;
     analog_pins(GPIOF, GPIO_ODR_0 | GPIO_ODR_1 | GPIO_ODR_4 | GPIO_ODR_5 | GPIO_ODR_6 | GPIO_ODR_7);
-    analog_pins(GPIOA, GPIO_ODR_0 | GPIO_ODR_1 | GPIO_ODR_3 | GPIO_ODR_4 | GPIO_ODR_8 | GPIO_ODR_11 | GPIO_ODR_12
-                           | GPIO_ODR_15);
+    analog_pins(
+        GPIOA,
+        GPIO_ODR_0 | GPIO_ODR_1 | GPIO_ODR_3 | GPIO_ODR_4 | GPIO_ODR_8 | GPIO_ODR_11 | GPIO_ODR_12 | GPIO_ODR_15
+    );
 
     /* The .ioc starts all eight anodes and sixteen cathodes LOW.
      * Preload every latch, then configure the electrical fields before MODER. */
@@ -77,12 +95,12 @@ static void gpio_init(void) {
     GPIOA->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR7;
     GPIOA->MODER = (GPIOA->MODER & ~GPIO_MODER_MODER7) | GPIO_MODER_MODER7_0;
     GPIOC->MODER &= ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER1 | GPIO_MODER_MODER2 | GPIO_MODER_MODER3);
-    GPIOC->PUPDR = (GPIOC->PUPDR & ~(GPIO_PUPDR_PUPDR0 | GPIO_PUPDR_PUPDR1 | GPIO_PUPDR_PUPDR2 | GPIO_PUPDR_PUPDR3))
-                   | GPIO_PUPDR_PUPDR0_0 | GPIO_PUPDR_PUPDR1_0 | GPIO_PUPDR_PUPDR2_0 | GPIO_PUPDR_PUPDR3_0;
-    SYSCFG->EXTICR[0] = (SYSCFG->EXTICR[0]
-                         & ~(SYSCFG_EXTICR1_EXTI0 | SYSCFG_EXTICR1_EXTI1 | SYSCFG_EXTICR1_EXTI2 | SYSCFG_EXTICR1_EXTI3))
-                        | SYSCFG_EXTICR1_EXTI0_PC | SYSCFG_EXTICR1_EXTI1_PC | SYSCFG_EXTICR1_EXTI2_PC
-                        | SYSCFG_EXTICR1_EXTI3_PC;
+    GPIOC->PUPDR = (GPIOC->PUPDR & ~(GPIO_PUPDR_PUPDR0 | GPIO_PUPDR_PUPDR1 | GPIO_PUPDR_PUPDR2 | GPIO_PUPDR_PUPDR3)) |
+                   GPIO_PUPDR_PUPDR0_0 | GPIO_PUPDR_PUPDR1_0 | GPIO_PUPDR_PUPDR2_0 | GPIO_PUPDR_PUPDR3_0;
+    SYSCFG->EXTICR[0] =
+        (SYSCFG->EXTICR[0] &
+         ~(SYSCFG_EXTICR1_EXTI0 | SYSCFG_EXTICR1_EXTI1 | SYSCFG_EXTICR1_EXTI2 | SYSCFG_EXTICR1_EXTI3)) |
+        SYSCFG_EXTICR1_EXTI0_PC | SYSCFG_EXTICR1_EXTI1_PC | SYSCFG_EXTICR1_EXTI2_PC | SYSCFG_EXTICR1_EXTI3_PC;
     EXTI->RTSR |= EXTI_RTSR_TR0 | EXTI_RTSR_TR1 | EXTI_RTSR_TR2 | EXTI_RTSR_TR3;
     EXTI->FTSR |= EXTI_FTSR_TR0 | EXTI_FTSR_TR1 | EXTI_FTSR_TR2 | EXTI_FTSR_TR3;
     EXTI->PR = EXTI_PR_PR0 | EXTI_PR_PR1 | EXTI_PR_PR2 | EXTI_PR_PR3;

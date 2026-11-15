@@ -12,7 +12,18 @@ static bool is_leap_year(uint16_t year) {
 
 static uint8_t days_in_month(uint16_t year, uint8_t month) {
     static const uint8_t days[] = {
-        31U, 28U, 31U, 30U, 31U, 30U, 31U, 31U, 30U, 31U, 30U, 31U,
+        31U,
+        28U,
+        31U,
+        30U,
+        31U,
+        30U,
+        31U,
+        31U,
+        30U,
+        31U,
+        30U,
+        31U,
     };
 
     if ((month < 1U) || (month > 12U)) {
@@ -64,7 +75,18 @@ bool app_clock_datetime_is_valid(const app_clock_datetime_t* datetime) {
 
 static app_clock_weekday_t weekday_calc(uint16_t year, uint8_t month, uint8_t day) {
     static const uint8_t offsets[] = {
-        0U, 3U, 2U, 5U, 0U, 3U, 5U, 1U, 4U, 6U, 2U, 4U,
+        0U,
+        3U,
+        2U,
+        5U,
+        0U,
+        3U,
+        5U,
+        1U,
+        4U,
+        6U,
+        2U,
+        4U,
     };
 
     uint16_t y;

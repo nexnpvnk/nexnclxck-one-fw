@@ -13,8 +13,12 @@
 #include "wsh_shell.h"
 
 static const WshShellCmd_t* app_cli_commands[] = {
-    &app_cli_clock_cmd, &app_cli_bme280_cmd,  &app_cli_buzzer_cmd,
-    &app_cli_hv_cmd,    &app_cli_display_cmd, &app_cli_light_cmd,
+    &app_cli_clock_cmd,
+    &app_cli_bme280_cmd,
+    &app_cli_buzzer_cmd,
+    &app_cli_hv_cmd,
+    &app_cli_display_cmd,
+    &app_cli_light_cmd,
 };
 
 static struct {
