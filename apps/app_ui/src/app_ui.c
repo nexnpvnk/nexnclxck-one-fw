@@ -206,8 +206,9 @@ static bool screen_available(screen_t candidate, bool date_valid, const app_bme2
     if (readings == NULL) {
         return false;
     }
-    return candidate != SCREEN_TEMPERATURE || readings->temperature_centi_c >= 0
-           || layout->points[numeric_top_point()] != NIXIE_CHANNEL_UNASSIGNED;
+    return candidate != SCREEN_TEMPERATURE ||
+           readings->temperature_centi_c >= 0 ||
+           layout->points[numeric_top_point()] != NIXIE_CHANNEL_UNASSIGNED;
 }
 
 static void step_screen(int8_t direction) {
@@ -294,8 +295,10 @@ static bool write_setting_value(setting_id_t id, uint8_t value) {
         return app_light_set_speed(value);
     }
     app_light_status_t status;
-    if ((id != SETTING_LIGHT_PRIMARY && id != SETTING_LIGHT_SECONDARY) || value == 0U
-        || value > APP_UI_LIGHT_COLOR_COUNT || !app_light_get_status(&status)) {
+    if ((id != SETTING_LIGHT_PRIMARY && id != SETTING_LIGHT_SECONDARY) ||
+        value == 0U ||
+        value > APP_UI_LIGHT_COLOR_COUNT ||
+        !app_light_get_status(&status)) {
         return false;
     }
     if (id == SETTING_LIGHT_PRIMARY) {
@@ -407,8 +410,8 @@ void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
             (void)app_sound_beep(APP_UI_BEEP_FREQ_HZ, APP_UI_BEEP_VOLUME, APP_UI_BEEP_DURATION_MS * 4U);
             break;
         case APP_UI_EVENT_RELEASE:
-            if ((key == APP_UI_KEY_RIGHT && adjustment_direction > 0)
-                || (key == APP_UI_KEY_LEFT && adjustment_direction < 0)) {
+            if ((key == APP_UI_KEY_RIGHT && adjustment_direction > 0) ||
+                (key == APP_UI_KEY_LEFT && adjustment_direction < 0)) {
                 adjustment_direction = 0;
                 setting_activity_ms = now;
             }
@@ -563,14 +566,24 @@ static void update_view(uint32_t now, bool can_render) {
             break;
         }
         case SCREEN_HUMIDITY:
-            formatted = render_number(frame.symbols, &frame.dot_elements, (sample->humidity_centi_percent + 5U) / 10U,
-                                      true, false);
+            formatted = render_number(
+                frame.symbols,
+                &frame.dot_elements,
+                (sample->humidity_centi_percent + 5U) / 10U,
+                true,
+                false
+            );
             break;
         case SCREEN_PRESSURE:
             /* Integer mmHg, using 133.322 Pa/mmHg. Bosch pressure is Pa * 100;
              * the bounded sensor range keeps this multiplication within uint32. */
-            formatted = render_number(frame.symbols, &frame.dot_elements,
-                                      (sample->pressure_centi_pa * 10U + 66661U) / 133322U, false, false);
+            formatted = render_number(
+                frame.symbols,
+                &frame.dot_elements,
+                (sample->pressure_centi_pa * 10U + 66661U) / 133322U,
+                false,
+                false
+            );
             break;
         default:
             frame.blink_elements = render_time(frame.symbols, &datetime, time_valid);

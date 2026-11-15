@@ -27,21 +27,31 @@
 
 #define BSP_HV_PWM_TICK_HZ         ((uint32_t)PLATFORM_HCLK_HZ) /* TIM17 PSC=0. */
 
-_Static_assert(BSP_BOARD_HV_PWM_RATE_HZ >= BSP_HV_PWM_MIN_HZ && BSP_BOARD_HV_PWM_RATE_HZ <= BSP_HV_PWM_MAX_HZ,
-               "The default HV PWM frequency must be within the runtime range");
-_Static_assert(BSP_HV_PWM_TICK_HZ / BSP_HV_PWM_MAX_HZ >= 2U
-                   && (BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ <= (uint32_t)UINT16_MAX + 1U,
-               "The runtime HV PWM periods must fit the 16-bit timer");
-_Static_assert(((uint64_t)(BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ) * BSP_HV_DUTY_SCALE
-                       + BSP_HV_DUTY_SCALE / 2U
-                   <= UINT32_MAX,
-               "Q16 duty conversion must fit 32 bits at the longest PWM period");
-_Static_assert(PLATFORM_HCLK_HZ / BSP_HV_SAMPLE_RATE_HZ > PLATFORM_HCLK_HZ / BSP_HV_PWM_MIN_HZ
-                   && PLATFORM_HCLK_HZ / BSP_HV_SAMPLE_RATE_HZ + PLATFORM_HCLK_HZ / BSP_HV_PWM_MIN_HZ / 2U
-                          <= (uint32_t)UINT16_MAX + 1U,
-               "The PWM-aligned sample period must fit TIM3 throughout the runtime range");
-_Static_assert(BSP_HV_SAMPLE_OFFSET_TICKS < PLATFORM_HCLK_HZ / BSP_HV_PWM_MAX_HZ,
-               "The ADC sample offset must fit the shortest PWM period");
+_Static_assert(
+    BSP_BOARD_HV_PWM_RATE_HZ >= BSP_HV_PWM_MIN_HZ && BSP_BOARD_HV_PWM_RATE_HZ <= BSP_HV_PWM_MAX_HZ,
+    "The default HV PWM frequency must be within the runtime range"
+);
+_Static_assert(
+    BSP_HV_PWM_TICK_HZ / BSP_HV_PWM_MAX_HZ >= 2U &&
+        (BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ <= (uint32_t)UINT16_MAX + 1U,
+    "The runtime HV PWM periods must fit the 16-bit timer"
+);
+_Static_assert(
+    ((uint64_t)(BSP_HV_PWM_TICK_HZ + BSP_HV_PWM_MIN_HZ / 2U) / BSP_HV_PWM_MIN_HZ) * BSP_HV_DUTY_SCALE +
+            BSP_HV_DUTY_SCALE / 2U <=
+        UINT32_MAX,
+    "Q16 duty conversion must fit 32 bits at the longest PWM period"
+);
+_Static_assert(
+    PLATFORM_HCLK_HZ / BSP_HV_SAMPLE_RATE_HZ > PLATFORM_HCLK_HZ / BSP_HV_PWM_MIN_HZ &&
+        PLATFORM_HCLK_HZ / BSP_HV_SAMPLE_RATE_HZ + PLATFORM_HCLK_HZ / BSP_HV_PWM_MIN_HZ / 2U <=
+            (uint32_t)UINT16_MAX + 1U,
+    "The PWM-aligned sample period must fit TIM3 throughout the runtime range"
+);
+_Static_assert(
+    BSP_HV_SAMPLE_OFFSET_TICKS < PLATFORM_HCLK_HZ / BSP_HV_PWM_MAX_HZ,
+    "The ADC sample offset must fit the shortest PWM period"
+);
 
 #define BSP_HV_OVP_RAW ((BSP_HV_OVP_VOLTAGE_MV * BSP_HV_ADC_MAX) / (BSP_HV_VDDA_MV * BSP_HV_DIVIDER_RATIO))
 
@@ -82,7 +92,7 @@ static void synchronize_sampling(void) {
     TIM3->ARR = sample_ticks - 1U;
     uint32_t phase = TIM17->CNT;
     uint32_t delay = BSP_HV_SAMPLE_OFFSET_TICKS >= phase ? BSP_HV_SAMPLE_OFFSET_TICKS - phase
-                                                       : period - phase + BSP_HV_SAMPLE_OFFSET_TICKS;
+                                                         : period - phase + BSP_HV_SAMPLE_OFFSET_TICKS;
     /* Next update in (cycles-1)*period + delay ticks. No UG: it would emit
      * an unwanted ADC trigger. PSC=0 needs no prescaler reload here. */
     TIM3->CNT = period - delay;
@@ -143,15 +153,22 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
     }
 
     /* Check only CKMODE in CFGR2: reserved bits can read back nonzero. */
-    if ((RCC->APB2ENR & (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)) != (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)
-        || (RCC->APB1ENR & RCC_APB1ENR_TIM3EN) == 0U || (RCC->CR2 & RCC_CR2_HSI14RDY) == 0U
-        || SystemCoreClock != PLATFORM_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
-        || TIM3->PSC != 0U || TIM3->ARR != BSP_TIM3_ARR
-        || (TIM3->CR2 & TIM_CR2_MMS) != TIM_CR2_MMS_1 || (TIM3->CR1 & TIM_CR1_CEN) != 0U
-        || TIM17->PSC != 0U || TIM17->ARR != BSP_TIM17_ARR
-        || (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U || ADC1->CHSELR != ADC_CHSELR_CHSEL2 || ADC1->SMPR != BSP_HV_ADC_SAMPLE_TIME
-        || ADC1->CFGR1 != (ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD)
-        || ADC1->CR != 0U) {
+    if ((RCC->APB2ENR & (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN)) != (RCC_APB2ENR_ADC1EN | RCC_APB2ENR_TIM17EN) ||
+        (RCC->APB1ENR & RCC_APB1ENR_TIM3EN) == 0U ||
+        (RCC->CR2 & RCC_CR2_HSI14RDY) == 0U ||
+        SystemCoreClock != PLATFORM_HCLK_HZ ||
+        (RCC->CFGR & RCC_CFGR_PPRE) != 0U ||
+        TIM3->PSC != 0U ||
+        TIM3->ARR != BSP_TIM3_ARR ||
+        (TIM3->CR2 & TIM_CR2_MMS) != TIM_CR2_MMS_1 ||
+        (TIM3->CR1 & TIM_CR1_CEN) != 0U ||
+        TIM17->PSC != 0U ||
+        TIM17->ARR != BSP_TIM17_ARR ||
+        (ADC1->CFGR2 & ADC_CFGR2_CKMODE) != 0U ||
+        ADC1->CHSELR != ADC_CHSELR_CHSEL2 ||
+        ADC1->SMPR != BSP_HV_ADC_SAMPLE_TIME ||
+        ADC1->CFGR1 != (ADC_CFGR1_EXTSEL_0 | ADC_CFGR1_EXTSEL_1 | ADC_CFGR1_EXTEN_0 | ADC_CFGR1_OVRMOD) ||
+        ADC1->CR != 0U) {
         trip(BSP_HV_FAULT_INIT);
         return false;
     }
@@ -160,8 +177,9 @@ bool bsp_hv_init(bsp_hv_sample_cb_t callback, void* arg) {
      * The board has an inverting NPN gate driver.
      * TIM17 must use inverted polarity and HIGH idle state.
      */
-    if ((TIM17->CCER & TIM_CCER_CC1P) == 0U || (TIM17->CR2 & TIM_CR2_OIS1) == 0U
-        || (TIM17->BDTR & TIM_BDTR_OSSI) == 0U) {
+    if ((TIM17->CCER & TIM_CCER_CC1P) == 0U ||
+        (TIM17->CR2 & TIM_CR2_OIS1) == 0U ||
+        (TIM17->BDTR & TIM_BDTR_OSSI) == 0U) {
         trip(BSP_HV_FAULT_INIT);
         return false;
     }
@@ -235,11 +253,19 @@ bool bsp_hv_set_enabled(bool enabled) {
 
     /* Enable also retries runtime faults. Initialization failures require
      * repair; a stale or overvoltage sample cannot enable PWM. */
-    bool recoverable = hv.fault == BSP_HV_FAULT_NONE || hv.fault == BSP_HV_FAULT_OVERVOLTAGE
-                       || hv.fault == BSP_HV_FAULT_TIMEOUT || hv.fault == BSP_HV_FAULT_SHUTDOWN;
-    bool ready = recoverable && hv.samples != 0U && hv.adc_raw < BSP_HV_OVP_RAW && (TIM17->CCER & TIM_CCER_CC1E) != 0U
-                 && (TIM17->CR1 & TIM_CR1_CEN) != 0U && (ADC1->ISR & ADC_ISR_AWD) == 0U
-                 && (uint32_t)(bsp_time_ms() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
+    bool recoverable =
+        hv.fault == BSP_HV_FAULT_NONE ||
+        hv.fault == BSP_HV_FAULT_OVERVOLTAGE ||
+        hv.fault == BSP_HV_FAULT_TIMEOUT ||
+        hv.fault == BSP_HV_FAULT_SHUTDOWN;
+    bool ready =
+        recoverable &&
+        hv.samples != 0U &&
+        hv.adc_raw < BSP_HV_OVP_RAW &&
+        (TIM17->CCER & TIM_CCER_CC1E) != 0U &&
+        (TIM17->CR1 & TIM_CR1_CEN) != 0U &&
+        (ADC1->ISR & ADC_ISR_AWD) == 0U &&
+        (uint32_t)(bsp_time_ms() - hv.last_sample_ms) <= BSP_HV_ADC_TIMEOUT_MS;
 
     if (ready) {
         if (!hv.enabled) {
