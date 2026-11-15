@@ -19,3 +19,6 @@
 [submodule "components/lwbtn"]
 	path = components/lwbtn
 	url = https://github.com/MaJerle/lwbtn.git
+[submodule "tools/c-code-style"]
+	path = tools/c-code-style
+	url = https://github.com/nexnpvnk/c-code-style.git

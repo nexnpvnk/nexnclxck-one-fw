@@ -17,3 +17,16 @@ This is an engineering-driven embedded project. The owner's understanding and ar
 When explicitly requested, implement the agreed task autonomously, without expanding its scope.
 
 Do not run builds or tests unless explicitly requested.
+
+## C coding style
+
+- Before writing, editing, or reviewing first-party C source and headers, read
+  `tools/c-code-style/CODING_RULES.md` from the pinned style submodule.
+  Use its `template.c` and `template.h` as reference examples.
+- Follow `.agents/skills/c-code-style/SKILL.md` for the canonical skill and
+  project-specific paths and formatter commands. This project's engineering
+  workflow and validation restrictions remain in effect.
+- Use LLVM 23.x for both `clang-format` and `clangd`. The root `.clang-format`
+  inherits `tools/c-code-style/.clang-format` using directory redirection.
+- Apply the style to first-party code. Preserve third-party and generated code
+  conventions, and do not reformat files outside the task's scope.

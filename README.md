@@ -122,6 +122,35 @@ ELF: `build/Release/nexnclxck-one-fw.elf`. The `Debug` preset uses `-Og -g3`;
 `STM32F051xx_FLASH.ld`. OpenOCD targets: `flash` (program/verify/reset),
 `reset` and `erase` (the entire Flash).
 
+## C coding style
+
+The project uses the [personal C style fork](https://github.com/nexnpvnk/c-code-style)
+as a pinned submodule in `tools/c-code-style`. Its
+[coding rules](tools/c-code-style/CODING_RULES.md), formatter configuration, and
+reference templates remain in that repository.
+
+Use LLVM 23.x for both `clang-format` and `clangd`, preferably the same version.
+The root `.clang-format` redirects to the submodule configuration. Initialize
+submodules as shown above before formatting. LLVM is a development tool here;
+the firmware still builds with Arm GNU Toolchain.
+
+Codex uses the [project skill adapter](.agents/skills/c-code-style/SKILL.md)
+alongside [AGENTS.md](AGENTS.md). The adapter links to the canonical skill and
+provides native formatter commands that work in PowerShell. Apply the style
+only to first-party code within the task's scope.
+
+To review and adopt the latest style revision explicitly:
+
+```powershell
+git submodule update --remote -- tools/c-code-style
+git diff --submodule=log -- tools/c-code-style
+git add tools/c-code-style
+```
+
+Commit the updated submodule pointer in the firmware repository after reviewing
+the changes. Ordinary `git submodule update --init --recursive` restores the
+recorded revision.
+
 ## Console
 
 ```text

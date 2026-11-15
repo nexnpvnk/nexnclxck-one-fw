@@ -124,6 +124,36 @@ ELF: `build/Release/nexnclxck-one-fw.elf`. Preset `Debug` использует `
 `STM32F051xx_FLASH.ld`. Цели OpenOCD: `flash` (program/verify/reset),
 `reset` и `erase` (вся Flash).
 
+## Стиль C
+
+Проект использует [личный форк стиля C](https://github.com/nexnpvnk/c-code-style)
+как submodule с зафиксированной версией в `tools/c-code-style`.
+[Правила](tools/c-code-style/CODING_RULES.md), конфигурация форматирования
+и эталонные шаблоны хранятся в этом репозитории.
+
+Для `clang-format` и `clangd` нужен LLVM 23.x, желательно одной версии.
+Корневой `.clang-format` перенаправляет к конфигурации submodule.
+Перед форматированием инициализируйте submodules командой из раздела сборки.
+LLVM здесь служит инструментом разработки; прошивка по-прежнему собирается
+Arm GNU Toolchain.
+
+Codex использует [проектный адаптер skill](.agents/skills/c-code-style/SKILL.md)
+вместе с [AGENTS.md](AGENTS.md). Адаптер ссылается на исходный skill и задаёт
+нативные команды форматирования для PowerShell. Стиль применяется только
+к собственному коду в рамках текущей задачи.
+
+Для явного обновления до последней версии стиля с просмотром изменений:
+
+```powershell
+git submodule update --remote -- tools/c-code-style
+git diff --submodule=log -- tools/c-code-style
+git add tools/c-code-style
+```
+
+После просмотра изменений сохраните новый указатель submodule коммитом
+в репозитории прошивки. Обычный `git submodule update --init --recursive`
+восстанавливает зафиксированную версию.
+
 ## Консоль
 
 ```text
