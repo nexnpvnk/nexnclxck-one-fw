@@ -109,9 +109,18 @@ bool bsp_rtc_read(bsp_rtc_datetime_t* datetime) {
 }
 
 bool bsp_rtc_write(const bsp_rtc_datetime_t* datetime) {
-    if (datetime == NULL || datetime->year < 2000U || datetime->year > 2099U || datetime->month < 1U
-        || datetime->month > 12U || datetime->day < 1U || datetime->day > 31U || datetime->weekday < 1U
-        || datetime->weekday > 7U || datetime->hour > 23U || datetime->minute > 59U || datetime->second > 59U) {
+    if (datetime == NULL ||
+        datetime->year < 2000U ||
+        datetime->year > 2099U ||
+        datetime->month < 1U ||
+        datetime->month > 12U ||
+        datetime->day < 1U ||
+        datetime->day > 31U ||
+        datetime->weekday < 1U ||
+        datetime->weekday > 7U ||
+        datetime->hour > 23U ||
+        datetime->minute > 59U ||
+        datetime->second > 59U) {
         return false;
     }
     PWR->CR |= PWR_CR_DBP;
@@ -120,11 +129,11 @@ bool bsp_rtc_write(const bsp_rtc_datetime_t* datetime) {
         return false;
     }
     /* Date and time form one update; validity is published only after synchronization. */
-    RTC->TR = (to_bcd(datetime->hour) << RTC_TR_HU_Pos) | (to_bcd(datetime->minute) << RTC_TR_MNU_Pos)
-              | (to_bcd(datetime->second) << RTC_TR_SU_Pos);
-    RTC->DR = (to_bcd(datetime->year - BSP_RTC_YEAR_BASE) << RTC_DR_YU_Pos)
-              | ((uint32_t)datetime->weekday << RTC_DR_WDU_Pos) | (to_bcd(datetime->month) << RTC_DR_MU_Pos)
-              | (to_bcd(datetime->day) << RTC_DR_DU_Pos);
+    RTC->TR = (to_bcd(datetime->hour) << RTC_TR_HU_Pos) | (to_bcd(datetime->minute) << RTC_TR_MNU_Pos) |
+              (to_bcd(datetime->second) << RTC_TR_SU_Pos);
+    RTC->DR = (to_bcd(datetime->year - BSP_RTC_YEAR_BASE) << RTC_DR_YU_Pos) |
+              ((uint32_t)datetime->weekday << RTC_DR_WDU_Pos) | (to_bcd(datetime->month) << RTC_DR_MU_Pos) |
+              (to_bcd(datetime->day) << RTC_DR_DU_Pos);
     RTC->CR |= RTC_CR_COE | RTC_CR_COSEL;
     if (!rtc_end_update()) {
         return false;

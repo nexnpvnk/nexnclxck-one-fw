@@ -103,8 +103,14 @@ typedef struct {
  * no memory. Descriptors are borrowed only for the duration of each call. */
 nixie_status_t nixie_validate_board(const nixie_board_t* board, const nixie_caps_t* caps, nixie_issue_t* issue);
 /* A failed compilation may modify plan; never publish it unless NIXIE_OK. */
-nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* timing, const nixie_frame_t* frame,
-                             const nixie_caps_t* caps, nixie_plan_t* plan, nixie_issue_t* issue);
+nixie_status_t nixie_compile(
+    const nixie_board_t* board,
+    const nixie_timing_t* timing,
+    const nixie_frame_t* frame,
+    const nixie_caps_t* caps,
+    nixie_plan_t* plan,
+    nixie_issue_t* issue
+);
 nixie_status_t nixie_validate_plan(const nixie_plan_t* plan, const nixie_caps_t* caps);
 const char* nixie_status_name(nixie_status_t status);
 

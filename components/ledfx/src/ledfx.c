@@ -119,7 +119,12 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
 
 const char* ledfx_effect_name(ledfx_effect_t effect) {
     static const char* const names[] = {
-        "static", "breath", "rainbow", "fade", "flicker", "comet",
+        "static",
+        "breath",
+        "rainbow",
+        "fade",
+        "flicker",
+        "comet",
     };
 
     return (unsigned)effect < LEDFX_EFFECT_COUNT ? names[effect] : "unknown";

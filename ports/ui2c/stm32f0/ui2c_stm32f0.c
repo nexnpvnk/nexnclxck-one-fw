@@ -173,8 +173,8 @@ static ui2c_status_t start_transfer(ui2c_t* bus) {
     if ((hw->ISR & I2C_ISR_BUSY) != 0U) {
         return UI2C_STATUS_BUS_BUSY;
     }
-    if ((port->hw.tx_dma.channel != NULL && (port->hw.tx_dma.channel->CCR & DMA_CCR_EN) != 0U)
-        || (port->hw.rx_dma.channel != NULL && (port->hw.rx_dma.channel->CCR & DMA_CCR_EN) != 0U)) {
+    if ((port->hw.tx_dma.channel != NULL && (port->hw.tx_dma.channel->CCR & DMA_CCR_EN) != 0U) ||
+        (port->hw.rx_dma.channel != NULL && (port->hw.rx_dma.channel->CCR & DMA_CCR_EN) != 0U)) {
         return UI2C_STATUS_BUSY;
     }
     hw->ICR = UI2C_CLEAR_FLAGS;
@@ -199,18 +199,28 @@ static bool valid_dma(const ui2c_stm32f0_dma_t* dma, bool read) {
         return true;
     }
     DMA_Channel_TypeDef* const channels[] = {
-        DMA1_Channel1, DMA1_Channel2, DMA1_Channel3, DMA1_Channel4, DMA1_Channel5,
+        DMA1_Channel1,
+        DMA1_Channel2,
+        DMA1_Channel3,
+        DMA1_Channel4,
+        DMA1_Channel5,
     };
-    uint32_t mask = DMA_CCR_EN | DMA_CCR_DIR | DMA_CCR_CIRC | DMA_CCR_PINC | DMA_CCR_MINC | DMA_CCR_PSIZE
-                    | DMA_CCR_MSIZE | DMA_CCR_MEM2MEM;
+    uint32_t mask = DMA_CCR_EN | DMA_CCR_DIR | DMA_CCR_CIRC | DMA_CCR_PINC | DMA_CCR_MINC | DMA_CCR_PSIZE |
+                    DMA_CCR_MSIZE | DMA_CCR_MEM2MEM;
     uint32_t required = DMA_CCR_MINC | (read ? 0U : DMA_CCR_DIR);
-    return dma->number >= 1U && dma->number <= 5U && dma->channel == channels[dma->number - 1U]
-           && (dma->channel->CCR & mask) == required;
+    return dma->number >= 1U &&
+           dma->number <= 5U &&
+           dma->channel == channels[dma->number - 1U] &&
+           (dma->channel->CCR & mask) == required;
 }
 
 ui2c_status_t ui2c_stm32f0_init(ui2c_stm32f0_t* port, const ui2c_stm32f0_config_t* hw, const ui2c_config_t* config) {
-    if (port == NULL || hw == NULL || hw->instance == NULL || !valid_dma(&hw->tx_dma, false)
-        || !valid_dma(&hw->rx_dma, true) || (hw->tx_dma.channel != NULL && hw->tx_dma.channel == hw->rx_dma.channel)) {
+    if (port == NULL ||
+        hw == NULL ||
+        hw->instance == NULL ||
+        !valid_dma(&hw->tx_dma, false) ||
+        !valid_dma(&hw->rx_dma, true) ||
+        (hw->tx_dma.channel != NULL && hw->tx_dma.channel == hw->rx_dma.channel)) {
         return UI2C_STATUS_INVALID_ARG;
     }
     if (port->bus.ops != NULL) {

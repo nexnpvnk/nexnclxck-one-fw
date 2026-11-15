@@ -10,13 +10,20 @@ static nixie_status_t report(nixie_issue_t* issue, nixie_status_t status, uint8_
 }
 
 static bool valid_caps(const nixie_caps_t* caps) {
-    return caps != NULL && caps->anode_count > 0U && caps->anode_count <= NIXIE_MAX_ANODES && caps->cathode_count > 0U
-           && caps->cathode_count <= NIXIE_MAX_CATHODES && caps->max_slot_us > 0U;
+    return caps != NULL &&
+           caps->anode_count > 0U &&
+           caps->anode_count <= NIXIE_MAX_ANODES &&
+           caps->cathode_count > 0U &&
+           caps->cathode_count <= NIXIE_MAX_CATHODES &&
+           caps->max_slot_us > 0U;
 }
 
 nixie_status_t nixie_validate_board(const nixie_board_t* board, const nixie_caps_t* caps, nixie_issue_t* issue) {
-    if (!valid_caps(caps) || board == NULL || board->elements == NULL || board->element_count == 0U
-        || board->element_count > NIXIE_MAX_ELEMENTS) {
+    if (!valid_caps(caps) ||
+        board == NULL ||
+        board->elements == NULL ||
+        board->element_count == 0U ||
+        board->element_count > NIXIE_MAX_ELEMENTS) {
         return report(issue, NIXIE_INVALID_ARGUMENT, UINT8_MAX);
     }
     uint16_t anodes = 0U;
@@ -25,8 +32,12 @@ nixie_status_t nixie_validate_board(const nixie_board_t* board, const nixie_caps
     for (uint8_t e = 0U; e < board->element_count; ++e) {
         const nixie_element_t* element = &board->elements[e];
         const nixie_tube_t* tube = element->tube;
-        if (tube == NULL || tube->cathode_count == 0U || tube->cathode_count > NIXIE_MAX_CATHODES
-            || tube->symbols == NULL || tube->symbol_count == 0U || tube->symbol_count > 32U) {
+        if (tube == NULL ||
+            tube->cathode_count == 0U ||
+            tube->cathode_count > NIXIE_MAX_CATHODES ||
+            tube->symbols == NULL ||
+            tube->symbol_count == 0U ||
+            tube->symbol_count > 32U) {
             return report(issue, NIXIE_INVALID_TUBE, e);
         }
         if (element->anode_channel >= caps->anode_count || element->cathode_channels == NULL) {
@@ -48,8 +59,9 @@ nixie_status_t nixie_validate_board(const nixie_board_t* board, const nixie_caps
         uint16_t anode = (uint16_t)(1U << element->anode_channel);
         /* Shared-anode elements are selected simultaneously. Reject cathode
          * aliases and fixed returns which would light an unselected element. */
-        if ((fixed_anodes & anode) != 0U || (fixed_return && (anodes & anode) != 0U)
-            || (anode_cathodes[element->anode_channel] & channels) != 0U) {
+        if ((fixed_anodes & anode) != 0U ||
+            (fixed_return && (anodes & anode) != 0U) ||
+            (anode_cathodes[element->anode_channel] & channels) != 0U) {
             return report(issue, NIXIE_INVALID_WIRING, e);
         }
         anodes |= anode;
@@ -76,16 +88,18 @@ nixie_status_t nixie_validate_plan(const nixie_plan_t* plan, const nixie_caps_t*
     if (!valid_caps(caps) || plan == NULL || plan->slot_count == 0U || plan->slot_count > caps->anode_count) {
         return NIXIE_INVALID_ARGUMENT;
     }
-    if (plan->timing.refresh_rate_hz == 0U || plan->slot_us > caps->max_slot_us
-        || plan->slot_us <= plan->timing.blanking_time_us) {
+    if (plan->timing.refresh_rate_hz == 0U ||
+        plan->slot_us > caps->max_slot_us ||
+        plan->slot_us <= plan->timing.blanking_time_us) {
         return NIXIE_INVALID_TIMING;
     }
     uint32_t max_on = plan->slot_us - plan->timing.blanking_time_us;
     uint16_t anodes = 0U;
     for (uint8_t s = 0U; s < plan->slot_count; ++s) {
         const nixie_slot_t* slot = &plan->slots[s];
-        if (slot->anode >= caps->anode_count || (anodes & (1U << slot->anode)) != 0U
-            || ((uint32_t)slot->cathodes >> caps->cathode_count) != 0U) {
+        if (slot->anode >= caps->anode_count ||
+            (anodes & (1U << slot->anode)) != 0U ||
+            ((uint32_t)slot->cathodes >> caps->cathode_count) != 0U) {
             return NIXIE_INVALID_WIRING;
         }
         anodes |= (uint16_t)(1U << slot->anode);
@@ -96,8 +110,14 @@ nixie_status_t nixie_validate_plan(const nixie_plan_t* plan, const nixie_caps_t*
     return NIXIE_OK;
 }
 
-nixie_status_t nixie_compile(const nixie_board_t* board, const nixie_timing_t* timing, const nixie_frame_t* frame,
-                             const nixie_caps_t* caps, nixie_plan_t* plan, nixie_issue_t* issue) {
+nixie_status_t nixie_compile(
+    const nixie_board_t* board,
+    const nixie_timing_t* timing,
+    const nixie_frame_t* frame,
+    const nixie_caps_t* caps,
+    nixie_plan_t* plan,
+    nixie_issue_t* issue
+) {
     if (timing == NULL || frame == NULL || plan == NULL || frame->brightness_pm > NIXIE_BRIGHTNESS_MAX) {
         return report(issue, NIXIE_INVALID_ARGUMENT, UINT8_MAX);
     }

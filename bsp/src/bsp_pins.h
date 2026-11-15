@@ -80,11 +80,11 @@
 
 #define BSP_NIXIE_CATHODE_A_MASK (0U)
 #define BSP_NIXIE_CATHODE_B_MASK                                                                                       \
-    (BSP_CATHODE_0_PIN | BSP_CATHODE_1_PIN | BSP_CATHODE_2_PIN | BSP_CATHODE_3_PIN | BSP_CATHODE_4_PIN                 \
-     | BSP_CATHODE_12_PIN | BSP_CATHODE_13_PIN | BSP_CATHODE_14_PIN | BSP_CATHODE_15_PIN)
+    (BSP_CATHODE_0_PIN | BSP_CATHODE_1_PIN | BSP_CATHODE_2_PIN | BSP_CATHODE_3_PIN | BSP_CATHODE_4_PIN |               \
+     BSP_CATHODE_12_PIN | BSP_CATHODE_13_PIN | BSP_CATHODE_14_PIN | BSP_CATHODE_15_PIN)
 #define BSP_NIXIE_CATHODE_C_MASK                                                                                       \
-    (BSP_CATHODE_5_PIN | BSP_CATHODE_6_PIN | BSP_CATHODE_7_PIN | BSP_CATHODE_8_PIN | BSP_CATHODE_9_PIN                 \
-     | BSP_CATHODE_10_PIN | BSP_CATHODE_11_PIN)
+    (BSP_CATHODE_5_PIN | BSP_CATHODE_6_PIN | BSP_CATHODE_7_PIN | BSP_CATHODE_8_PIN | BSP_CATHODE_9_PIN |               \
+     BSP_CATHODE_10_PIN | BSP_CATHODE_11_PIN)
 
 /* LED anode is connected to +3.3 V; PC13 sinks current while LOW. */
 #define BSP_RTC_LED_PORT GPIOC

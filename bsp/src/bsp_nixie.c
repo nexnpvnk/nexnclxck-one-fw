@@ -170,8 +170,11 @@ void bsp_nixie_hw_init(void) {
 }
 
 bool bsp_nixie_init(void) {
-    if (!prepared || shutdown_latched || (RCC->APB2ENR & RCC_APB2ENR_TIM1EN) == 0U || TIM1->PSC != BSP_TIM_US_PSC
-        || TIM1->ARR != UINT16_MAX) {
+    if (!prepared ||
+        shutdown_latched ||
+        (RCC->APB2ENR & RCC_APB2ENR_TIM1EN) == 0U ||
+        TIM1->PSC != BSP_TIM_US_PSC ||
+        TIM1->ARR != UINT16_MAX) {
         return false;
     }
     initialized = true;

@@ -18,15 +18,18 @@
 #define WS2812_LATCH_MS      2U
 
 /* Maximum frame duration, rounded up, plus interrupt-latency margin. */
-#define WS2812_TIMEOUT_MS \
-    ((BSP_WS2812_MAX_LEDS * 24UL * 1000UL + BSP_BOARD_WS2812_BIT_RATE_HZ - 1UL) \
-     / BSP_BOARD_WS2812_BIT_RATE_HZ + 5UL)
+#define WS2812_TIMEOUT_MS                                                                                              \
+    ((BSP_WS2812_MAX_LEDS * 24UL * 1000UL + BSP_BOARD_WS2812_BIT_RATE_HZ - 1UL) / BSP_BOARD_WS2812_BIT_RATE_HZ + 5UL)
 
 _Static_assert(BSP_BOARD_WS2812_SYMBOLS_PER_BIT == 3U, "The BSRR encoder emits three symbols per bit");
-_Static_assert(WS2812_LEDS_PER_HALF > 0U && WS2812_LEDS_PER_HALF <= UINT8_MAX && WS2812_BUFFER_WORDS <= DMA_CNDTR_NDT,
-               "The circular buffer must have nonempty halves and fit DMA CNDTR");
-_Static_assert(BSP_WS2812_MAX_LEDS > 0U && BSP_WS2812_MAX_LEDS <= UINT8_MAX,
-               "The frame length must fit the LED counters");
+_Static_assert(
+    WS2812_LEDS_PER_HALF > 0U && WS2812_LEDS_PER_HALF <= UINT8_MAX && WS2812_BUFFER_WORDS <= DMA_CNDTR_NDT,
+    "The circular buffer must have nonempty halves and fit DMA CNDTR"
+);
+_Static_assert(
+    BSP_WS2812_MAX_LEDS > 0U && BSP_WS2812_MAX_LEDS <= UINT8_MAX,
+    "The frame length must fit the LED counters"
+);
 
 static uint32_t dma_buffer[WS2812_BUFFER_WORDS];
 static bsp_ws2812_rgb_t frame[BSP_WS2812_MAX_LEDS];
@@ -159,9 +162,13 @@ bool bsp_ws2812_init(void) {
     const uint32_t dma_mask =
         DMA_CCR_EN | DMA_CCR_DIR | DMA_CCR_PINC | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE | DMA_CCR_MSIZE;
     const uint32_t dma_expected = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1;
-    if (SystemCoreClock != PLATFORM_HCLK_HZ || (RCC->CFGR & RCC_CFGR_PPRE) != 0U
-        || (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U || TIM2->PSC != 0U || TIM2->ARR != BSP_TIM2_ARR
-        || TIM2->CCR3 != BSP_TIM2_CCR3 || (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
+    if (SystemCoreClock != PLATFORM_HCLK_HZ ||
+        (RCC->CFGR & RCC_CFGR_PPRE) != 0U ||
+        (RCC->APB1ENR & RCC_APB1ENR_TIM2EN) == 0U ||
+        TIM2->PSC != 0U ||
+        TIM2->ARR != BSP_TIM2_ARR ||
+        TIM2->CCR3 != BSP_TIM2_CCR3 ||
+        (DMA1_Channel1->CCR & dma_mask) != dma_expected) {
         return false;
     }
 
@@ -249,8 +256,8 @@ bool bsp_ws2812_show(const bsp_ws2812_rgb_t* colors, size_t count) {
     DMA1_Channel1->CPAR = (uint32_t)&GPIOD->BSRR;
     DMA1_Channel1->CMAR = (uint32_t)dma_buffer;
     DMA1_Channel1->CNDTR = WS2812_BUFFER_WORDS;
-    DMA1_Channel1->CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PL | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1
-                         | DMA_CCR_HTIE | DMA_CCR_TCIE | DMA_CCR_TEIE;
+    DMA1_Channel1->CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_CIRC | DMA_CCR_PL | DMA_CCR_PSIZE_1 | DMA_CCR_MSIZE_1 |
+                         DMA_CCR_HTIE | DMA_CCR_TCIE | DMA_CCR_TEIE;
     __DMB();
     DMA1_Channel1->CCR |= DMA_CCR_EN;
     TIM2->DIER |= TIM_DIER_CC3DE;
