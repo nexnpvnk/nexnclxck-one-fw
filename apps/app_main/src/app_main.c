@@ -63,8 +63,6 @@ void app_main(void) {
 
     if (!logger_init()) {
         printf("Warning: microlog initialization failed\n");
-    } else {
-        ulog_t(ULOG_SYSLOG_INFO, TAG, "Logging initialized");
     }
 
     if (!shell_init()) {
