@@ -13,6 +13,7 @@ static ledfx_rgb_t pixels[BSP_WS2812_MAX_LEDS];
 static bsp_ws2812_rgb_t last_sent[BSP_WS2812_MAX_LEDS];
 
 static ledfx_config_t config;
+static app_light_preview_t preview;
 
 static uint32_t effect_started_ms;
 static uint32_t last_render_ms;
@@ -59,7 +60,7 @@ bool app_light_reset(void) {
         .seed = 0x2812U,
     };
 
-    brightness = (25U * 255U + 50U) / 100U; /* 25%, rounded to the 0..255 range. */
+    brightness = 64U; /* About 25%. */
 
     effect_started_ms = bsp_time_ms();
     last_render_ms = effect_started_ms;
@@ -121,6 +122,17 @@ bool app_light_set_brightness(uint8_t value) {
     return true;
 }
 
+bool app_light_set_preview(app_light_preview_t value) {
+    if (!initialized || (unsigned)value > APP_LIGHT_PREVIEW_SECONDARY) {
+        return false;
+    }
+    if (preview != value) {
+        preview = value;
+        dirty = true;
+    }
+    return true;
+}
+
 bool app_light_get_status(app_light_status_t* status) {
     if (!initialized || status == NULL) {
         return false;
@@ -158,11 +170,16 @@ void app_light_process(void) {
 
     uint32_t now = bsp_time_ms();
 
-    bool animated = config.effect != LEDFX_EFFECT_STATIC;
+    bool animated = preview == APP_LIGHT_PREVIEW_NONE && config.effect != LEDFX_EFFECT_STATIC;
 
     if (dirty || (animated && (uint32_t)(now - last_render_ms) >= APP_LIGHT_FRAME_MS)) {
 
-        if (!ledfx_render(&config, pixels, led_count, now - effect_started_ms)) {
+        ledfx_config_t rendered = config;
+        if (preview != APP_LIGHT_PREVIEW_NONE) {
+            rendered.effect = LEDFX_EFFECT_STATIC;
+            rendered.primary = preview == APP_LIGHT_PREVIEW_PRIMARY ? config.primary : config.secondary;
+        }
+        if (!ledfx_render(&rendered, pixels, led_count, now - effect_started_ms)) {
             return;
         }
 

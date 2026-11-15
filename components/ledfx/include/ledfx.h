@@ -10,6 +10,7 @@
 extern "C" {
 #endif
 
+/* RGB and HSV encode color channels as bytes. */
 typedef struct {
     uint8_t r;
     uint8_t g;
@@ -36,7 +37,7 @@ typedef struct {
     ledfx_effect_t effect;
     ledfx_rgb_t primary;
     ledfx_rgb_t secondary;
-    uint8_t speed;
+    uint8_t speed; /* 0..255; higher is faster. */
     uint32_t seed;
 } ledfx_config_t;
 
@@ -52,6 +53,7 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
 
 ledfx_rgb_t ledfx_hsv_to_rgb(ledfx_hsv_t hsv);
 
+/* Amount and brightness use the full 0..255 range. */
 ledfx_rgb_t ledfx_color_blend(ledfx_rgb_t a, ledfx_rgb_t b, uint8_t amount);
 
 ledfx_rgb_t ledfx_color_scale(ledfx_rgb_t color, uint8_t brightness);

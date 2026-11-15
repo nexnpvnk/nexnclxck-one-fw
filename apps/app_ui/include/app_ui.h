@@ -27,10 +27,12 @@ void app_ui_process(bool can_render);
 /* Foreground-only. Input reports PRESS, optionally one LONG_PRESS, then RELEASE.
  * UI chooses the action and sound. Events are handled even when rendering is
  * unavailable; invalid keys/events and calls before initialization are ignored.
- * Short FN cycles effects on RELEASE; long FN opens brightness adjustment.
- * LEFT/RIGHT adjust 0..100% in one-percent steps, with accelerating hold repeat.
- * Holding LEFT/RIGHT in adjustment is silent. OK/short FN or 10 seconds of
- * inactivity finish adjustment; changes apply immediately. */
+ * Short FN cycles effects outside the editor and exits it on RELEASE.
+ * Each long FN selects the next setting: 1 brightness, 2 speed, 3 primary,
+ * 4 secondary, then 1 again. Show the setting ID left and its value right.
+ * LEFT/RIGHT edit brightness/speed (0..255) or palette entries (1..16), with silent
+ * accelerating hold repeat. OK/short FN or 10 seconds of inactivity finish.
+ * Changes apply immediately; color preview ends when leaving color settings. */
 void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event);
 
 #endif /* APP_UI_H */

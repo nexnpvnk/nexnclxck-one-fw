@@ -15,7 +15,7 @@ Drivers access registers through CMSIS. Flash: 64 KiB. RAM: 8 KiB.
 | Separator blinking | PC13 LOW enables the separator slot; about 500 ms per phase |
 | DC/DC | 180 V, 24 kHz PWM, 1 kHz ADC/PI |
 | Console | USART1, 1500000 baud, 8N1 |
-| Lighting | 12 WS2812 LEDs, static warm orange (0xFF5008), brightness 25% (64/255) |
+| Lighting | 12 WS2812 LEDs, static warm orange (0xFF5008), brightness 64/255 (about 25%), speed 128/255 |
 | BME280 | Forced mode, 100 ms measurement interval |
 
 The display shows the RTC counters once RTC and HV are ready, even when the
@@ -34,8 +34,12 @@ the next successful measurement makes them available again.
 RIGHT / LEFT steps through available screens and holds the selection for
 10 seconds after the last press, then returns to time and the automatic cycle.
 Short FN cycles `static` → `breath` → `rainbow` → `fade` → `flicker` → `comet`
-→ `static` on release. Hold FN for 1 second to adjust lighting brightness:
-LEFT / RIGHT changes 0..100% in one-percent steps, shown on the tubes.
+→ `static` on release. Each 1-second FN hold selects the next lighting setting:
+1 brightness, 2 speed, 3 primary color, 4 secondary color, then 1 again.
+The leftmost tube shows the setting number; the value is aligned to the right.
+LEFT / RIGHT changes brightness/speed by one point in 0..255, or cycles a
+16-color palette for primary/secondary. Color settings preview the selected
+color as static at current brightness; leaving them resumes the selected effect.
 Holding LEFT / RIGHT starts repeat after 400 ms and speeds it up after 1.2 and
 2.5 seconds. The initial press beeps once; holding and repeat are silent.
 OK, short FN or 10 seconds of inactivity return to time. Changes apply immediately
@@ -142,7 +146,7 @@ clock set -d 2026-11-14 -t 12:34:56
 | Lighting parameters | `light` |
 | Lighting effect | `light set --effect fade` |
 | Primary and secondary RGB colors | `light set --primary 0xFF5008 --secondary 0x0020FF` |
-| Lighting speed and brightness, 0..255 | `light set --speed 128 --brightness 32` |
+| Lighting speed and brightness, 0..255 | `light set --speed 128 --brightness 64` |
 | Turn lighting off | `light set --brightness 0` |
 | Restore startup lighting parameters | `light reset` |
 
@@ -156,14 +160,18 @@ before changes are applied. Unknown and repeated options are rejected.
 `static`, `breath`, `rainbow`, `fade`, `flicker` and `comet`. `rainbow` ignores
 both colors; `fade` uses both; the other effects use the primary color.
 Speed 0 is the slowest setting, 255 the fastest; `static` ignores speed.
-Brightness 0 turns lighting off, 255 gives full brightness. Options can be
+Brightness 0 turns lighting off, 255 gives full brightness. UI, CLI and the
+renderer all use the full 8-bit range. RGB colors remain `0xRRGGBB`. Options can be
 changed independently; omitted values are preserved. Short forms are `-e`
 for effect, `-s` for speed and `-b` for brightness. Changes are rendered from
 the main loop and sent asynchronously via DMA. Settings are held in RAM
 and return to startup defaults after reset.
-`light reset` restores `static`, colors `0xFF5008` / `0x0020FF`, speed 128
-and brightness 25% (64/255), and restarts the effect phase while preserving the LED count.
+`light reset` restores `static`, colors `0xFF5008` / `0x0020FF`, speed 128/255
+and brightness 64/255 (about 25%), and restarts the effect phase while preserving the LED count.
 Animated effects render every 33 ms; static lighting renders when needed.
+Custom RGB colors remain available through the CLI. The color editor shows 0
+when a color is outside its palette, preserving it until LEFT / RIGHT selects
+an entry. The palette is listed in the [UI documentation](apps/app_display/README.md).
 
 `clock` shows the RTC date and time whenever they can be read, with a `not set`
 warning if the time-set marker is absent. Log timestamps use RTC time when it

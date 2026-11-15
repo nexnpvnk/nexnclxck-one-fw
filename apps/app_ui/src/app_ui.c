@@ -15,8 +15,8 @@
 #define APP_UI_MANUAL_MS 10000U
 #define APP_UI_POLL_MS   20U
 
-#define APP_UI_LIGHT_TIMEOUT_MS      10000U
-#define APP_UI_LIGHT_REPEAT_DELAY_MS 400U
+#define APP_UI_SETTING_TIMEOUT_MS      10000U
+#define APP_UI_SETTING_REPEAT_DELAY_MS 400U
 
 #define APP_UI_BEEP_FREQ_HZ     2800U
 #define APP_UI_BEEP_VOLUME      10U
@@ -31,6 +31,51 @@ typedef enum {
     SCREEN_COUNT,
 } screen_t;
 
+typedef enum {
+    SETTING_NONE = 0,
+    SETTING_LIGHT_BRIGHTNESS,
+    SETTING_LIGHT_SPEED,
+    SETTING_LIGHT_PRIMARY,
+    SETTING_LIGHT_SECONDARY,
+    SETTING_COUNT,
+} setting_id_t;
+
+typedef struct {
+    uint8_t minimum;
+    uint8_t maximum;
+    bool wrap;
+} setting_range_t;
+
+static const ledfx_rgb_t light_palette[] = {
+    {255U, 80U, 8U},   /*  1: warm orange, startup primary */
+    {255U, 144U, 0U},  /*  2: amber */
+    {255U, 208U, 0U},  /*  3: yellow */
+    {128U, 255U, 0U},  /*  4: lime */
+    {0U, 255U, 0U},    /*  5: green */
+    {0U, 255U, 128U},  /*  6: turquoise */
+    {0U, 255U, 255U},  /*  7: cyan */
+    {0U, 32U, 255U},   /*  8: blue, startup secondary */
+    {128U, 0U, 255U},  /*  9: violet */
+    {255U, 0U, 255U},  /* 10: magenta */
+    {255U, 64U, 128U}, /* 11: pink */
+    {255U, 0U, 0U},    /* 12: red */
+    {255U, 214U, 160U}, /* 13: warm white */
+    {255U, 255U, 255U}, /* 14: white */
+    {192U, 216U, 255U}, /* 15: cool white */
+    {0U, 0U, 0U},      /* 16: black */
+};
+
+#define APP_UI_LIGHT_COLOR_COUNT (sizeof(light_palette) / sizeof(light_palette[0]))
+
+/* One numeric editor owns stepping, repeat, timeout and presentation.
+ * Setting adapters below only read/write application values. */
+static const setting_range_t setting_ranges[SETTING_COUNT] = {
+    [SETTING_LIGHT_BRIGHTNESS] = {0U, UINT8_MAX, false},
+    [SETTING_LIGHT_SPEED] = {0U, UINT8_MAX, false},
+    [SETTING_LIGHT_PRIMARY] = {1U, APP_UI_LIGHT_COLOR_COUNT, true},
+    [SETTING_LIGHT_SECONDARY] = {1U, APP_UI_LIGHT_COLOR_COUNT, true},
+};
+
 static const nixie_board_t* board;
 static const app_display_layout_t* layout;
 static screen_t screen;
@@ -39,12 +84,12 @@ static uint32_t last_poll_ms;
 static bool initialized;
 static bool view_started;
 static bool manual;
-static bool light_adjusting;
+static setting_id_t setting;
 static bool fn_short_pending;
-static int8_t light_direction;
-static uint32_t light_activity_ms;
-static uint32_t light_hold_started_ms;
-static uint32_t light_last_step_ms;
+static int8_t adjustment_direction;
+static uint32_t setting_activity_ms;
+static uint32_t setting_hold_started_ms;
+static uint32_t setting_last_step_ms;
 
 static nixie_status_t report(nixie_issue_t* issue, nixie_status_t status, uint8_t element) {
     if (issue != NULL) {
@@ -120,9 +165,10 @@ nixie_status_t app_ui_init(nixie_issue_t* issue) {
     layout = profile->layout;
     screen = SCREEN_TIME;
     manual = false;
-    light_adjusting = false;
+    setting = SETTING_NONE;
     fn_short_pending = false;
-    light_direction = 0;
+    adjustment_direction = 0;
+    (void)app_light_set_preview(APP_LIGHT_PREVIEW_NONE);
     screen_started_ms = bsp_time_ms();
     last_poll_ms = screen_started_ms - APP_UI_POLL_MS;
     initialized = true;
@@ -187,10 +233,11 @@ static void step_screen(int8_t direction) {
     last_poll_ms = now - APP_UI_POLL_MS;
 }
 
-static void finish_light_adjustment(uint32_t now) {
-    light_adjusting = false;
-    light_direction = 0;
+static void finish_adjustment(uint32_t now) {
+    setting = SETTING_NONE;
+    adjustment_direction = 0;
     fn_short_pending = false;
+    (void)app_light_set_preview(APP_LIGHT_PREVIEW_NONE);
     screen = SCREEN_TIME;
     manual = false;
     view_started = true;
@@ -206,34 +253,103 @@ static void step_light_effect(void) {
     }
 }
 
-static void step_light_brightness(int8_t direction) {
-    app_light_status_t status;
-    if (!app_light_get_status(&status)) {
-        return;
+static uint8_t palette_index(ledfx_rgb_t color) {
+    for (uint8_t i = 0U; i < APP_UI_LIGHT_COLOR_COUNT; ++i) {
+        if (light_palette[i].r == color.r && light_palette[i].g == color.g && light_palette[i].b == color.b) {
+            return i + 1U;
+        }
     }
-    /* Whole percent in the UI, with app_light retaining its 0..255 range.
-     * Read each step so changes from the CLI are reflected immediately. */
-    uint8_t percent = (uint8_t)(((uint16_t)status.brightness * 100U + 127U) / 255U);
-    if (direction > 0 && percent < 100U) {
-        ++percent;
-    } else if (direction < 0 && percent > 0U) {
-        --percent;
-    }
-    (void)app_light_set_brightness((uint8_t)((percent * 255U + 50U) / 100U));
+    return 0U; /* Custom RGB from the CLI; do not change it just by entering. */
 }
 
-static void repeat_light_brightness(uint32_t now) {
-    if (light_direction == 0) {
+static bool read_setting_value(setting_id_t id, uint8_t* value) {
+    app_light_status_t status;
+    if (!app_light_get_status(&status)) {
+        return false;
+    }
+    switch (id) {
+        case SETTING_LIGHT_BRIGHTNESS: *value = status.brightness; break;
+        case SETTING_LIGHT_SPEED: *value = status.speed; break;
+        case SETTING_LIGHT_PRIMARY: *value = palette_index(status.primary); break;
+        case SETTING_LIGHT_SECONDARY: *value = palette_index(status.secondary); break;
+        default: return false;
+    }
+    return true;
+}
+
+static bool write_setting_value(setting_id_t id, uint8_t value) {
+    if (id == SETTING_LIGHT_BRIGHTNESS) {
+        return app_light_set_brightness(value);
+    }
+    if (id == SETTING_LIGHT_SPEED) {
+        return app_light_set_speed(value);
+    }
+    app_light_status_t status;
+    if ((id != SETTING_LIGHT_PRIMARY && id != SETTING_LIGHT_SECONDARY)
+        || value == 0U || value > APP_UI_LIGHT_COLOR_COUNT || !app_light_get_status(&status)) {
+        return false;
+    }
+    if (id == SETTING_LIGHT_PRIMARY) {
+        status.primary = light_palette[value - 1U];
+    } else {
+        status.secondary = light_palette[value - 1U];
+    }
+    return app_light_set_colors(status.primary, status.secondary);
+}
+
+static void next_setting(uint32_t now) {
+    setting_id_t next = (setting_id_t)(setting + 1U);
+    if (next == SETTING_COUNT) {
+        next = SETTING_LIGHT_BRIGHTNESS;
+    }
+    uint8_t value;
+    if (!read_setting_value(next, &value)) {
         return;
     }
-    /* Holding a key is activity even at the bounds. Keep one-percent steps;
+    app_light_preview_t preview = APP_LIGHT_PREVIEW_NONE;
+    if (next == SETTING_LIGHT_PRIMARY) {
+        preview = APP_LIGHT_PREVIEW_PRIMARY;
+    } else if (next == SETTING_LIGHT_SECONDARY) {
+        preview = APP_LIGHT_PREVIEW_SECONDARY;
+    }
+    if (!app_light_set_preview(preview)) {
+        return;
+    }
+    setting = next;
+    adjustment_direction = 0;
+    setting_activity_ms = now;
+    view_started = true;
+    last_poll_ms = now - APP_UI_POLL_MS;
+}
+
+static void step_setting(int8_t direction) {
+    uint8_t value;
+    if (!read_setting_value(setting, &value)) {
+        return;
+    }
+    const setting_range_t* range = &setting_ranges[setting];
+    if (value < range->minimum || value > range->maximum) {
+        value = direction > 0 ? range->minimum : range->maximum;
+    } else if (direction > 0) {
+        value = value < range->maximum ? value + 1U : (range->wrap ? range->minimum : range->maximum);
+    } else {
+        value = value > range->minimum ? value - 1U : (range->wrap ? range->maximum : range->minimum);
+    }
+    (void)write_setting_value(setting, value);
+}
+
+static void repeat_adjustment(uint32_t now) {
+    if (adjustment_direction == 0) {
+        return;
+    }
+    /* Holding a key is activity even at the bounds. Keep unit steps;
      * accelerate only their rate and never replay missed steps in a burst. */
-    light_activity_ms = now;
-    uint32_t held_ms = now - light_hold_started_ms;
+    setting_activity_ms = now;
+    uint32_t held_ms = now - setting_hold_started_ms;
     uint32_t interval_ms = held_ms >= 2500U ? 20U : (held_ms >= 1200U ? 60U : 150U);
-    if (held_ms >= APP_UI_LIGHT_REPEAT_DELAY_MS && (uint32_t)(now - light_last_step_ms) >= interval_ms) {
-        step_light_brightness(light_direction);
-        light_last_step_ms = now;
+    if (held_ms >= APP_UI_SETTING_REPEAT_DELAY_MS && (uint32_t)(now - setting_last_step_ms) >= interval_ms) {
+        step_setting(adjustment_direction);
+        setting_last_step_ms = now;
     }
 }
 
@@ -244,19 +360,19 @@ void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
     uint32_t now = bsp_time_ms();
     switch (event) {
         case APP_UI_EVENT_PRESS:
-            if (light_adjusting) {
-                light_activity_ms = now;
+            if (setting != SETTING_NONE) {
+                setting_activity_ms = now;
             }
             if (key == APP_UI_KEY_FN) {
                 fn_short_pending = true;
-            } else if (light_adjusting) {
+            } else if (setting != SETTING_NONE) {
                 if (key == APP_UI_KEY_RIGHT || key == APP_UI_KEY_LEFT) {
-                    light_direction = key == APP_UI_KEY_RIGHT ? 1 : -1;
-                    light_hold_started_ms = now;
-                    light_last_step_ms = now;
-                    step_light_brightness(light_direction);
+                    adjustment_direction = key == APP_UI_KEY_RIGHT ? 1 : -1;
+                    setting_hold_started_ms = now;
+                    setting_last_step_ms = now;
+                    step_setting(adjustment_direction);
                 } else if (key == APP_UI_KEY_OK) {
-                    finish_light_adjustment(now);
+                    finish_adjustment(now);
                 }
             } else if (key == APP_UI_KEY_RIGHT) {
                 step_screen(1);
@@ -266,35 +382,28 @@ void app_ui_handle_input(app_ui_key_t key, app_ui_event_t event) {
             (void)app_sound_beep(APP_UI_BEEP_FREQ_HZ, APP_UI_BEEP_VOLUME, APP_UI_BEEP_DURATION_MS);
             break;
         case APP_UI_EVENT_LONG_PRESS:
-            if (light_adjusting && (key == APP_UI_KEY_LEFT || key == APP_UI_KEY_RIGHT)) {
+            if (setting != SETTING_NONE && (key == APP_UI_KEY_LEFT || key == APP_UI_KEY_RIGHT)) {
                 /* Repeat is handled by process(); no hold beep in adjustment. */
                 break;
             }
             if (key == APP_UI_KEY_FN && fn_short_pending) {
-                /* Consume the later RELEASE: entering adjustment must neither
-                 * switch the effect nor immediately leave the new mode. */
+                /* Each hold selects the next setting. Consume its RELEASE so
+                 * it cannot also switch the effect or close the editor. */
                 fn_short_pending = false;
-                app_light_status_t status;
-                if (app_light_get_status(&status)) {
-                    light_adjusting = true;
-                    light_direction = 0;
-                    light_activity_ms = now;
-                    view_started = true;
-                    last_poll_ms = now - APP_UI_POLL_MS;
-                }
+                next_setting(now);
             }
             (void)app_sound_beep(APP_UI_BEEP_FREQ_HZ, APP_UI_BEEP_VOLUME, APP_UI_BEEP_DURATION_MS * 4U);
             break;
         case APP_UI_EVENT_RELEASE:
-            if ((key == APP_UI_KEY_RIGHT && light_direction > 0)
-                || (key == APP_UI_KEY_LEFT && light_direction < 0)) {
-                light_direction = 0;
-                light_activity_ms = now;
+            if ((key == APP_UI_KEY_RIGHT && adjustment_direction > 0)
+                || (key == APP_UI_KEY_LEFT && adjustment_direction < 0)) {
+                adjustment_direction = 0;
+                setting_activity_ms = now;
             }
             if (key == APP_UI_KEY_FN && fn_short_pending) {
                 fn_short_pending = false;
-                if (light_adjusting) {
-                    finish_light_adjustment(now);
+                if (setting != SETTING_NONE) {
+                    finish_adjustment(now);
                 } else {
                     step_light_effect();
                 }
@@ -390,15 +499,15 @@ static bool render_number(uint8_t* symbols, uint16_t* dots, uint32_t value, bool
     return true;
 }
 
-static void show_light_brightness(void) {
-    app_light_status_t status;
-    if (!app_light_get_status(&status)) {
+static void show_setting(void) {
+    uint8_t value;
+    if (!read_setting_value(setting, &value)) {
         return;
     }
     app_display_frame_t frame = {.element_count = board->element_count};
     memset(frame.symbols, NIXIE_SYMBOL_BLANK, sizeof(frame.symbols));
-    uint8_t percent = (uint8_t)(((uint16_t)status.brightness * 100U + 127U) / 255U);
-    (void)put_unsigned(frame.symbols, percent, layout->digit_count);
+    frame.symbols[layout->digits[0]] = (uint8_t)setting;
+    (void)put_unsigned(frame.symbols, value, layout->digit_count);
     (void)app_display_present(&frame);
 }
 
@@ -466,10 +575,10 @@ void app_ui_process(bool can_render) {
         return;
     }
     uint32_t now = bsp_time_ms();
-    if (light_adjusting) {
-        repeat_light_brightness(now);
-        if ((uint32_t)(now - light_activity_ms) >= APP_UI_LIGHT_TIMEOUT_MS) {
-            finish_light_adjustment(now);
+    if (setting != SETTING_NONE) {
+        repeat_adjustment(now);
+        if ((uint32_t)(now - setting_activity_ms) >= APP_UI_SETTING_TIMEOUT_MS) {
+            finish_adjustment(now);
         }
     }
     if (!view_started) {
@@ -484,9 +593,9 @@ void app_ui_process(bool can_render) {
         return;
     }
     last_poll_ms = now;
-    if (light_adjusting) {
+    if (setting != SETTING_NONE) {
         if (can_render) {
-            show_light_brightness();
+            show_setting();
         }
         return;
     }
