@@ -30,6 +30,10 @@
 ########  ########## ###    ###  ########  ###    ###\n\
 \n"
 
+// temporally off the startup banner
+#undef WSH_SHELL_HEADER
+#define WSH_SHELL_HEADER ""
+
 /*
  * ─────────────────────────────────────────────
  * Target runtime environment
