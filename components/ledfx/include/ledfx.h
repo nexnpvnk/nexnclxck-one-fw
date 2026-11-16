@@ -41,15 +41,9 @@ typedef struct {
     uint32_t seed;
 } ledfx_config_t;
 
-/*
- * Render an effect into the caller-owned RGB buffer.
- *
- * - Entire buffer is written on success.
- * - elapsed_ms is relative to the effect start.
- * - No state is retained between calls.
- * - Invalid arguments leave the buffer unchanged.
- */
-bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t count, uint32_t elapsed_ms);
+uint32_t ledfx_effect_period_ms(ledfx_effect_t effect, uint8_t speed);
+
+bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t count, uint64_t elapsed_ms);
 
 ledfx_rgb_t ledfx_hsv_to_rgb(ledfx_hsv_t hsv);
 

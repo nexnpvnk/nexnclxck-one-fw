@@ -15,7 +15,8 @@ static bsp_ws2812_rgb_t last_sent[BSP_WS2812_MAX_LEDS];
 static ledfx_config_t config;
 static app_light_preview_t preview;
 
-static uint32_t effect_started_ms;
+static uint64_t effect_elapsed_ms;
+static uint32_t effect_updated_ms;
 static uint32_t last_render_ms;
 
 static uint8_t led_count;
@@ -26,6 +27,15 @@ static bool dirty;
 static bool pending;
 static bool have_sent;
 static uint32_t observed_ws2812_errors;
+
+/**
+ * \brief           Advance effect time using a wrap-safe difference of BSP timestamps
+ * \param[in]       now: Current BSP timestamp in milliseconds
+ */
+static void prv_update_effect_time(uint32_t now) {
+    effect_elapsed_ms += (uint32_t)(now - effect_updated_ms);
+    effect_updated_ms = now;
+}
 
 bool app_light_init(uint8_t count) {
     if (initialized) {
@@ -62,8 +72,9 @@ bool app_light_reset(void) {
 
     brightness = 64U; /* About 25%. */
 
-    effect_started_ms = bsp_time_ms();
-    last_render_ms = effect_started_ms;
+    effect_elapsed_ms = 0U;
+    effect_updated_ms = bsp_time_ms();
+    last_render_ms = effect_updated_ms;
 
     dirty = true;
 
@@ -77,7 +88,8 @@ bool app_light_set_effect(ledfx_effect_t effect) {
 
     if (config.effect != effect) {
         config.effect = effect;
-        effect_started_ms = bsp_time_ms();
+        effect_elapsed_ms = 0U;
+        effect_updated_ms = bsp_time_ms();
         dirty = true;
     }
 
@@ -96,12 +108,27 @@ bool app_light_set_colors(ledfx_rgb_t primary, ledfx_rgb_t secondary) {
     return true;
 }
 
+/**
+ * \brief           Change effect speed while preserving its current phase
+ * \param[in]       speed: Speed in the range `0..255`
+ * \return          `true` on success, or `false` before initialization
+ */
 bool app_light_set_speed(uint8_t speed) {
     if (!initialized) {
         return false;
     }
 
     if (config.speed != speed) {
+        uint32_t now = bsp_time_ms();
+        uint32_t old_period_ms = ledfx_effect_period_ms(config.effect, config.speed);
+        uint32_t new_period_ms = ledfx_effect_period_ms(config.effect, speed);
+
+        prv_update_effect_time(now);
+        if (old_period_ms > 0U) {
+            /* Retain completed steps and fractional progress at the new speed. */
+            effect_elapsed_ms = (effect_elapsed_ms * new_period_ms) / old_period_ms;
+        }
+
         config.speed = speed;
         dirty = true;
     }
@@ -109,6 +136,11 @@ bool app_light_set_speed(uint8_t speed) {
     return true;
 }
 
+/**
+ * \brief           Change output brightness without changing the effect timeline
+ * \param[in]       value: Brightness in the range `0..255`
+ * \return          `true` on success, or `false` before initialization
+ */
 bool app_light_set_brightness(uint8_t value) {
     if (!initialized) {
         return false;
@@ -170,6 +202,8 @@ void app_light_process(void) {
 
     uint32_t now = bsp_time_ms();
 
+    prv_update_effect_time(now);
+
     bool animated = preview == APP_LIGHT_PREVIEW_NONE && config.effect != LEDFX_EFFECT_STATIC;
 
     if (dirty || (animated && (uint32_t)(now - last_render_ms) >= APP_LIGHT_FRAME_MS)) {
@@ -179,7 +213,7 @@ void app_light_process(void) {
             rendered.effect = LEDFX_EFFECT_STATIC;
             rendered.primary = preview == APP_LIGHT_PREVIEW_PRIMARY ? config.primary : config.secondary;
         }
-        if (!ledfx_render(&rendered, pixels, led_count, now - effect_started_ms)) {
+        if (!ledfx_render(&rendered, pixels, led_count, effect_elapsed_ms)) {
             return;
         }
 

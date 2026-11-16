@@ -18,8 +18,14 @@ static uint32_t hash32(uint32_t value) {
     return value;
 }
 
-static uint8_t triangle8(uint32_t elapsed_ms, uint32_t period) {
-    uint32_t phase = elapsed_ms % period;
+/**
+ * \brief           Calculate a triangular waveform level from the current effect time
+ * \param[in]       elapsed_ms: Time relative to the effect start
+ * \param[in]       period: Nonzero cycle duration in milliseconds, at least `2`
+ * \return          Waveform level in the range `0..255`
+ */
+static uint8_t triangle8(uint64_t elapsed_ms, uint32_t period) {
+    uint32_t phase = (uint32_t)(elapsed_ms % period);
     uint32_t half = period / 2U;
 
     if (phase > half) {
@@ -29,10 +35,45 @@ static uint8_t triangle8(uint32_t elapsed_ms, uint32_t period) {
     return (uint8_t)((phase * 255U) / half);
 }
 
-bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t count, uint32_t elapsed_ms) {
+/**
+ * \brief           Get the duration of one effect cycle or discrete step
+ * \param[in]       effect: Effect whose timing is requested
+ * \param[in]       speed: Speed in the range `0..255`
+ * \return          Duration in milliseconds, or `0` for static or invalid effects
+ */
+uint32_t ledfx_effect_period_ms(ledfx_effect_t effect, uint8_t speed) {
+    switch (effect) {
+        case LEDFX_EFFECT_BREATH:
+            return period_ms(speed, 6000U, 1200U);
+        case LEDFX_EFFECT_RAINBOW:
+            return period_ms(speed, 12000U, 1500U);
+        case LEDFX_EFFECT_FADE:
+            return period_ms(speed, 8000U, 1200U);
+        case LEDFX_EFFECT_FLICKER:
+            return period_ms(speed, 240U, 35U);
+        case LEDFX_EFFECT_COMET:
+            return period_ms(speed, 350U, 65U);
+        default:
+            return 0U;
+    }
+}
+
+/**
+ * \brief           Render an effect without retaining state between calls
+ * \param[in]       config: Effect configuration
+ * \param[out]      pixels: RGB buffer written completely on success
+ * \param[in]       count: Number of pixels to render
+ * \param[in]       elapsed_ms: Time relative to the effect start
+ * \return          `true` on success, or `false` for invalid arguments without changing the buffer
+ */
+bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t count, uint64_t elapsed_ms) {
+    uint32_t period;
+
     if (config == NULL || pixels == NULL || count == 0U || config->effect >= LEDFX_EFFECT_COUNT) {
         return false;
     }
+
+    period = ledfx_effect_period_ms(config->effect, config->speed);
 
     switch (config->effect) {
         case LEDFX_EFFECT_STATIC:
@@ -42,8 +83,6 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
             break;
 
         case LEDFX_EFFECT_BREATH: {
-            uint32_t period = period_ms(config->speed, 6000U, 1200U);
-
             uint8_t amplitude = triangle8(elapsed_ms, period);
             uint8_t level = (uint8_t)(8U + ((uint32_t)amplitude * 247U) / 255U);
 
@@ -56,9 +95,8 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
         }
 
         case LEDFX_EFFECT_RAINBOW: {
-            uint32_t period = period_ms(config->speed, 12000U, 1500U);
-
-            uint8_t offset = (uint8_t)(((elapsed_ms % period) * 256U) / period);
+            uint32_t phase = (uint32_t)(elapsed_ms % period);
+            uint8_t offset = (uint8_t)((phase * 256U) / period);
 
             for (size_t i = 0; i < count; ++i) {
                 uint8_t hue = (uint8_t)(((uint32_t)i * 256U) / count + offset);
@@ -69,7 +107,6 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
         }
 
         case LEDFX_EFFECT_FADE: {
-            uint32_t period = period_ms(config->speed, 8000U, 1200U);
             uint8_t amount = triangle8(elapsed_ms, period);
 
             ledfx_rgb_t color = ledfx_color_blend(config->primary, config->secondary, amount);
@@ -81,8 +118,7 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
         }
 
         case LEDFX_EFFECT_FLICKER: {
-            uint32_t period = period_ms(config->speed, 240U, 35U);
-            uint32_t step = elapsed_ms / period;
+            uint32_t step = (uint32_t)(elapsed_ms / period);
 
             for (size_t i = 0; i < count; ++i) {
                 uint32_t random = hash32(config->seed ^ (step * 0x9E3779B9U) ^ ((uint32_t)i * 0x85EBCA6BU));
@@ -95,8 +131,7 @@ bool ledfx_render(const ledfx_config_t* config, ledfx_rgb_t* pixels, size_t coun
         }
 
         case LEDFX_EFFECT_COMET: {
-            uint32_t period = period_ms(config->speed, 350U, 65U);
-            uint32_t head = (elapsed_ms / period) % ((uint32_t)count + 4U);
+            uint32_t head = (uint32_t)((elapsed_ms / period) % ((uint32_t)count + 4U));
 
             for (size_t i = 0; i < count; ++i) {
                 uint8_t level = 0U;
