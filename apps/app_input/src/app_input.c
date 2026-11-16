@@ -26,6 +26,24 @@ static const app_ui_key_t ui_keys[] = {
 
 _Static_assert(sizeof(ui_keys) / sizeof(ui_keys[0]) == BSP_BUTTON_COUNT, "Map every board button to a UI key");
 
+/**
+ * \brief           Read the physical button state during foreground processing.
+ * \param[in]       group: Button group, unused.
+ * \param[in]       button: Button from the configured `buttons` array.
+ * \return          `1` when pressed, otherwise `0`.
+ */
+static uint8_t prv_button_get_state(lwbtn_t* group, lwbtn_btn_t* button) {
+    size_t id = (size_t)(button - buttons);
+
+    (void)group;
+
+    if (id >= BSP_BUTTON_COUNT) {
+        return 0U;
+    }
+
+    return (uint8_t)((bsp_buttons_get_pressed_mask() >> id) & 1U);
+}
+
 static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event) {
     (void)group;
 
@@ -65,11 +83,9 @@ static void button_event(lwbtn_t* group, lwbtn_btn_t* button, lwbtn_evt_t event)
 }
 
 bool app_input_init(void) {
-    bsp_buttons_init();
-
     last_process_ms = bsp_time_ms();
 
-    return lwbtn_init(buttons, BSP_BUTTON_COUNT, NULL, button_event) != 0U;
+    return lwbtn_init(buttons, BSP_BUTTON_COUNT, prv_button_get_state, button_event) != 0U;
 }
 
 void app_input_process(void) {
@@ -80,12 +96,6 @@ void app_input_process(void) {
     }
 
     last_process_ms = now;
-
-    uint8_t states = bsp_buttons_get_pressed_mask();
-
-    for (uint32_t i = 0; i < BSP_BUTTON_COUNT; ++i) {
-        (void)lwbtn_set_btn_state(&buttons[i], (uint8_t)((states >> i) & 1U));
-    }
 
     (void)lwbtn_process(now);
 }

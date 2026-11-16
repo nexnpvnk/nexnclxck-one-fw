@@ -1,5 +1,4 @@
 #include "stm32f0xx_it.h"
-#include "bsp_buttons.h"
 #include "bsp_console.h"
 #include "bsp_hv.h"
 #include "bsp_i2c.h"
@@ -22,14 +21,6 @@ void PendSV_Handler(void) {}
 
 void SysTick_Handler(void) {
     bsp_time_tick();
-}
-
-void EXTI0_1_IRQHandler(void) {
-    bsp_buttons_irq(EXTI_PR_PR0 | EXTI_PR_PR1);
-}
-
-void EXTI2_3_IRQHandler(void) {
-    bsp_buttons_irq(EXTI_PR_PR2 | EXTI_PR_PR3);
 }
 
 void DMA1_Channel1_IRQHandler(void) {

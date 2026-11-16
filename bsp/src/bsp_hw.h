@@ -25,7 +25,6 @@ enum {
     BSP_IRQ_PRIORITY_REALTIME = 1U,
     BSP_IRQ_PRIORITY_HV = 2U,
     BSP_IRQ_PRIORITY_IO = 3U,
-    BSP_IRQ_PRIORITY_BACKGROUND = 3U,
 };
 
 void bsp_rtc_hw_init(void);

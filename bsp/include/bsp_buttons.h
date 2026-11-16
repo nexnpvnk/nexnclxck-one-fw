@@ -16,11 +16,9 @@ typedef enum {
 } bsp_button_t;
 
 /* Bit N corresponds to bsp_button_t value N.
- * Set bit means the button is physically pressed. */
-void bsp_buttons_init(void);
+ * Set bit means the button is physically pressed. Reads GPIO directly;
+ * bsp_board_init() must configure the inputs before use. */
 uint8_t bsp_buttons_get_pressed_mask(void);
-
-void bsp_buttons_irq(uint32_t lines);
 
 #ifdef __cplusplus
 }
