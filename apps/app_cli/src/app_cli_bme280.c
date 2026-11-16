@@ -1,6 +1,7 @@
 #include "app_cli_bme280.h"
 #include "app_bme280.h"
 #include "app_cli.h"
+#include "app_cli_args.h"
 
 enum { OPT_DEFAULT, OPT_HELP, OPT_WATCH, OPT_END };
 
@@ -39,50 +40,29 @@ bool app_cli_bme280_watch_print(void) {
     return true;
 }
 
+/**
+ * \brief           Show BME280 readings or start monitoring after validating command syntax
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t read_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    bool watch = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            case OPT_WATCH:
-                if (watch) {
-                    WSH_SHELL_PRINT_WARN("Specify --watch only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                watch = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_cli_args_result_t args_result;
+    const char* values[OPT_END];
+
+    args_result = app_cli_collect_args(cmd, argc, argv, ctx, values, WSH_SHELL_ARR_LEN(values));
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
-    if (watch) {
+    if (values[OPT_WATCH] != NULL) {
         app_cli_watch_start(APP_CLI_WATCH_BME280, ctx);
     }
     print_readings();

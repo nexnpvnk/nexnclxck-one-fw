@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "app_cli.h"
+#include "app_cli_args.h"
 #include "app_display.h"
 #include "wsh_shell.h"
 
@@ -63,108 +64,67 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
+/**
+ * \brief           Show display status after validating command syntax
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t read_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_cli_args_result_t args_result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
+
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     return print_status();
 }
 
+/**
+ * \brief           Validate and publish the complete display parameter combination
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t set_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    app_display_status_t current;
+    nixie_status_t result;
+    app_cli_args_result_t args_result;
+    uint32_t brightness = 0U;
+    uint32_t refresh_rate = 0U;
+    uint32_t blanking_time = 0U;
+    uint16_t brightness_pm;
+    uint16_t refresh_rate_hz;
+    uint16_t blanking_time_us;
+    const char* values[OPT_END];
+    const char* brightness_text;
+    const char* refresh_rate_text;
+    const char* blanking_time_text;
+
+    args_result = app_cli_collect_args(cmd, argc, argv, ctx, values, WSH_SHELL_ARR_LEN(values));
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    const char* brightness_text = NULL;
-    const char* refresh_rate_text = NULL;
-    const char* blanking_time_text = NULL;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            case OPT_BRIGHTNESS:
-                if (brightness_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --brightness only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                brightness_text = argv[opt.TokenPos + 1U];
-                break;
-            case OPT_REFRESH_RATE:
-                if (refresh_rate_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --refresh-rate only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                refresh_rate_text = argv[opt.TokenPos + 1U];
-                break;
-            case OPT_BLANKING_TIME:
-                if (blanking_time_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --blanking-time only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                blanking_time_text = argv[opt.TokenPos + 1U];
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
+    brightness_text = values[OPT_BRIGHTNESS];
+    refresh_rate_text = values[OPT_REFRESH_RATE];
+    blanking_time_text = values[OPT_BLANKING_TIME];
     if (brightness_text == NULL && refresh_rate_text == NULL && blanking_time_text == NULL) {
         WSH_SHELL_PRINT_WARN("Specify --brightness, --refresh-rate or --blanking-time; see display set --help\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-    uint32_t brightness = 0U;
-    uint32_t refresh_rate = 0U;
-    uint32_t blanking_time = 0U;
     if (brightness_text != NULL && !app_cli_parse_u32(brightness_text, 100U, false, &brightness)) {
         WSH_SHELL_PRINT_WARN("Invalid brightness: expected an integer (0..100%%)\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
@@ -183,16 +143,15 @@ static WSH_SHELL_RET_STATE_t set_handler(
         WSH_SHELL_PRINT_WARN("Invalid blanking time: expected an integer (0..65535 us)\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-    app_display_status_t current;
     if (!app_display_get_status(&current)) {
         WSH_SHELL_PRINT_ERR("Display unavailable; check startup profile\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-    uint16_t brightness_pm = brightness_text != NULL ? (uint16_t)(brightness * 10U) : current.brightness_pm;
-    uint16_t refresh_rate_hz = refresh_rate_text != NULL ? (uint16_t)refresh_rate : current.refresh_rate_hz;
-    uint16_t blanking_time_us = blanking_time_text != NULL ? (uint16_t)blanking_time : current.blanking_time_us;
+    brightness_pm = brightness_text != NULL ? (uint16_t)(brightness * 10U) : current.brightness_pm;
+    refresh_rate_hz = refresh_rate_text != NULL ? (uint16_t)refresh_rate : current.refresh_rate_hz;
+    blanking_time_us = blanking_time_text != NULL ? (uint16_t)blanking_time : current.blanking_time_us;
     /* Validate the complete combination before changing any setting. */
-    nixie_status_t result = app_display_set_parameters(brightness_pm, refresh_rate_hz, blanking_time_us);
+    result = app_display_set_parameters(brightness_pm, refresh_rate_hz, blanking_time_us);
     if (result == NIXIE_INVALID_TIMING) {
         WSH_SHELL_PRINT_WARN(
             "Refresh-rate/blanking-time combination does not fit the scan slot or timer period; "

@@ -1,6 +1,7 @@
 #include "app_cli_hv.h"
 
 #include "app_cli.h"
+#include "app_cli_args.h"
 #include "app_hv.h"
 #include "bsp_time.h"
 
@@ -157,54 +158,33 @@ bool app_cli_hv_watch_print(void) {
     return true;
 }
 
+/**
+ * \brief           Read an initial HV snapshot before showing status or starting a monitor
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t read_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    bool watch = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            case OPT_WATCH:
-                if (watch) {
-                    WSH_SHELL_PRINT_WARN("Specify --watch only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                watch = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
     app_hv_status_t status;
+    app_cli_args_result_t args_result;
+    const char* values[OPT_END];
+
+    args_result = app_cli_collect_args(cmd, argc, argv, ctx, values, WSH_SHELL_ARR_LEN(values));
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
     if (!app_hv_get_status(&status)) {
         WSH_SHELL_PRINT_ERR("HV unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-    if (watch) {
+    if (values[OPT_WATCH] != NULL) {
         last_samples = status.samples;
         last_print_ms = bsp_time_ms();
         app_cli_watch_start(APP_CLI_WATCH_HV, ctx);
@@ -215,60 +195,38 @@ static WSH_SHELL_RET_STATE_t read_handler(
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
+/**
+ * \brief           Validate requested voltage and frequency before changing HV parameters
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t set_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    const char* voltage_text = NULL;
-    const char* frequency_text = NULL;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            case OPT_VOLTAGE:
-                if (voltage_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --voltage only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                voltage_text = argv[opt.TokenPos + 1U];
-                break;
-            case OPT_FREQUENCY:
-                if (frequency_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --frequency only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                frequency_text = argv[opt.TokenPos + 1U];
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
-    bool has_voltage = voltage_text != NULL;
-    bool has_frequency = frequency_text != NULL;
+    app_hv_status_t status;
+    app_cli_args_result_t args_result;
     uint32_t voltage_v = 0U;
     uint32_t frequency_hz = 0U;
+    const char* values[OPT_END];
+    const char* voltage_text;
+    const char* frequency_text;
+    bool has_voltage;
+    bool has_frequency;
+
+    args_result = app_cli_collect_args(cmd, argc, argv, ctx, values, WSH_SHELL_ARR_LEN(values));
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    voltage_text = values[OPT_VOLTAGE];
+    frequency_text = values[OPT_FREQUENCY];
+    has_voltage = voltage_text != NULL;
+    has_frequency = frequency_text != NULL;
     if (!has_voltage && !has_frequency) {
         WSH_SHELL_PRINT_WARN("Specify --voltage or --frequency (or both); see hv set --help\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
@@ -298,7 +256,6 @@ static WSH_SHELL_RET_STATE_t set_handler(
         WSH_SHELL_PRINT_ERR("HV unavailable; target unchanged\n");
         return WSH_SHELL_RET_STATE_ERROR;
     }
-    app_hv_status_t status;
     if (!app_hv_get_status(&status)) {
         WSH_SHELL_PRINT_ERR("Parameters updated, but HV status unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
@@ -311,6 +268,15 @@ static WSH_SHELL_RET_STATE_t set_handler(
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
+/**
+ * \brief           Change the HV enable request after validating command syntax
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \param[in]       enabled: Requested HV state
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t control_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
@@ -318,33 +284,11 @@ static WSH_SHELL_RET_STATE_t control_handler(
     void* ctx,
     bool enabled
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_hv_status_t status;
+    app_cli_args_result_t args_result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
+
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     if (!app_hv_set_enabled(enabled)) {
         WSH_SHELL_PRINT_ERR("HV unavailable\n");
@@ -355,7 +299,6 @@ static WSH_SHELL_RET_STATE_t control_handler(
     } else {
         WSH_SHELL_PRINT_INFO("HV disabled; automatic retry disabled\n");
     }
-    app_hv_status_t status;
     if (!app_hv_get_status(&status)) {
         WSH_SHELL_PRINT_ERR("Request accepted, but HV status unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;

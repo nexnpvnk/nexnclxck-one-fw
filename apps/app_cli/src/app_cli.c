@@ -2,6 +2,7 @@
 
 #include "app_cli.h"
 
+#include "app_cli_args.h"
 #include "app_cli_bme280.h"
 #include "app_cli_buzzer.h"
 #include "app_cli_clock.h"
@@ -81,6 +82,73 @@ void app_cli_process(void) {
     if (console->CommandLine.Len > console->CommandLine.CursorPos) {
         WSH_SHELL_PRINT("\033[%uD", (unsigned)(console->CommandLine.Len - console->CommandLine.CursorPos));
     }
+}
+
+/**
+ * \brief           Collect raw arguments using the shell parser and application duplicate/help policy
+ * \param[in]       cmd: Command descriptor; its shell option table is the sole syntax definition
+ * \param[in]       argc: Argument count, including the command name
+ * \param[in]       argv: Argument vector owned by the shell
+ * \param[in]       ctx: Shell context supplied to the command handler
+ * \param[out]      values: Option-ID-indexed pointers, or `NULL` when only default/help are accepted
+ * \param[in]       value_count: Capacity of `values`, or zero with `NULL`
+ * \return          A member of \ref app_cli_args_result_t
+ */
+app_cli_args_result_t app_cli_collect_args(
+    const WshShellCmd_t* cmd,
+    WshShell_Size_t argc,
+    const WshShell_Char_t* argv[],
+    void* ctx,
+    const char* values[],
+    size_t value_count
+) {
+    WshShell_t* shell = ctx;
+    WshShell_Size_t pos = 0U;
+    bool help = false;
+
+    if (cmd == NULL || argc == 0U || argv == NULL || shell == NULL || (values == NULL && value_count > 0U)) {
+        return APP_CLI_ARGS_ERROR;
+    }
+    if (!WshShell_IsAuth(shell)) {
+        return APP_CLI_ARGS_ERROR;
+    }
+    for (size_t idx = 0U; idx < value_count; ++idx) {
+        values[idx] = NULL;
+    }
+    while (pos < argc) {
+        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
+
+        if (opt.Option == NULL || opt.ParseError) {
+            return APP_CLI_ARGS_ERROR;
+        }
+        switch (opt.Option->Type) {
+            case WSH_SHELL_OPTION_NO:
+                break;
+            case WSH_SHELL_OPTION_HELP:
+                help = true;
+                break;
+            case WSH_SHELL_OPTION_STR:
+            case WSH_SHELL_OPTION_WO_PARAM:
+                if (values == NULL || opt.Option->ID >= value_count) {
+                    return APP_CLI_ARGS_ERROR;
+                }
+                if (values[opt.Option->ID] != NULL) {
+                    WSH_SHELL_PRINT_WARN("Specify %s only once\n", opt.Option->LongName);
+                    return APP_CLI_ARGS_ERROR;
+                }
+                /* ParseOpt already checked argument availability and access rights. */
+                values[opt.Option->ID] = argv[opt.TokenPos + opt.Option->ArgNum];
+                break;
+            default:
+                return APP_CLI_ARGS_ERROR;
+        }
+    }
+    /* Finish syntax/duplicate checks even after --help, but leave value validation to the handler. */
+    if (help) {
+        WshShellCmd_PrintOptionsOverview(cmd);
+        return APP_CLI_ARGS_HELP;
+    }
+    return APP_CLI_ARGS_READY;
 }
 
 bool app_cli_parse_u32(const char* text, uint32_t max, bool allow_hex, uint32_t* value) {

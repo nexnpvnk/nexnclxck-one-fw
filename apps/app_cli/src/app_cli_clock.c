@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app_cli_args.h"
 #include "app_clock.h"
 #include "wsh_shell.h"
 
@@ -132,6 +133,14 @@ static void app_cli_clock_print_datetime(const app_clock_datetime_t* datetime) {
     );
 }
 
+/**
+ * \brief           Show RTC status and date/time after validating command syntax
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t read_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
@@ -140,33 +149,10 @@ static WSH_SHELL_RET_STATE_t read_handler(
 ) {
     app_clock_status_t status;
     app_clock_datetime_t datetime;
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_cli_args_result_t args_result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
+
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
     if (!app_clock_get_status(&status)) {
@@ -199,58 +185,32 @@ static WSH_SHELL_RET_STATE_t read_handler(
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
+/**
+ * \brief           Validate the complete date/time before updating the RTC
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t set_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-
     app_clock_datetime_t datetime = {0};
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    app_cli_args_result_t args_result;
+    const char* values[OPT_END];
+    const char* date_text;
+    const char* time_text;
+
+    args_result = app_cli_collect_args(cmd, argc, argv, ctx, values, WSH_SHELL_ARR_LEN(values));
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    const char* date_text = NULL;
-    const char* time_text = NULL;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            case OPT_DATE:
-                if (date_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --date only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                date_text = argv[opt.TokenPos + 1U];
-                break;
-            case OPT_TIME:
-                if (time_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --time only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                time_text = argv[opt.TokenPos + 1U];
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
+    date_text = values[OPT_DATE];
+    time_text = values[OPT_TIME];
     if (date_text == NULL || time_text == NULL) {
         WSH_SHELL_PRINT_WARN("Both --date and --time are required; see clock set --help\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
@@ -287,40 +247,24 @@ static WSH_SHELL_RET_STATE_t set_handler(
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
+/**
+ * \brief           Invalidate the stored clock state after validating command syntax
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t invalidate_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
+    app_cli_args_result_t args_result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
 
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    if (args_result != APP_CLI_ARGS_READY) {
+        return args_result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
     if (!app_clock_invalidate()) {

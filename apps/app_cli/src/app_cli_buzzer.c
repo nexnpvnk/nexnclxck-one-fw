@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "app_cli.h"
+#include "app_cli_args.h"
 #include "app_sound.h"
 #include "bsp_buzzer.h"
 #include "wsh_shell.h"
@@ -50,97 +51,59 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
+/**
+ * \brief           Show buzzer status after collecting the command arguments
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t read_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_cli_args_result_t result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
+
+    if (result != APP_CLI_ARGS_READY) {
+        return result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     return print_status();
 }
 
+/**
+ * \brief           Validate requested buzzer parameters before taking manual control
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t set_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    const char* frequency_text = NULL;
-    const char* volume_text = NULL;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            case OPT_FREQUENCY:
-                if (frequency_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --frequency only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                frequency_text = argv[opt.TokenPos + 1U];
-                break;
-            case OPT_VOLUME:
-                if (volume_text != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify --volume only once\n");
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                volume_text = argv[opt.TokenPos + 1U];
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
-    bool has_frequency = frequency_text != NULL;
-    bool has_volume = volume_text != NULL;
+    app_cli_args_result_t result;
     uint32_t frequency = 0U;
     uint32_t volume = 0U;
+    const char* values[OPT_END];
+    const char* frequency_text;
+    const char* volume_text;
+    bool has_frequency;
+    bool has_volume;
+
+    result = app_cli_collect_args(cmd, argc, argv, ctx, values, WSH_SHELL_ARR_LEN(values));
+    if (result != APP_CLI_ARGS_READY) {
+        return result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
+    }
+    frequency_text = values[OPT_FREQUENCY];
+    volume_text = values[OPT_VOLUME];
+    has_frequency = frequency_text != NULL;
+    has_volume = volume_text != NULL;
     if (!has_frequency && !has_volume) {
         WSH_SHELL_PRINT_WARN("Specify --frequency or --volume (or both); see buzzer set --help\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
@@ -175,6 +138,15 @@ static WSH_SHELL_RET_STATE_t set_handler(
     return print_status();
 }
 
+/**
+ * \brief           Enable or disable manual buzzer output after validating command syntax
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \param[in]       enabled: Requested buzzer state
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t control_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
@@ -182,33 +154,10 @@ static WSH_SHELL_RET_STATE_t control_handler(
     void* ctx,
     bool enabled
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_cli_args_result_t result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
+
+    if (result != APP_CLI_ARGS_READY) {
+        return result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     app_sound_cancel();
     if (!bsp_buzzer_set_enabled(enabled)) {

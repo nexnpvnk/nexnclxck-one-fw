@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "app_cli.h"
+#include "app_cli_args.h"
 #include "app_light.h"
 #include "wsh_shell.h"
 
@@ -98,76 +99,46 @@ static WSH_SHELL_RET_STATE_t print_status(void) {
     return WSH_SHELL_RET_STATE_SUCCESS;
 }
 
+/**
+ * \brief           Show lighting status after collecting the command arguments
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t read_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_cli_args_result_t result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
+
+    if (result != APP_CLI_ARGS_READY) {
+        return result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     return print_status();
 }
 
+/**
+ * \brief           Restore startup lighting parameters after validating command syntax
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t reset_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
+    app_cli_args_result_t result = app_cli_collect_args(cmd, argc, argv, ctx, NULL, 0U);
+
+    if (result != APP_CLI_ARGS_READY) {
+        return result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
     if (!app_light_reset()) {
         WSH_SHELL_PRINT_ERR("Lighting unavailable\n");
@@ -177,60 +148,38 @@ static WSH_SHELL_RET_STATE_t reset_handler(
     return print_status();
 }
 
+/**
+ * \brief           Validate all requested lighting parameters before applying any change
+ * \param[in]       cmd: Command descriptor
+ * \param[in]       argc: Argument count
+ * \param[in]       argv: Argument vector
+ * \param[in]       ctx: Shell context
+ * \return          Shell command result
+ */
 static WSH_SHELL_RET_STATE_t set_handler(
     const WshShellCmd_t* cmd,
     WshShell_Size_t argc,
     const WshShell_Char_t* argv[],
     void* ctx
 ) {
-    if (cmd == NULL || argc == 0U || argv == NULL || ctx == NULL) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
+    app_light_status_t desired;
+    app_cli_args_result_t result;
+    uint32_t value;
+    const char* values[OPT_END];
+
+    result = app_cli_collect_args(cmd, argc, argv, ctx, values, WSH_SHELL_ARR_LEN(values));
+    if (result != APP_CLI_ARGS_READY) {
+        return result == APP_CLI_ARGS_HELP ? WSH_SHELL_RET_STATE_SUCCESS : WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-    WshShell_t* shell = ctx;
-    if (!WshShell_IsAuth(shell)) {
-        return WSH_SHELL_RET_STATE_ERR_PARAM;
-    }
-    WshShell_Size_t pos = 0U;
-    bool help = false;
-    bool has_parameters = false;
-    const char* values[OPT_END] = {0};
-    while (pos < argc) {
-        WshShellOption_Ctx_t opt = WshShellCmd_ParseOpt(cmd, argc, argv, shell->CurrUser->Rights, &pos);
-        if (opt.Option == NULL || opt.ParseError) {
-            return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-        switch (opt.Option->ID) {
-            case OPT_DEFAULT:
-                break;
-            case OPT_HELP:
-                help = true;
-                break;
-            case OPT_EFFECT:
-            case OPT_PRIMARY:
-            case OPT_SECONDARY:
-            case OPT_SPEED:
-            case OPT_BRIGHTNESS:
-                if (values[opt.Option->ID] != NULL) {
-                    WSH_SHELL_PRINT_WARN("Specify %s only once\n", opt.Option->LongName);
-                    return WSH_SHELL_RET_STATE_ERR_PARAM;
-                }
-                values[opt.Option->ID] = argv[opt.TokenPos + 1U];
-                has_parameters = true;
-                break;
-            default:
-                return WSH_SHELL_RET_STATE_ERR_PARAM;
-        }
-    }
-    if (help) {
-        WshShellCmd_PrintOptionsOverview(cmd);
-        return WSH_SHELL_RET_STATE_SUCCESS;
-    }
-    if (!has_parameters) {
+    if (values[OPT_EFFECT] == NULL &&
+        values[OPT_PRIMARY] == NULL &&
+        values[OPT_SECONDARY] == NULL &&
+        values[OPT_SPEED] == NULL &&
+        values[OPT_BRIGHTNESS] == NULL) {
         WSH_SHELL_PRINT_WARN("Specify lighting parameters; see light set --help\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
 
-    app_light_status_t desired;
     if (!app_light_get_status(&desired)) {
         WSH_SHELL_PRINT_ERR("Lighting unavailable\n");
         return WSH_SHELL_RET_STATE_ERROR;
@@ -247,7 +196,6 @@ static WSH_SHELL_RET_STATE_t set_handler(
         WSH_SHELL_PRINT_WARN("Invalid secondary color: expected 0xRRGGBB\n");
         return WSH_SHELL_RET_STATE_ERR_PARAM;
     }
-    uint32_t value;
     if (values[OPT_SPEED] != NULL) {
         if (!app_cli_parse_u32(values[OPT_SPEED], UINT8_MAX, false, &value)) {
             WSH_SHELL_PRINT_WARN("Invalid speed: expected an integer (0..255)\n");
