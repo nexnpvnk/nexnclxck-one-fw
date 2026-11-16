@@ -10,6 +10,5 @@ target_link_libraries(app_input
     PRIVATE
         bsp
         lwbtn
-        microlog
         app_ui
 )
